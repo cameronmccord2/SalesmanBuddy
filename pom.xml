@@ -6,6 +6,9 @@
   <packaging>war</packaging>
   <name>SalesmanBuddyServer</name>
   <description>Sever to support the SalesmanBuddy app</description>
+  <properties>
+  	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
   <build>
     <sourceDirectory>src</sourceDirectory>
     <resources>
@@ -63,5 +66,11 @@
 		<artifactId>javax.inject</artifactId>
 		<version>1</version>
 	</dependency>
+	<dependency>
+		<groupId>javax.servlet</groupId>
+		<artifactId>servlet-api</artifactId>
+		<version>3.0-alpha-1</version>
+		<scope>compile</scope>
+	</dependency> 
   </dependencies>
 </project>

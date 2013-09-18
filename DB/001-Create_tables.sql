@@ -1,5 +1,5 @@
--- CREATE TABLESPACE itemMapper_data DATAFILE 'itemMapperBeta1.dat' SIZE 1G REUSE AUTOEXTEND ON NEXT 1G MAXSIZE 19G;
--- CREATE USER itemMapper IDENTIFIED BY itemMapperpw DEFAULT TABLESPACE itemMapper_data QUOTA UNLIMITED ON itemMapper_data;
+CREATE TABLESPACE salesmanBuddy_data DATAFILE 'salesmanBuddyBeta1.dat' SIZE 1G REUSE AUTOEXTEND ON NEXT 1G MAXSIZE 19G;
+CREATE USER salesmanBuddy IDENTIFIED BY salesmanbuddypw DEFAULT TABLESPACE salesmanBuddy_data QUOTA UNLIMITED ON salesmanBuddy_data;
 CREATE DATABASE salesmanBuddy;
 GO
 ALTER DATABASE salesmanBuddy MODIFY FILE(
@@ -17,7 +17,7 @@ ALTER DATABASE salesmanBuddy MODIFY FILE(
 );
 GO
 
-CREATE LOGIN salesmanBuddyServer WITH PASSWORD=N'salesmanBuddyServerpw';
+CREATE LOGIN salesmanBuddyServer WITH PASSWORD=N'salesmanbuddyserverpw';
 CREATE USER salesmanBuddyServer FOR LOGIN salesmanBuddyServer;
 GRANT CREATE SESSION TO salesmanBuddyServer;
 GRANT CREATE TABLE TO salesmanBuddyServer;
@@ -25,74 +25,60 @@ GRANT CREATE TRIGGER TO salesmanBuddyServer;
 
 USE salesmanBuddy;
 
-CREATE TABLE users (
-    id                       int                         IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    firstName                NVARCHAR(50)                NOT NULL,
-    lastName                 NVARCHAR(50)                NOT NULL,
-    email                    NVARCHAR(256)               NOT NULL,
-    password                 NVARCHAR(25)                NOT NULL,
+
+
+CREATE TABLE states (
+    id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name                     NVARCHAR(30)                           NOT NULL,
+    status                   NUMERIC(2) default 0                   NOT NULL
+);
+
+CREATE TABLE dealerships (
+    id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name                     NVARCHAR(100)                         NOT NULL,
+    city                     NVARCHAR(100)                         NOT NULL,
+    stateId                  int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
     created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    status                   NUMERIC(2)     default 1        NOT NULL,
-    type                     NUMERIC(3)     default 1           NOT NULL
 );
 
-CREATE TABLE securityQuestions (
-    id                         int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    question                NVARCHAR(50)                NOT NULL,
-    answer                    NVARCHAR(50)                NOT NULL,
-    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    userId                    int                    NOT NULL FOREIGN KEY REFERENCES users(id),
-    timesCorrect            NUMERIC(4)    default 0                NOT NULL,
-    timesIncorrect            NUMERIC(4)    default 0                NOT NULL,
-    status                    NUMERIC(2)    default 1         NOT NULL
+CREATE TABLE users (
+    id                       int                       IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    dealershipId             int                                     NOT NULL FOREIGN KEY REFERENCES dealerships(id),
+    deviceType               int                                     NOT NULL,
+    type                     NUMERIC(3)     default 1                NOT NULL,
+    created                  DATETIME2      default SYSUTCDATETIME() NOT NULL
+    -- google fields
 );
 
-CREATE TABLE items (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    name                    NVARCHAR(30)                NOT NULL,
-    userComment             NVARCHAR(200)                NOT NULL,
-    status                    NUMERIC(2) default 1         NOT NULL
+CREATE TABLE licenses (
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    showInUserList             NUMERIC(2)  default 1                 NOT NULL,
+    photo                      NVARCHAR(20)                          NOT NULL,
+    bucket                     NVARCHAR(20)                          NOT NULL,
+    created                    DATETIME2   default SYSUTCDATETIME()  NOT NULL,
+    longitude                  decimal(10, 6)                        NOT NULL, -- sub meter accuracy
+    latitude                   decimal(10, 6)                        NOT NULL,
+    userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id)
 );
 
-CREATE TABLE itemHistory (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    type                    NUMERIC(3)                    NOT NULL,
-    created                    DATETIME2   default SYSUTCDATETIME() NOT NULL,
-    details                    NVARCHAR(20)                NOT NULL,
-    itemId                    int                    NOT NULL FOREIGN KEY REFERENCES items(id),
-    userId                  int                     NOT NULL FOREIGN KEY REFERENCES users(id)
+CREATE TABLE stateQuestions (
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
+    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL
 );
 
-CREATE TABLE itemOwned (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    userId                    int                    NOT NULL FOREIGN KEY REFERENCES users(id),
-    itemId                    int                    NOT NULL FOREIGN KEY REFERENCES items(id),
-    created                DATETIME2  default SYSUTCDATETIME() NOT NULL,
-    status                    NUMERIC(2)    default 1        NOT NULL
+CREATE TABLE stateQuestionsSpecifics (
+    id                          int               IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    stateQuestionId             int                             NOT NULL FOREIGN KEY REFERENCES stateQuestions(id),
+    questionText                NVARCHAR(200)                   NOT NULL,
+    responseType                NUMERIC(3)  default 1           NOT NULL,
+    order                       NUMERIC(3)  default 0           NOT NULL
 );
 
-CREATE TABLE codes (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    code                    NVARCHAR(4000)                NOT NULL,
-    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    itemId                    int                    NOT NULL FOREIGN KEY REFERENCES items(id)
-);
-
-CREATE TABLE locations (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    longitude                NVARCHAR(20)                NOT NULL,
-    latitude                NVARCHAR(20)                NOT NULL,
-    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    userId                    int                    NULL FOREIGN KEY REFERENCES users(id),
-    itemId                    int                    NOT NULL FOREIGN KEY REFERENCES items(id),
-    type                    NUMERIC(3)       default 1       NOT NULL
-);
-
-CREATE TABLE tokens (
-    id                         int                   IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    token                    NVARCHAR(24)                NOT NULL,
-    userId                    int                    NOT NULL FOREIGN KEY REFERENCES users(id),
-    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    type                    NUMERIC(3)                    NOT NULL,
-    status                     NUMERIC(2)    default 1         NOT NULL
+CREATE TABLE stateQuestionsResponse (
+    id                         int             IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    licenseId                  int                           NOT NULL FOREIGN KEY REFERENCES licenses(id),
+    stateQuestionsSpecificsId  int                           NOT NULL FOREIGN KEY REFERENCES stateQuestionsSpecifics(id),
+    responseText               NVARCHAR(50)                  NULL,
+    responseBool               NUMERIC(2)   default 0,       NOT NULL
 );

@@ -55,3 +55,5 @@ INSERT INTO stateQuestions (stateId) VALUES ((SELECT id FROM states WHERE name =
 
 INSERT INTO stateQuestionsSpecifics (stateQuestionId, questionText, responseType, questionOrder) VALUES ((SELECT id FROM stateQuestions WHERE stateId = (SELECT id FROM states WHERE name = 'Utah')), 'Insurance Provider Name', 1, 1);
 INSERT INTO stateQuestionsSpecifics (stateQuestionId, questionText, responseType, questionOrder) VALUES ((SELECT id FROM stateQuestions WHERE stateId = (SELECT id FROM states WHERE name = 'Utah')), 'Insurance Agent Name', 1, 1);
+
+INSERT INTO dealerships (stateId, name, city) VALUES ((SELECT id FROM states WHERE name = 'Utah'), 'Test Dealership', 'Provo');

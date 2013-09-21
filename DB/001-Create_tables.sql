@@ -1,22 +1,21 @@
-CREATE TABLESPACE salesmanBuddy_data DATAFILE 'salesmanBuddyBeta1.dat' SIZE 1G REUSE AUTOEXTEND ON NEXT 1G MAXSIZE 19G;
-CREATE USER salesmanBuddy IDENTIFIED BY salesmanbuddypw DEFAULT TABLESPACE salesmanBuddy_data QUOTA UNLIMITED ON salesmanBuddy_data;
+-- There is no need to create a table space, it is stored in the default by default
+CREATE USER salesmanBuddyUser;
 CREATE DATABASE salesmanBuddy;
 GO
-ALTER DATABASE salesmanBuddy MODIFY FILE(
-    NAME=N'salesmanBuddy',
-    SIZE=10MB,
-    MAXSIZE=5GB,
-    FILEGROWTH=10MB
-);
-GO
-ALTER DATABASE salesmanBuddy MODIFY FILE(
-    NAME=N'salesmanBuddy_log',
-    SIZE=1MB,
-    MAXSIZE=5GB,
-    FILEGROWTH=10%
-);
-GO
-
+--ALTER DATABASE salesmanBuddy MODIFY FILE(
+--    NAME=N'salesmanBuddy',
+--    SIZE=10MB,
+--    MAXSIZE=5GB,
+--    FILEGROWTH=10MB
+--);
+--GO
+--ALTER DATABASE salesmanBuddy MODIFY FILE(
+--    NAME=N'salesmanBuddy_log',
+--    SIZE=1MB,
+--    MAXSIZE=5GB,
+--    FILEGROWTH=10%
+--);
+--GO-- there are errors here
 CREATE LOGIN salesmanBuddyServer WITH PASSWORD=N'salesmanbuddyserverpw';
 CREATE USER salesmanBuddyServer FOR LOGIN salesmanBuddyServer;
 GRANT CREATE SESSION TO salesmanBuddyServer;
@@ -72,7 +71,7 @@ CREATE TABLE stateQuestionsSpecifics (
     stateQuestionId             int                             NOT NULL FOREIGN KEY REFERENCES stateQuestions(id),
     questionText                NVARCHAR(200)                   NOT NULL,
     responseType                NUMERIC(3)  default 1           NOT NULL,
-    order                       NUMERIC(3)  default 0           NOT NULL
+    questionOrder                       NUMERIC(3)  default 0           NOT NULL
 );
 
 CREATE TABLE stateQuestionsResponse (
@@ -80,5 +79,5 @@ CREATE TABLE stateQuestionsResponse (
     licenseId                  int                           NOT NULL FOREIGN KEY REFERENCES licenses(id),
     stateQuestionsSpecificsId  int                           NOT NULL FOREIGN KEY REFERENCES stateQuestionsSpecifics(id),
     responseText               NVARCHAR(50)                  NULL,
-    responseBool               NUMERIC(2)   default 0,       NOT NULL
+    responseBool               NUMERIC(2)   default 0       NOT NULL
 );

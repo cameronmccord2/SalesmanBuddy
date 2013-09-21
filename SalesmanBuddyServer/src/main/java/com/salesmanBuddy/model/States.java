@@ -10,19 +10,19 @@ public class States {
     protected Integer status;
     
     public static ArrayList<States> parseResultSet(ResultSet resultSet){
-    	ArrayList<States> states = new ArrayList<States>();
+    	ArrayList<States> responses = new ArrayList<States>();
     	try{
 			while(resultSet.next()){
-				States state = new States();
-				state.setId(resultSet.getInt("id"));
-				state.setName(resultSet.getString("name"));
-				state.setStatus(resultSet.getInt("status"));
-				states.add(state);
+				States response = new States();
+				response.setId(resultSet.getInt("id"));
+				response.setName(resultSet.getString("name"));
+				response.setStatus(resultSet.getInt("status"));
+				responses.add(response);
 			}
     	}catch(SQLException e){
     		throw new RuntimeException(e);
     	}
-    	return states;
+    	return responses;
     }
     
 	public Integer getId() {

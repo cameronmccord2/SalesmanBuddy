@@ -1,6 +1,9 @@
 package com.salesmanBuddy.model;
 
 import java.sql.Date;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
 
 public class Dealerships {
 	protected Integer id;
@@ -8,4 +11,53 @@ public class Dealerships {
     protected String city;
     protected Integer stateId;
     protected Date created;
+    
+    public static ArrayList<Dealerships> parseResultSet(ResultSet resultSet){
+    	ArrayList<Dealerships> responses = new ArrayList<Dealerships>();
+    	try{
+			while(resultSet.next()){
+				Dealerships response = new Dealerships();
+				response.setId(resultSet.getInt("id"));
+				response.setName(resultSet.getString("name"));
+				response.setCity(resultSet.getString("city"));
+				response.setStateId(resultSet.getInt("stateId"));
+				response.setCreated(resultSet.getDate("created"));
+				responses.add(response);
+			}
+    	}catch(SQLException e){
+    		throw new RuntimeException(e);
+    	}
+    	return responses;
+    }
+    
+	public Integer getId() {
+		return id;
+	}
+	public void setId(Integer id) {
+		this.id = id;
+	}
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public String getCity() {
+		return city;
+	}
+	public void setCity(String city) {
+		this.city = city;
+	}
+	public Integer getStateId() {
+		return stateId;
+	}
+	public void setStateId(Integer stateId) {
+		this.stateId = stateId;
+	}
+	public Date getCreated() {
+		return created;
+	}
+	public void setCreated(Date created) {
+		this.created = created;
+	}
 }

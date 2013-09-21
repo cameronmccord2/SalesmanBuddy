@@ -5,7 +5,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
-public class Licenses {
+public class LicensesFromClient {
+	// Licenses
 	protected Integer id;
     protected Integer showInUserList;
     protected String photo;
@@ -15,11 +16,14 @@ public class Licenses {
     protected float latitude;
     protected Integer userId;
     
-    public static ArrayList<Licenses> parseResultSet(ResultSet resultSet){
-    	ArrayList<Licenses> responses = new ArrayList<Licenses>();
+    // custom here
+    protected ArrayList<StateQuestionsResponses> stateQuestionsResponses;
+    
+    public static ArrayList<LicensesFromClient> parseResultSet(ResultSet resultSet, ResultSet stateQuestionsResponsesResultSet){
+    	ArrayList<LicensesFromClient> responses = new ArrayList<LicensesFromClient>();
     	try{
 			while(resultSet.next()){
-				Licenses response = new Licenses();
+				LicensesFromClient response = new LicensesFromClient();
 				response.setId(resultSet.getInt("id"));
 				response.setPhoto(resultSet.getString("photo"));
 				response.setBucket(resultSet.getString("bucket"));
@@ -27,6 +31,7 @@ public class Licenses {
 				response.setLongitude(resultSet.getFloat("longitude"));
 				response.setLatitude(resultSet.getFloat("latitude"));
 				response.setUserId(resultSet.getInt("userId"));
+				response.setStateQuestionsResponses(StateQuestionsResponses.parseResultSet(stateQuestionsResponsesResultSet));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -34,53 +39,77 @@ public class Licenses {
     	}
     	return responses;
     }
-    
+
 	public Integer getId() {
 		return id;
 	}
+
 	public void setId(Integer id) {
 		this.id = id;
 	}
+
 	public Integer getShowInUserList() {
 		return showInUserList;
 	}
+
 	public void setShowInUserList(Integer showInUserList) {
 		this.showInUserList = showInUserList;
 	}
+
 	public String getPhoto() {
 		return photo;
 	}
+
 	public void setPhoto(String photo) {
 		this.photo = photo;
 	}
+
 	public String getBucket() {
 		return bucket;
 	}
+
 	public void setBucket(String bucket) {
 		this.bucket = bucket;
 	}
+
 	public Date getCreated() {
 		return created;
 	}
+
 	public void setCreated(Date created) {
 		this.created = created;
 	}
+
 	public float getLongitude() {
 		return longitude;
 	}
+
 	public void setLongitude(float longitude) {
 		this.longitude = longitude;
 	}
+
 	public float getLatitude() {
 		return latitude;
 	}
+
 	public void setLatitude(float latitude) {
 		this.latitude = latitude;
 	}
+
 	public Integer getUserId() {
 		return userId;
 	}
+
 	public void setUserId(Integer userId) {
 		this.userId = userId;
+	}
+
+	public ArrayList<StateQuestionsResponses> getStateQuestionsResponses() {
+		return stateQuestionsResponses;
+	}
+
+	public void setStateQuestionsResponses(
+			ArrayList<StateQuestionsResponses> stateQuestionsResponses) {
+		this.stateQuestionsResponses = stateQuestionsResponses;
 	}
 }

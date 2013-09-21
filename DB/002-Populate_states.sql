@@ -48,3 +48,10 @@ INSERT INTO states (name) VALUES ('Washington');
 INSERT INTO states (name) VALUES ('West Virginia');
 INSERT INTO states (name) VALUES ('Wisconsin');
 INSERT INTO states (name) VALUES ('Wyoming');
+
+
+INSERT INTO stateQuestions (stateId) VALUES ((SELECT id FROM states WHERE name = 'Utah'));
+
+
+INSERT INTO stateQuestionsSpecifics (stateQuestionId, questionText, responseType, questionOrder) VALUES ((SELECT id FROM stateQuestions WHERE stateId = (SELECT id FROM states WHERE name = 'Utah')), 'Insurance Provider Name', 1, 1);
+INSERT INTO stateQuestionsSpecifics (stateQuestionId, questionText, responseType, questionOrder) VALUES ((SELECT id FROM stateQuestions WHERE stateId = (SELECT id FROM states WHERE name = 'Utah')), 'Insurance Agent Name', 1, 1);

@@ -8,6 +8,6 @@ public interface SalesmanBuddyDAO {
 
 	String getString();
 
-	ArrayList<States> getAllStates();
+	ArrayList<States> getAllStates(int getInactiveToo);
 
 }

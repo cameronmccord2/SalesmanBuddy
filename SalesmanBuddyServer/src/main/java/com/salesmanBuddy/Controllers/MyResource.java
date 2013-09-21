@@ -2,9 +2,11 @@ package com.salesmanBuddy.Controllers;
 
 import java.util.ArrayList;
 
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.MediaType;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
@@ -12,9 +14,9 @@ import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.States;
 
 /**
- * Root resource (exposed at "myresource" path)
+ * Root resource (exposed at "salesmanbuddy" path)
  */
-@Path("myresource")
+@Path("salesmanbuddy")
 public class MyResource {
 
 //	@PATH(your_path)	Sets the path to base URL + /your_path. The base URL is based on your application name, the servlet and the URL pattern from the web.xml" configuration file.
@@ -49,7 +51,7 @@ public class MyResource {
     
     @GET @Path("states")
     @Produces(MediaType.APPLICATION_JSON)
-    public ArrayList<States> getAllStates(){
-    	return dao.getAllStates();
+    public ArrayList<States> getAllStates(@DefaultValue("0") @QueryParam("inactivetoo") int getInactiveToo){
+    	return dao.getAllStates(getInactiveToo);
     }
 }

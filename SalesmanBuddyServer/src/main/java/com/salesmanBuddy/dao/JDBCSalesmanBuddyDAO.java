@@ -41,8 +41,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@SuppressWarnings("finally")
 	@Override
-	public ArrayList<States> getAllStates() {
-		String sql = "SELECT * FROM states";
+	public ArrayList<States> getAllStates(int getInactiveToo) {
+		String sql = "SELECT * FROM states WHERE status = 1";
+		if(getInactiveToo > 0)
+			sql = "SELECT * FROM states";
 		ArrayList<States> states = new ArrayList<States>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;

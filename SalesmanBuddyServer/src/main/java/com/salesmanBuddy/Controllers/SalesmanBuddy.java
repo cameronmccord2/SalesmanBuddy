@@ -1,5 +1,6 @@
 package com.salesmanBuddy.Controllers;
 
+import java.io.File;
 import java.util.List;
 
 import javax.ws.rs.Consumes;
@@ -93,6 +94,20 @@ public class SalesmanBuddy {
     	if(dao.userOwnsLicenseId(licenseId)){
     		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.deleteLicense(licenseId)){};
     		return Response.ok(entity).build();
+    	}
+    	else
+    		return Response.status(Status.UNAUTHORIZED).build();
+    }
+    
+    @Path("licenseimage")
+    @GET
+    @Produces("image/jpeg")
+    public Response getImageForLicenseId(@QueryParam("id") int licenseId, @QueryParam("photoname") String photoName, @QueryParam("bucketname") String bucketName){
+    	if(dao.userOwnsLicenseId(licenseId)){
+    		File file = dao.getLicenseImageForPhotoName(photoName, bucketName); // TODO change this to just using streams and not temporary files
+    		Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).build();
+    		file.delete();
+    		return response;
     	}
     	else
     		return Response.status(Status.UNAUTHORIZED).build();

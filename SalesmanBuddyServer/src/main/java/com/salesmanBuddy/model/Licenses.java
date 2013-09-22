@@ -9,7 +9,7 @@ public class Licenses {
 	protected Integer id;
     protected Integer showInUserList;
     protected String photo;
-    protected String bucket;
+    protected Integer bucketId;
     protected Date created;
     protected float longitude;
     protected float latitude;
@@ -22,7 +22,7 @@ public class Licenses {
 				Licenses response = new Licenses();
 				response.setId(resultSet.getInt("id"));
 				response.setPhoto(resultSet.getString("photo"));
-				response.setBucket(resultSet.getString("bucket"));
+				response.setBucketId(resultSet.getInt("bucketId"));
 				response.setCreated(resultSet.getDate("created"));
 				response.setLongitude(resultSet.getFloat("longitude"));
 				response.setLatitude(resultSet.getFloat("latitude"));
@@ -53,12 +53,6 @@ public class Licenses {
 	public void setPhoto(String photo) {
 		this.photo = photo;
 	}
-	public String getBucket() {
-		return bucket;
-	}
-	public void setBucket(String bucket) {
-		this.bucket = bucket;
-	}
 	public Date getCreated() {
 		return created;
 	}
@@ -82,5 +76,13 @@ public class Licenses {
 	}
 	public void setUserId(Integer userId) {
 		this.userId = userId;
+	}
+
+	public Integer getBucketId() {
+		return bucketId;
+	}
+
+	public void setBucketId(Integer bucketId) {
+		this.bucketId = bucketId;
 	}
 }

@@ -10,7 +10,7 @@ public class LicensesFromClient {
 	protected Integer id;
     protected Integer showInUserList;
     protected String photo;
-    protected String bucket;
+    protected String bucket;// needs to be updated TODO
     protected Date created;
     protected float longitude;
     protected float latitude;

@@ -1,5 +1,6 @@
 package com.salesmanBuddy.dao;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -37,5 +38,7 @@ public interface SalesmanBuddyDAO {
 	ArrayList<StateQuestionsSpecifics> getStateQuestionsSpecificsForStateQuestionId(int stateQuestionId);
 	
 	ArrayList<StateQuestionsWithResponses> getStateQuestionsWithResponsesForLicenseId(int licenseId);
+
+	File getLicenseImageForPhotoName(String photoName, String bucketName);
 
 }

@@ -49,11 +49,18 @@ CREATE TABLE users (
     -- google fields
 );
 
+CREATE TABLE buckets (
+    id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    stateId                     int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
+    name                        NVARCHAR(100)                         NOT NULL,
+    created                     DATETIME2    default SYSUTCDATETIME() NOT NULL
+);
+
 CREATE TABLE licenses (
     id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
     showInUserList             NUMERIC(2)  default 1                 NOT NULL,
     photo                      NVARCHAR(20)                          NOT NULL,
-    bucket                     NVARCHAR(20)                          NOT NULL,
+    bucketId                   int                                   NOT NULL FOREIGN KEY REFERENCES buckets(id),
     created                    DATETIME2   default SYSUTCDATETIME()  NOT NULL,
     longitude                  decimal(10, 6)                        NOT NULL, -- sub meter accuracy
     latitude                   decimal(10, 6)                        NOT NULL,

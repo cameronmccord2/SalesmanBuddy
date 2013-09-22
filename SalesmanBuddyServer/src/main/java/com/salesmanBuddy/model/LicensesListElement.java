@@ -10,7 +10,7 @@ public class LicensesListElement{
 	protected Integer id;
     protected Integer showInUserList;
     protected String photo;
-    protected String bucket;
+    protected String bucket;// TODO needs to be updated when we know what we want
     protected Date created;
     protected float longitude;
     protected float latitude;

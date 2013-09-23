@@ -90,7 +90,7 @@ public class SalesmanBuddy {
     
     @DELETE
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response deleteLicense(@QueryParam("id") int licenseId){
+    public Response deleteLicense(@QueryParam("licenseid") int licenseId){
     	if(dao.userOwnsLicenseId(licenseId)){
     		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.deleteLicense(licenseId)){};
     		return Response.ok(entity).build();
@@ -102,9 +102,14 @@ public class SalesmanBuddy {
     @Path("licenseimage")
     @GET
     @Produces("image/jpeg")
-    public Response getImageForLicenseId(@QueryParam("id") int licenseId, @QueryParam("photoname") String photoName, @QueryParam("bucketname") String bucketName){
+    public Response getImageForLicenseId(@QueryParam("licenseid") int licenseId, @QueryParam("photoname") String photoName, @DefaultValue("") @QueryParam("bucketname") String bucketName, @DefaultValue("-1") @QueryParam("bucketid") Integer bucketId){
     	if(dao.userOwnsLicenseId(licenseId)){
-    		File file = dao.getLicenseImageForPhotoName(photoName, bucketName); // TODO change this to just using streams and not temporary files
+    		File file = null;
+    		if(bucketName.length() > 0){
+    			file = dao.getLicenseImageForPhotoNameBucketName(photoName, bucketName); // TODO change this to just using streams and not temporary files
+    		}else{
+    			file = dao.getLicenseImageForPhotoNameBucketId(photoName, bucketId);
+    		}
     		Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).build();
     		file.delete();
     		return response;

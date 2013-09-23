@@ -8,14 +8,9 @@ import java.util.ArrayList;
 public class LicensesListElement{
 	// licenses
 	protected Integer id;
-    protected Integer showInUserList;
     protected String photo;
-    protected String bucket;// TODO needs to be updated when we know what we want
+    protected Integer bucketId;
     protected Date created;
-    protected float longitude;
-    protected float latitude;
-    protected Integer userId;
-    
     //custom here
 	protected ArrayList<StateQuestionsWithResponses> stateQuestions;
 	
@@ -26,11 +21,8 @@ public class LicensesListElement{
 				LicensesListElement response = new LicensesListElement();
 				response.setId(resultSet.getInt("id"));
 				response.setPhoto(resultSet.getString("photo"));
-				response.setBucket(resultSet.getString("bucket"));
+				response.setBucketId(resultSet.getInt("bucketId"));
 				response.setCreated(resultSet.getDate("created"));
-				response.setLongitude(resultSet.getFloat("longitude"));
-				response.setLatitude(resultSet.getFloat("latitude"));
-				response.setUserId(resultSet.getInt("userId"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -47,13 +39,7 @@ public class LicensesListElement{
 		this.id = id;
 	}
 
-	public Integer getShowInUserList() {
-		return showInUserList;
-	}
-
-	public void setShowInUserList(Integer showInUserList) {
-		this.showInUserList = showInUserList;
-	}
+	
 
 	public String getPhoto() {
 		return photo;
@@ -61,14 +47,6 @@ public class LicensesListElement{
 
 	public void setPhoto(String photo) {
 		this.photo = photo;
-	}
-
-	public String getBucket() {
-		return bucket;
-	}
-
-	public void setBucket(String bucket) {
-		this.bucket = bucket;
 	}
 
 	public Date getCreated() {
@@ -79,30 +57,7 @@ public class LicensesListElement{
 		this.created = created;
 	}
 
-	public float getLongitude() {
-		return longitude;
-	}
-
-	public void setLongitude(float longitude) {
-		this.longitude = longitude;
-	}
-
-	public float getLatitude() {
-		return latitude;
-	}
-
-	public void setLatitude(float latitude) {
-		this.latitude = latitude;
-	}
-
-	public Integer getUserId() {
-		return userId;
-	}
-
-	public void setUserId(Integer userId) {
-		this.userId = userId;
-	}
-
+	
 	public ArrayList<StateQuestionsWithResponses> getStateQuestions() {
 		return stateQuestions;
 	}
@@ -110,5 +65,13 @@ public class LicensesListElement{
 	public void setStateQuestions(
 			ArrayList<StateQuestionsWithResponses> stateQuestions) {
 		this.stateQuestions = stateQuestions;
+	}
+
+	public Integer getBucketId() {
+		return bucketId;
+	}
+
+	public void setBucketId(Integer bucketId) {
+		this.bucketId = bucketId;
 	}
 }

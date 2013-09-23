@@ -187,7 +187,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			statement.setInt(1, stateId);
 			statement.setString(2, bucketName);
 			resultSet = statement.executeQuery();
-			results = Buckets.parseResultSet(resultSet);
+			results = Buckets.parseResultSet(resultSet);// TODO this probably isnt right
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}finally{
@@ -556,8 +556,51 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 
 	@Override
-	public File getLicenseImageForPhotoName(String photoName, String bucketName) {
+	public File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName) {
 		return this.getFileFromS3(photoName, bucketName);
+	}
+
+
+	@Override
+	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
+		Buckets bucket = this.getBucketForBucketId(bucketId);
+		return this.getLicenseImageForPhotoNameBucketName(photoName, bucket.getName());
+	}
+
+
+	@SuppressWarnings("finally")
+	private Buckets getBucketForBucketId(Integer bucketId) {
+		String sql = "SELECT * FROM buckets WHERE id = ?";
+		ArrayList<Buckets> results = new ArrayList<Buckets>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, bucketId);
+			resultSet = statement.executeQuery();
+			results = Buckets.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					if(results.size() != 1)
+						throw new RuntimeException("expected number of buckets for bucket id to be 1, id: " + bucketId);
+					return results.get(0);
+				}
+			}
+		}
 	}
 }
 

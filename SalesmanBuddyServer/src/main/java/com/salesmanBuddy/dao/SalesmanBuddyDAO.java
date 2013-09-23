@@ -39,6 +39,8 @@ public interface SalesmanBuddyDAO {
 	
 	ArrayList<StateQuestionsWithResponses> getStateQuestionsWithResponsesForLicenseId(int licenseId);
 
-	File getLicenseImageForPhotoName(String photoName, String bucketName);
+	File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName);
+
+	File getLicenseImageForPhotoNameBucketId(String photoName, Integer bucketId);
 
 }

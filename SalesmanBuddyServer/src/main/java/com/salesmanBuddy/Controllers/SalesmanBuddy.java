@@ -18,6 +18,7 @@ import javax.ws.rs.core.Response.Status;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
+import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -104,6 +105,24 @@ public class SalesmanBuddy {
     	if(dao.userOwnsLicenseId(licenseId)){
     		GenericEntity<Integer> entity = new GenericEntity<Integer>(dao.deleteLicense(licenseId)){};
     		return Response.ok(entity).build();
+    	}
+    	else
+    		return Response.status(Status.UNAUTHORIZED).build();
+    }
+    
+    @Path("contactInfo")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getContactInfoForLicenseIdOrContactInfoId(@DefaultValue("0") @QueryParam("licenseid") int licenseId, @DefaultValue("0") @QueryParam("contactinfoid") int contactInfoId){
+    	if(dao.userOwnsLicenseId(licenseId)){
+    		if(licenseId != 0){
+	    		GenericEntity<ContactInfo> entity = new GenericEntity<ContactInfo>(dao.getContactInfoForLicenseId(licenseId)){};
+	    		return Response.ok(entity).build();
+    		}else if(contactInfoId != 0){
+    			GenericEntity<ContactInfo> entity = new GenericEntity<ContactInfo>(dao.getContactInfoForContactInfoId(contactInfoId)){};
+	    		return Response.ok(entity).build();
+    		}else
+    			return Response.status(Status.BAD_REQUEST).entity(new GenericEntity<String>("you must specify a licenseid or contactinfoid as a query param"){}).build();
     	}
     	else
     		return Response.status(Status.UNAUTHORIZED).build();

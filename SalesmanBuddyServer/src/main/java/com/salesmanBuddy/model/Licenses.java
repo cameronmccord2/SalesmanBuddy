@@ -14,6 +14,7 @@ public class Licenses {
     protected float longitude;
     protected float latitude;
     protected Integer userId;
+    protected ContactInfo contactInfo;
     
     public String toString(){
     	StringBuilder sb = new StringBuilder("");
@@ -33,6 +34,9 @@ public class Licenses {
     	sb.append(this.latitude);
     	sb.append(", userId:");
     	sb.append(this.userId);
+    	sb.append(", contactInfo:{");
+    	sb.append(this.contactInfo.toString());
+    	sb.append("}");
     	return sb.toString();
     }
     
@@ -105,5 +109,13 @@ public class Licenses {
 
 	public void setBucketId(Integer bucketId) {
 		this.bucketId = bucketId;
+	}
+
+	public ContactInfo getContactInfo() {
+		return contactInfo;
+	}
+
+	public void setContactInfo(ContactInfo contactInfo) {
+		this.contactInfo = contactInfo;
 	}
 }

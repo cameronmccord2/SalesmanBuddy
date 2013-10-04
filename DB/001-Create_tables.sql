@@ -67,6 +67,21 @@ CREATE TABLE licenses (
     userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id)
 );
 
+CREATE TABLE contactInfo(--http://stackoverflow.com/questions/20958/list-of-standard-lengths-for-database-fields
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id),
+    licenseId                  int                                   NOT NULL FOREIGN KEY REFERENCES licenses(id),
+    created                  DATETIME2      default SYSUTCDATETIME() NOT NULL,
+    firstName                  NVARCHAR(50)                          NULL,
+    lastName                   NVARCHAR(50)                          NULL,
+    email                      NVARCHAR(255)                         NULL,
+    phoneNumber                NVARCHAR(15)                          NULL,
+    streetAddress              NVARCHAR(100)                         NULL,
+    city                       NVARCHAR(40)                          NULL,
+    stateId                    int                                   NULL FOREIGN KEY REFERENCES states(id),
+    notes                      NVARCHAR(500)                         NULL
+);
+
 CREATE TABLE stateQuestions (
     id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
     stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id),

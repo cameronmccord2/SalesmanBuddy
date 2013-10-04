@@ -11,6 +11,7 @@ public class LicensesListElement{
     protected String photo;
     protected Integer bucketId;
     protected Date created;
+    protected ContactInfo contactInfo;
     //custom here
 	protected ArrayList<StateQuestionsWithResponses> stateQuestions;
 	
@@ -73,5 +74,13 @@ public class LicensesListElement{
 
 	public void setBucketId(Integer bucketId) {
 		this.bucketId = bucketId;
+	}
+
+	public ContactInfo getContactInfo() {
+		return contactInfo;
+	}
+
+	public void setContactInfo(ContactInfo contactInfo) {
+		this.contactInfo = contactInfo;
 	}
 }

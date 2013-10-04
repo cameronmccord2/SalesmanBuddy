@@ -19,14 +19,13 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.commons.io.IOUtils;
 
 import com.amazonaws.AmazonClientException;
@@ -48,6 +47,7 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.io.Files;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.Buckets;
+import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
@@ -60,7 +60,8 @@ import com.salesmanBuddy.model.States;
 
 public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	// TODO do i need to close all of the connections too?
-	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
+	static Logger log = Logger.getLogger("log.dao");
+//	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
 	protected DataSource dataSource;
 	
 	private SecureRandom random = new SecureRandom();
@@ -315,6 +316,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			
 			for(int i = 0; i < results.size(); i++){
 				results.get(i).setStateQuestions(this.getStateQuestionsWithResponsesForLicenseId(results.get(i).getId()));
+				results.get(i).setContactInfo(this.getContactInfoForLicenseId(results.get(i).getId()));
 			}
 			
 		}catch(SQLException sqle){
@@ -360,53 +362,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		if(photoFileName == null)
 			throw new RuntimeException("failed to save data");
 		return photoFileName;
-	}
-	
-	
-	
-	
-	
-//	@SuppressWarnings("finally")
-//	private int putLicenseInDatabase(Licenses license){
-//		String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
-//		ArrayList<Buckets> results = new ArrayList<Buckets>();
-//		PreparedStatement statement = null;
-//		ResultSet resultSet = null;
-//		try{
-//			Connection connection = dataSource.getConnection();
-//			statement = connection.prepareStatement(sql);
-//			statement.setInt(1, stateId);
-//			statement.setString(2, bucketName);
-//			resultSet = statement.executeQuery();
-//			results = Buckets.parseResultSet(resultSet);// TODO this probably isnt right
-//		}catch(SQLException sqle){
-//			throw new RuntimeException(sqle);
-//		}finally{
-//			try{
-//				if(resultSet != null)
-//					resultSet.close();
-//			}catch(SQLException e){
-//				throw new RuntimeException(e);
-//			}finally{
-//				try{
-//					if(statement != null)
-//						statement.close();
-//				}catch(SQLException se){
-//					throw new RuntimeException(se);
-//				}finally{
-//					if(results.size() > 1)
-//						throw new RuntimeException("There is more than one bucket for state: " + stateId);
-//					if(results.size() == 1)
-//						return results.get(0);
-//					return null;
-//				}
-//			}
-//		}
-//	}
-	
-	
-	
-	
+	}	
 	
 	@SuppressWarnings("finally")
 	private int putLicenseInDatabase(Licenses license){
@@ -461,24 +417,28 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		l.setLongitude(lfc.getLongitude());
 		l.setUserId(lfc.getUserId());
 		l.setPhoto(lfc.getPhoto());
+		l.setContactInfo(lfc.getContactInfo());
 		return l;
 	}
 
 
 	@Override
-	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {
+	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {// TODO test with contact info
 		String filename = this.saveStringAsFileForStateId(licenseFromClient.getPhoto(), licenseFromClient.getStateId(), ".jpeg");
 		if(filename != null){
 			Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
 			l.setPhoto(filename);
 			int licenseId = this.putLicenseInDatabase(l);
 			if(licenseId == 0)
-				throw new RuntimeException("failed to put license in database, id returned: " + licenseId);
+				throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId);
 			for(StateQuestionsResponses sqr : licenseFromClient.getStateQuestionsResponses()){
 				sqr.setLicenseId(licenseId);
 				if(this.putStateQuestionsResponsesInDatabase(sqr) == 0)
 					throw new RuntimeException("failed to put statequestionresponse in database");
 			}
+			int contactResult = this.putContactInfoInDatabase(licenseFromClient.getContactInfo());
+			if( contactResult == 0)
+				throw new RuntimeException("Failed to put contact info in database, licenseId returned: " + licenseId + ", contactResult: " + contactResult);
 			return this.getAllLicensesForUserId(licenseFromClient.getUserId());
 		}else
 			throw new RuntimeException("error saving image to s3");
@@ -794,6 +754,150 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			String bucketName) {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+
+	@SuppressWarnings("finally")
+	@Override
+	public ContactInfo getContactInfoForLicenseId(int licenseId) {
+		String sql = "SELECT * FROM contactInfo WHERE licenseId = ?";
+		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, licenseId);
+			resultSet = statement.executeQuery();
+			results = ContactInfo.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					if(results.size() != 1)
+						throw new RuntimeException("expected number of buckets for contact info by licenseid to be 1, id: " + licenseId);
+					return results.get(0);
+				}
+			}
+		}
+	}
+
+
+	@SuppressWarnings("finally")
+	@Override
+	public ContactInfo getContactInfoForContactInfoId(int contactInfoId) {
+		String sql = "SELECT * FROM contactInfo WHERE id = ?";
+		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, contactInfoId);
+			resultSet = statement.executeQuery();
+			results = ContactInfo.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					if(results.size() != 1)
+						throw new RuntimeException("expected number of buckets for contact info by id to be 1, id: " + contactInfoId);
+					return results.get(0);
+				}
+			}
+		}
+	}
+	
+	@SuppressWarnings("finally")
+	private int putContactInfoInDatabase(ContactInfo ci) {
+//		JDBCSalesmanBuddyDAO.log.fine(ci.toString());
+		String sql = "INSERT INTO contactInfo (userId, licenseId, firstName, lastName, email, phoneNumber, streetAddress, city, stateId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int id = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, ci.getUserId());
+			statement.setInt(2, ci.getLicenseId());
+			statement.setString(3, ci.getFirstName());
+			statement.setString(4, ci.getLastName());
+			statement.setString(5, ci.getEmail());
+			statement.setString(6, ci.getPhoneNumber());
+			statement.setString(7, ci.getStreetAddress());
+			statement.setString(8, ci.getCity());
+			statement.setInt(9, ci.getStateId());
+			statement.setString(10, ci.getNotes());
+			statement.executeQuery();
+			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			if(id == 0)
+				throw new RuntimeException(statement.getWarnings().getLocalizedMessage());
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				return id;
+			}
+		}
+//		throw new RuntimeException(sqr.toString());
+//		JDBCSalesmanBuddyDAO.log.error(ci.toString());
+//		String sql = "INSERT INTO contactInfo (userId, licenseId, firstName, lastName, email, phoneNumber, streetAddress, city, stateId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+//		PreparedStatement statement = null;
+//		int i = 0;
+//		try{
+//			Connection connection = dataSource.getConnection();
+//			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+//			statement.setInt(1, ci.getUserId());
+//			statement.setInt(2, ci.getLicenseId());
+//			statement.setString(3, ci.getFirstName());
+//			statement.setString(4, ci.getLastName());
+//			statement.setString(5, ci.getEmail());
+//			statement.setString(6, ci.getPhoneNumber());
+//			statement.setString(7, ci.getStreetAddress());
+//			statement.setString(8, ci.getCity());
+//			statement.setInt(9, ci.getStateId());
+//			statement.setString(10, ci.getNotes());
+//			statement.execute();
+//			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}finally{
+//			try{
+//				if(statement != null)
+//					statement.close();
+//			}catch(SQLException se){
+//				throw new RuntimeException(se);
+//			}finally{
+//				return i;
+//			}
+//		}
 	}
 }
 

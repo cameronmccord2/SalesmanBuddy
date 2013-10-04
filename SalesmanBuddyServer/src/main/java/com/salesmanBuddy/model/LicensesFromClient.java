@@ -15,6 +15,7 @@ public class LicensesFromClient {
     protected float longitude;
     protected float latitude;
     protected Integer userId;
+    protected ContactInfo contactInfo;
     
     // custom here
     protected ArrayList<StateQuestionsResponses> stateQuestionsResponses;
@@ -111,5 +112,13 @@ public class LicensesFromClient {
 
 	public void setStateId(Integer stateId) {
 		this.stateId = stateId;
+	}
+
+	public ContactInfo getContactInfo() {
+		return contactInfo;
+	}
+
+	public void setContactInfo(ContactInfo contactInfo) {
+		this.contactInfo = contactInfo;
 	}
 }

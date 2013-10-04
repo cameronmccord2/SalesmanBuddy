@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -44,5 +45,9 @@ public interface SalesmanBuddyDAO {
 	String saveStringAsFileForStateId(String data, int stateId, String extension);
 
 	File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName);
+
+	ContactInfo getContactInfoForLicenseId(int licenseId);
+
+	ContactInfo getContactInfoForContactInfoId(int contactInfoId);
 
 }

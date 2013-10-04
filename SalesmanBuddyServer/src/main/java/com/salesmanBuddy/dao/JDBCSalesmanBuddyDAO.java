@@ -10,10 +10,12 @@ import java.io.Writer;
 import java.math.BigInteger;
 import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -47,6 +49,7 @@ import com.google.common.io.Files;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.Buckets;
 import com.salesmanBuddy.model.Dealerships;
+import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.StateQuestions;
@@ -56,7 +59,7 @@ import com.salesmanBuddy.model.StateQuestionsWithResponses;
 import com.salesmanBuddy.model.States;
 
 public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
-	
+	// TODO do i need to close all of the connections too?
 	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
 	protected DataSource dataSource;
 	
@@ -152,7 +155,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return newBucket.getName();
 	}
 	
-	private String saveFileToS3(int stateId, File file){
+	private String saveFileToS3ForStateId(int stateId, File file){
 		if(file == null)
 			throw new RuntimeException("file trying to save to s3 is null");
 		Buckets stateBucket = this.getBucketForStateId(stateId);
@@ -171,7 +174,15 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	private String randomAlphaNumericOfLength(Integer length){
 		switch(length.intValue()){
 		case 15:
-			return new BigInteger(130, random).toString(32);
+			int tries = 0;
+			while(true){
+				String s = new BigInteger(130, random).toString(32);
+				tries++;
+				if(s.length() == 26 && s.charAt(0) >= 'a' && s.charAt(0) <= 'z')
+					return s;
+				else if(tries > 10000)
+					throw new RuntimeException("couldnt get a random string length 26 not starting with a number after 10000 tries");
+			}
 		default:
 			return "";
 		}
@@ -343,17 +354,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 	@Override
-	public String saveStringAsFileForStateId(String data, int stateId) {
+	public String saveStringAsFileForStateId(String data, int stateId, String extension) {// working 10/3/13
 		File f = null;
 		Writer writer = null;
 		String photoFileName = null;
 		try {
-			f = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
+			f = File.createTempFile(this.randomAlphaNumericOfLength(15), extension);
 			f.deleteOnExit();
 			writer = new OutputStreamWriter(new FileOutputStream(f));
 			writer.write(data);
 			writer.close();
-			photoFileName = this.saveFileToS3(stateId, f);
+			photoFileName = this.saveFileToS3ForStateId(stateId, f);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -363,22 +374,94 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		}
 		if(photoFileName == null)
 			throw new RuntimeException("failed to save data");
-		return "Success";
+		return photoFileName;
 	}
 	
+	@SuppressWarnings("finally")
+	private int putLicenseInDatabase(Licenses license){
+		String sql = "INSERT INTO licenses (photo, bucketId, longitude, latitude, userId) VALUES (?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		int i = 0;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, license.getPhoto());
+			statement.setInt(2, license.getBucketId());
+			statement.setFloat(3, license.getLongitude());
+			statement.setFloat(4, license.getLatitude());
+			statement.setInt(5, license.getUserId());
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				return i;
+			}
+		}
+	}
+	
+	private int parseFirstInt(ResultSet generatedKeys, String key) {
+		try {
+			while(generatedKeys.next())
+				return generatedKeys.getInt(key);
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		throw new RuntimeException("the generated keys didnt contain an int");
+	}
+	
+	private Licenses convertLicenseFromClientToLicense(LicensesFromClient lfc){
+		Licenses l = new Licenses();
+		l.setBucketId(this.getBucketForStateId(lfc.getStateId()).getId());
+		l.setLatitude(lfc.getLatitude());
+		l.setLongitude(lfc.getLongitude());
+		l.setUserId(lfc.getUserId());
+		l.setPhoto(lfc.getPhoto());
+		return l;
+	}
+
+
 	@Override
 	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {
-		if(this.saveStringAsFileForStateId(licenseFromClient.getPhoto(), licenseFromClient.getStateId()).equals("Success")){
-			// TODO
-			return null;
+		String filename = this.saveStringAsFileForStateId(licenseFromClient.getPhoto(), licenseFromClient.getStateId(), ".jpeg");
+		if(filename != null){
+			Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
+			l.setPhoto(filename);
+			this.putLicenseInDatabase(l);
+			return this.getAllLicensesForUserId(licenseFromClient.getUserId());
 		}else
 			throw new RuntimeException("error saving image to s3");
 	}
 
+	@SuppressWarnings("finally")
 	@Override
-	public ArrayList<LicensesListElement> deleteLicense(int licenseId) {
-		// TODO Auto-generated method stub
-		return null;
+	public int deleteLicense(int licenseId) {
+		String sql = "UPDATE licenses SET showInUserList = 0 WHERE id = ?";
+		PreparedStatement statement = null;
+		int i = 0;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, licenseId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				return i;
+			}
+		}
 	}
 
 	@Override

@@ -75,8 +75,8 @@ public class SalesmanBuddy {
     @Path("savestring")
     @PUT
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response saveStringAsFileForStateId(@DefaultValue("44") @QueryParam("stateid") int stateId, @QueryParam("data") String data){
-    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveStringAsFileForStateId(data, stateId)){};
+    public Response saveStringAsFileForStateId(@DefaultValue("44") @QueryParam("stateid") int stateId, @QueryParam("data") String data, @QueryParam("extension") String extension){
+    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveStringAsFileForStateId(data, stateId, extension)){};
     	return Response.ok(entity).build();
     }
     
@@ -100,7 +100,7 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteLicense(@QueryParam("licenseid") int licenseId){
     	if(dao.userOwnsLicenseId(licenseId)){
-    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.deleteLicense(licenseId)){};
+    		GenericEntity<Integer> entity = new GenericEntity<Integer>(dao.deleteLicense(licenseId)){};
     		return Response.ok(entity).build();
     	}
     	else

@@ -25,7 +25,7 @@ public interface SalesmanBuddyDAO {
 
 	ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient);
 
-	ArrayList<LicensesListElement> deleteLicense(int licenseId);
+	int deleteLicense(int licenseId);
 
 	boolean userOwnsLicenseId(int licenseId);
 
@@ -41,7 +41,7 @@ public interface SalesmanBuddyDAO {
 
 	File getLicenseImageForPhotoNameBucketId(String photoName, Integer bucketId);
 
-	String saveStringAsFileForStateId(String data, int stateId);
+	String saveStringAsFileForStateId(String data, int stateId, String extension);
 
 	File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName);
 

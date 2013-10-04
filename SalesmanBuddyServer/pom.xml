@@ -10,7 +10,7 @@
     <name>SalesmanBuddy</name>
 
     <build>
-        <finalName>SalesmanBuddy-0.0.1</finalName>
+        <finalName>SalesmanBuddy-0.0.2</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -108,7 +108,7 @@
     	<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk</artifactId>
-			<version>1.5.8</version>
+			<version>1.6.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.commons</groupId>

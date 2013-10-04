@@ -1,9 +1,12 @@
 package com.salesmanBuddy.dao;
 
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
 import java.math.BigInteger;
 import java.nio.file.StandardCopyOption;
 import java.security.SecureRandom;
@@ -37,6 +40,7 @@ import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.io.Files;
@@ -59,7 +63,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	private SecureRandom random = new SecureRandom();
 	
 	private enum Enums{
-		CREATE_BUCKET, ADD_TO_BUCKET_INPUT_STREAM, GET_FROM_BUCKET, ADD_TO_BUCKET_FILE
+		
 	}
 	
 	public JDBCSalesmanBuddyDAO(){
@@ -110,54 +114,58 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		}
 	}
 	
-	@SuppressWarnings("finally")
-	private Object s3BucketOperations(Enums what, Object first, Object second, Object third){
+	private AmazonS3 getAmazonS3(){
 		AmazonS3 s3 = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
 		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
 		s3.setRegion(usWest2);
-		switch(what){
-		case CREATE_BUCKET:
-			System.out.println("Creating bucket " + first + "\n");
-	        Bucket newBucket = s3.createBucket((String)first);
-	        return newBucket.getName();
-		case ADD_TO_BUCKET_FILE:
-			System.out.println("Uploading a new object to S3 from a file\n");
-            s3.putObject(new PutObjectRequest((String)first, (String)second, (File)third));
-            return (String)second;
-		case GET_FROM_BUCKET:
-			System.out.println("Downloading an object");
-            S3Object object = s3.getObject(new GetObjectRequest((String)second, (String)first));
-            File tempFile = null;
-            try{
-            	tempFile = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
-                tempFile.deleteOnExit();
-            	FileOutputStream out = new FileOutputStream(tempFile);
-            	IOUtils.copy(object.getObjectContent(), out);
-            }catch(IOException e){
-            	throw new RuntimeException("error copying inputstream from s3 to temporary file");
-            }finally{
-            	return tempFile;
-            }
-		default:
-			break;
-		}
-       return null;
+		return s3;
+	}
+	
+	private String addFileToBucket(String bucketName, String fileName, File file){
+		AmazonS3 s3 = this.getAmazonS3();
+		System.out.println("Uploading a new object to S3 from a file\n");
+        s3.putObject(new PutObjectRequest(bucketName, fileName, file));
+        return fileName;
+	}
+	
+	@SuppressWarnings("finally")
+	private File getFileFromBucket(String fileName, String bucketName){
+		System.out.println("Downloading an object");
+		AmazonS3 s3 = this.getAmazonS3();
+        S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
+        File tempFile = null;
+        try{
+        	tempFile = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
+            tempFile.deleteOnExit();
+        	FileOutputStream out = new FileOutputStream(tempFile);
+        	IOUtils.copy(object.getObjectContent(), out);
+        }catch(IOException e){
+        	throw new RuntimeException("error copying inputstream from s3 to temporary file");
+        }finally{
+        	return tempFile;
+        }
 	}
 	
 	private String createS3Bucket(String bucketName){
-		return (String) this.s3BucketOperations(Enums.CREATE_BUCKET, bucketName, null, null);
+		AmazonS3 s3 = this.getAmazonS3();
+		Bucket newBucket = s3.createBucket(bucketName);
+		return newBucket.getName();
 	}
 	
 	private String saveFileToS3(int stateId, File file){
+		if(file == null)
+			throw new RuntimeException("file trying to save to s3 is null");
 		Buckets stateBucket = this.getBucketForStateId(stateId);
 		if(stateBucket == null){
 			stateBucket = this.makeBucketForStateId(stateId);
 		}
-		return (String) this.s3BucketOperations(Enums.ADD_TO_BUCKET_FILE, stateBucket.getName(), this.randomAlphaNumericOfLength(15), file);
-	}
-	
-	private File getFileFromS3(String fileName, String bucketName){
-		return (File) this.s3BucketOperations(Enums.GET_FROM_BUCKET, fileName, bucketName, null);
+		if(stateBucket == null){
+			throw new RuntimeException("state bucket is null");
+		}
+		if(stateBucket.getName() == null){
+			throw new RuntimeException("statebucket name is null");
+		}
+		return this.addFileToBucket(stateBucket.getName(), this.randomAlphaNumericOfLength(15), file);
 	}
 	
 	private String randomAlphaNumericOfLength(Integer length){
@@ -172,7 +180,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	@SuppressWarnings("finally")
 	private Buckets makeBucketForStateId(int stateId){
-		String bucketName = "state-" + this.getStateNameForStateId(stateId) + "-uuid-" + UUID.randomUUID();
+		String bucketName = "state-" + this.getStateNameForStateId(stateId).toLowerCase() + "-uuid-" + UUID.randomUUID();
 		System.out.println("sent: " + bucketName);
 		bucketName = this.createS3Bucket(bucketName);
 		System.out.println("got back: " + bucketName);
@@ -229,7 +237,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@SuppressWarnings("finally")
 	@Override
-	public ArrayList<States> getAllStates(int getInactiveToo) {
+	public ArrayList<States> getAllStates(int getInactiveToo) {// working 10/3/13
 		String sql = "SELECT * FROM states WHERE status = 1";
 		if(getInactiveToo > 0)
 			sql = "SELECT * FROM states";
@@ -264,7 +272,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@SuppressWarnings("finally")
 	@Override
-	public ArrayList<Dealerships> getAllDealerships() {
+	public ArrayList<Dealerships> getAllDealerships() {// working 10/3/13
 		String sql = "SELECT * FROM dealerships";
 		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
 		PreparedStatement statement = null;
@@ -335,10 +343,36 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 	@Override
+	public String saveStringAsFileForStateId(String data, int stateId) {
+		File f = null;
+		Writer writer = null;
+		String photoFileName = null;
+		try {
+			f = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
+			f.deleteOnExit();
+			writer = new OutputStreamWriter(new FileOutputStream(f));
+			writer.write(data);
+			writer.close();
+			photoFileName = this.saveFileToS3(stateId, f);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}finally{
+			if(f != null)
+				f.delete();
+		}
+		if(photoFileName == null)
+			throw new RuntimeException("failed to save data");
+		return "Success";
+	}
+	
+	@Override
 	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {
-		this.saveFileToS3(0, null);
-		// TODO Auto-generated method stub
-		return null;
+		if(this.saveStringAsFileForStateId(licenseFromClient.getPhoto(), licenseFromClient.getStateId()).equals("Success")){
+			// TODO
+			return null;
+		}else
+			throw new RuntimeException("error saving image to s3");
 	}
 
 	@Override
@@ -522,7 +556,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@SuppressWarnings("finally")
 	@Override
-	public ArrayList<StateQuestionsSpecifics> getStateQuestionsSpecificsForStateId(int stateId) {
+	public ArrayList<StateQuestionsSpecifics> getStateQuestionsSpecificsForStateId(int stateId) {// working 10/3/13
 		String sql = "SELECT * FROM stateQuestionsSpecifics WHERE stateQuestionId = (SELECT id FROM stateQuestions WHERE stateId = ?)";
 		ArrayList<StateQuestionsSpecifics> results = new ArrayList<StateQuestionsSpecifics>();
 		PreparedStatement statement = null;
@@ -554,17 +588,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		}
 	}
 
-
-	@Override
-	public File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName) {
-		return this.getFileFromS3(photoName, bucketName);
-	}
-
-
 	@Override
 	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
 		Buckets bucket = this.getBucketForBucketId(bucketId);
-		return this.getLicenseImageForPhotoNameBucketName(photoName, bucket.getName());
+		return this.getFileFromBucket(photoName, bucket.getName());
 	}
 
 
@@ -601,6 +628,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}
 			}
 		}
+	}
+
+
+	@Override
+	public File getLicenseImageForPhotoNameBucketName(String photoName,
+			String bucketName) {
+		// TODO Auto-generated method stub
+		return null;
 	}
 }
 

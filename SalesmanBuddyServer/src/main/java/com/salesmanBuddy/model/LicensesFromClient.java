@@ -10,7 +10,7 @@ public class LicensesFromClient {
 	protected Integer id;
     protected Integer showInUserList;
     protected String photo;
-    protected String bucket;// needs to be updated TODO
+    protected Integer stateId;
     protected Date created;
     protected float longitude;
     protected float latitude;
@@ -26,7 +26,7 @@ public class LicensesFromClient {
 				LicensesFromClient response = new LicensesFromClient();
 				response.setId(resultSet.getInt("id"));
 				response.setPhoto(resultSet.getString("photo"));
-				response.setBucket(resultSet.getString("bucket"));
+				response.setStateId(resultSet.getInt("stateId"));
 				response.setCreated(resultSet.getDate("created"));
 				response.setLongitude(resultSet.getFloat("longitude"));
 				response.setLatitude(resultSet.getFloat("latitude"));
@@ -62,14 +62,6 @@ public class LicensesFromClient {
 
 	public void setPhoto(String photo) {
 		this.photo = photo;
-	}
-
-	public String getBucket() {
-		return bucket;
-	}
-
-	public void setBucket(String bucket) {
-		this.bucket = bucket;
 	}
 
 	public Date getCreated() {
@@ -111,5 +103,13 @@ public class LicensesFromClient {
 	public void setStateQuestionsResponses(
 			ArrayList<StateQuestionsResponses> stateQuestionsResponses) {
 		this.stateQuestionsResponses = stateQuestionsResponses;
+	}
+
+	public Integer getStateId() {
+		return stateId;
+	}
+
+	public void setStateId(Integer stateId) {
+		this.stateId = stateId;
 	}
 }

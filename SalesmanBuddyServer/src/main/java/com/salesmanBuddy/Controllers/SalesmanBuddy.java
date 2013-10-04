@@ -58,7 +58,7 @@ public class SalesmanBuddy {
     
     @Path("states")
     @GET
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllStates(@DefaultValue("0") @QueryParam("inactivetoo") int getInactiveToo){
     	GenericEntity<List<States>> entity = new GenericEntity<List<States>>(dao.getAllStates(getInactiveToo)){};
     	return Response.ok(entity).build();
@@ -66,9 +66,17 @@ public class SalesmanBuddy {
     
     @Path("dealerships")
     @GET
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllDealerships(){
     	GenericEntity<List<Dealerships>> entity = new GenericEntity<List<Dealerships>>(dao.getAllDealerships()){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("savestring")
+    @PUT
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response saveStringAsFileForStateId(@DefaultValue("44") @QueryParam("stateid") int stateId, @QueryParam("data") String data){
+    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveStringAsFileForStateId(data, stateId)){};
     	return Response.ok(entity).build();
     }
     
@@ -120,7 +128,7 @@ public class SalesmanBuddy {
     
     @Path("statequestions")
     @GET
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getStateQuestionsSpecificsForStateId(@QueryParam("stateid") int stateId){
     	GenericEntity<List<StateQuestionsSpecifics>> entity = new GenericEntity<List<StateQuestionsSpecifics>>(dao.getStateQuestionsSpecificsForStateId(stateId)){};
     	return Response.ok(entity).build();

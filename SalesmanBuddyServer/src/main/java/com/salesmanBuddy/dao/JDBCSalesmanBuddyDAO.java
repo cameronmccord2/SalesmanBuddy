@@ -160,10 +160,8 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			throw new RuntimeException("file trying to save to s3 is null");
 		Buckets stateBucket = this.getBucketForStateId(stateId);
 		if(stateBucket == null){
-			stateBucket = this.makeBucketForStateId(stateId);
-		}
-		if(stateBucket == null){
-			throw new RuntimeException("state bucket is null");
+			this.makeBucketForStateId(stateId);
+			stateBucket = this.getBucketForStateId(stateId);
 		}
 		if(stateBucket.getName() == null){
 			throw new RuntimeException("statebucket name is null");
@@ -189,45 +187,32 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 	
+
 	@SuppressWarnings("finally")
-	private Buckets makeBucketForStateId(int stateId){
+	private String makeBucketForStateId(int stateId){
 		String bucketName = "state-" + this.getStateNameForStateId(stateId).toLowerCase() + "-uuid-" + UUID.randomUUID();
 		System.out.println("sent: " + bucketName);
 		bucketName = this.createS3Bucket(bucketName);
 		System.out.println("got back: " + bucketName);
 		
 		String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
-		ArrayList<Buckets> results = new ArrayList<Buckets>();
 		PreparedStatement statement = null;
-		ResultSet resultSet = null;
 		try{
 			Connection connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateId);
 			statement.setString(2, bucketName);
-			resultSet = statement.executeQuery();
-			results = Buckets.parseResultSet(resultSet);// TODO this probably isnt right
+			statement.execute();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}finally{
 			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
 			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					if(results.size() > 1)
-						throw new RuntimeException("There is more than one bucket for state: " + stateId);
-					if(results.size() == 1)
-						return results.get(0);
-					return null;
-				}
+				return bucketName;
 			}
 		}
 	}
@@ -377,20 +362,69 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return photoFileName;
 	}
 	
+	
+	
+	
+	
+//	@SuppressWarnings("finally")
+//	private int putLicenseInDatabase(Licenses license){
+//		String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
+//		ArrayList<Buckets> results = new ArrayList<Buckets>();
+//		PreparedStatement statement = null;
+//		ResultSet resultSet = null;
+//		try{
+//			Connection connection = dataSource.getConnection();
+//			statement = connection.prepareStatement(sql);
+//			statement.setInt(1, stateId);
+//			statement.setString(2, bucketName);
+//			resultSet = statement.executeQuery();
+//			results = Buckets.parseResultSet(resultSet);// TODO this probably isnt right
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}finally{
+//			try{
+//				if(resultSet != null)
+//					resultSet.close();
+//			}catch(SQLException e){
+//				throw new RuntimeException(e);
+//			}finally{
+//				try{
+//					if(statement != null)
+//						statement.close();
+//				}catch(SQLException se){
+//					throw new RuntimeException(se);
+//				}finally{
+//					if(results.size() > 1)
+//						throw new RuntimeException("There is more than one bucket for state: " + stateId);
+//					if(results.size() == 1)
+//						return results.get(0);
+//					return null;
+//				}
+//			}
+//		}
+//	}
+	
+	
+	
+	
+	
 	@SuppressWarnings("finally")
 	private int putLicenseInDatabase(Licenses license){
 		String sql = "INSERT INTO licenses (photo, bucketId, longitude, latitude, userId) VALUES (?, ?, ?, ?, ?)";
 		PreparedStatement statement = null;
-		int i = 0;
+		Connection connection = null;
+		int id = 0;
 		try{
-			Connection connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			connection = dataSource.getConnection();
+//			throw new RuntimeException(license.toString());
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
 			statement.setString(1, license.getPhoto());
 			statement.setInt(2, license.getBucketId());
 			statement.setFloat(3, license.getLongitude());
 			statement.setFloat(4, license.getLatitude());
 			statement.setInt(5, license.getUserId());
-			i = statement.executeUpdate();
+			statement.execute();
+			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}finally{
@@ -400,7 +434,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return i;
+				return id;
 			}
 		}
 	}
@@ -408,12 +442,16 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	private int parseFirstInt(ResultSet generatedKeys, String key) {
 		try {
 			while(generatedKeys.next())
-				return generatedKeys.getInt(key);
+				return (int) generatedKeys.getLong(1);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		throw new RuntimeException("the generated keys didnt contain an int");
+		try {
+			throw new RuntimeException("" + generatedKeys.getLong(1));
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	private Licenses convertLicenseFromClientToLicense(LicensesFromClient lfc){
@@ -433,11 +471,48 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		if(filename != null){
 			Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
 			l.setPhoto(filename);
-			this.putLicenseInDatabase(l);
+			int licenseId = this.putLicenseInDatabase(l);
+			if(licenseId == 0)
+				throw new RuntimeException("failed to put license in database, id returned: " + licenseId);
+			for(StateQuestionsResponses sqr : licenseFromClient.getStateQuestionsResponses()){
+				sqr.setLicenseId(licenseId);
+				if(this.putStateQuestionsResponsesInDatabase(sqr) == 0)
+					throw new RuntimeException("failed to put statequestionresponse in database");
+			}
 			return this.getAllLicensesForUserId(licenseFromClient.getUserId());
 		}else
 			throw new RuntimeException("error saving image to s3");
 	}
+
+	@SuppressWarnings("finally")
+	private int putStateQuestionsResponsesInDatabase(StateQuestionsResponses sqr) {
+//		throw new RuntimeException(sqr.toString());
+		String sql = "INSERT INTO stateQuestionsResponse (licenseId, stateQuestionsSpecificsId, responseText, responseBool) VALUES (?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		int i = 0;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, sqr.getLicenseId());
+			statement.setInt(2, sqr.getStateQuestionsSpecificsId());
+			statement.setString(3, sqr.getResponseText());
+			statement.setInt(4, sqr.getResponseBool());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				return i;
+			}
+		}
+	}
+
 
 	@SuppressWarnings("finally")
 	@Override
@@ -606,7 +681,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	@SuppressWarnings("finally")
 	@Override
 	public ArrayList<StateQuestionsWithResponses> getStateQuestionsWithResponsesForLicenseId(int licenseId) {
-		String sql = "SELECT * FROM (SELECT * FROM stateQuestionsResponses WHERE licenceId = ?) LEFT JOIN stateQuestionsSpecifics ON stateQuestionsResponses.stateQuestionsSpecificsId = stateQuestionsSpecifics.id";
+		String sql = "SELECT * FROM (SELECT id as responseId, licenseId, stateQuestionsSpecificsId, responseText, responseBool FROM stateQuestionsResponse) AS a LEFT JOIN (SELECT id as questionId, stateQuestionId, questionText, responseType, questionOrder FROM stateQuestionsSpecifics) AS b ON a.stateQuestionsSpecificsId = b.questionId WHERE licenseId = ?";
 		ArrayList<StateQuestionsWithResponses> results = new ArrayList<StateQuestionsWithResponses>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;

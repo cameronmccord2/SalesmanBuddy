@@ -83,11 +83,12 @@ public class SalesmanBuddy {
     @Path("licenses")
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getAllLicensesForUserId(@DefaultValue("0") @QueryParam("userid") int userId){// TODO remove default when oauth2 is working
+    public Response getAllLicensesForUserId(@DefaultValue("1") @QueryParam("userid") int userId){// TODO remove default when oauth2 is working
     	GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(userId)){};
     	return Response.ok(entity).build();
     }
     
+    @Path("licenses")
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
@@ -96,6 +97,7 @@ public class SalesmanBuddy {
     	return Response.ok(entity).build();
     }
     
+    @Path("licenses")
     @DELETE
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteLicense(@QueryParam("licenseid") int licenseId){

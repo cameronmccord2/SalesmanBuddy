@@ -15,6 +15,27 @@ public class Licenses {
     protected float latitude;
     protected Integer userId;
     
+    public String toString(){
+    	StringBuilder sb = new StringBuilder("");
+    	sb.append("id:");
+    	sb.append(this.id);
+    	sb.append(", showInUserList:");
+    	sb.append(this.showInUserList);
+    	sb.append(", photo:");
+    	sb.append(this.photo);
+    	sb.append(", bucketId:");
+    	sb.append(this.bucketId);
+    	sb.append(", created:");
+    	sb.append(this.created);
+    	sb.append(", longitude:");
+    	sb.append(this.longitude);
+    	sb.append(", latitude:");
+    	sb.append(this.latitude);
+    	sb.append(", userId:");
+    	sb.append(this.userId);
+    	return sb.toString();
+    }
+    
     public static ArrayList<Licenses> parseResultSet(ResultSet resultSet){
     	ArrayList<Licenses> responses = new ArrayList<Licenses>();
     	try{

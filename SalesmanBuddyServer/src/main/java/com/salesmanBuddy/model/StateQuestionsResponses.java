@@ -11,6 +11,21 @@ public class StateQuestionsResponses {
     protected String responseText;
     protected Integer responseBool;
     
+    public String toString(){
+    	StringBuilder sb = new StringBuilder("");
+    	sb.append("id:");
+    	sb.append(this.id);
+    	sb.append(", licenseId:");
+    	sb.append(this.licenseId);
+    	sb.append(", stateQuestionsSpecificsId:");
+    	sb.append(this.stateQuestionsSpecificsId);
+    	sb.append(", responseText:");
+    	sb.append(this.responseText);
+    	sb.append(", responseBool:");
+    	sb.append(this.responseBool);
+    	return sb.toString();
+    }
+    
     public static ArrayList<StateQuestionsResponses> parseResultSet(ResultSet resultSet){
     	ArrayList<StateQuestionsResponses> responses = new ArrayList<StateQuestionsResponses>();
     	try{

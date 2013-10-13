@@ -436,6 +436,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				if(this.putStateQuestionsResponsesInDatabase(sqr) == 0)
 					throw new RuntimeException("failed to put statequestionresponse in database");
 			}
+			licenseFromClient.getContactInfo().setLicenseId(licenseId);
 			int contactResult = this.putContactInfoInDatabase(licenseFromClient.getContactInfo());
 			if( contactResult == 0)
 				throw new RuntimeException("Failed to put contact info in database, licenseId returned: " + licenseId + ", contactResult: " + contactResult);
@@ -850,7 +851,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			statement.setString(8, ci.getCity());
 			statement.setInt(9, ci.getStateId());
 			statement.setString(10, ci.getNotes());
-			statement.executeQuery();
+			statement.execute();
 			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 			if(id == 0)
 				throw new RuntimeException(statement.getWarnings().getLocalizedMessage());

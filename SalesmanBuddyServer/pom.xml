@@ -10,7 +10,7 @@
     <name>SalesmanBuddy</name>
 
     <build>
-        <finalName>SalesmanBuddy-0.0.7</finalName>
+        <finalName>SalesmanBuddy-0.0.9</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -115,7 +115,11 @@
 			<artifactId>commons-io</artifactId>
 			<version>1.3.2</version>
 		</dependency>
-		            
+		<dependency>
+			<groupId>log4j</groupId>
+			<artifactId>log4j</artifactId>
+			<version>1.2.16</version>
+		</dependency>
     </dependencies>
     <properties>
         <jersey.version>2.3</jersey.version>

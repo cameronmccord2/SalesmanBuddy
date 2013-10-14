@@ -60,7 +60,7 @@ import com.salesmanBuddy.model.States;
 
 public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	// TODO do i need to close all of the connections too?
-	static Logger log = Logger.getLogger("log.dao");
+//	static Logger log = Logger.getLogger("log.dao");
 //	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
 	protected DataSource dataSource;
 	
@@ -87,8 +87,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<Buckets> results = new ArrayList<Buckets>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateId);
 			resultSet = statement.executeQuery();
@@ -108,11 +109,18 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					if(results.size() > 1)
-						throw new RuntimeException("There is more than one bucket for state: " + stateId);
-					if(results.size() == 1)
-						return results.get(0);
-					return null;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() > 1)
+							throw new RuntimeException("There is more than one bucket for state: " + stateId);
+						if(results.size() == 1)
+							return results.get(0);
+						return null;
+					}
 				}
 			}
 		}
@@ -198,8 +206,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		
 		String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
 		PreparedStatement statement = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateId);
 			statement.setString(2, bucketName);
@@ -213,7 +222,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return bucketName;
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return bucketName;
+				}
 			}
 		}
 	}
@@ -241,8 +257,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<States> states = new ArrayList<States>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			resultSet = statement.executeQuery();
 			states = States.parseResultSet(resultSet);
@@ -261,7 +278,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return states;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return states;
+					}
 				}
 			}
 		}
@@ -274,8 +298,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			resultSet = statement.executeQuery();
 			results = Dealerships.parseResultSet(resultSet);
@@ -294,7 +319,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -307,18 +339,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, userId);
 			resultSet = statement.executeQuery();
 			results = LicensesListElement.parseResultSet(resultSet);
-			
-			for(int i = 0; i < results.size(); i++){
+			for(int i = 0; i < results.size(); i++){// TODO this is erroring out i think
 				results.get(i).setStateQuestions(this.getStateQuestionsWithResponsesForLicenseId(results.get(i).getId()));
 				results.get(i).setContactInfo(this.getContactInfoForLicenseId(results.get(i).getId()));
 			}
-			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}finally{
@@ -334,7 +365,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -372,7 +410,6 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		int id = 0;
 		try{
 			connection = dataSource.getConnection();
-//			throw new RuntimeException(license.toString());
 			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
 			statement.setString(1, license.getPhoto());
 			statement.setInt(2, license.getBucketId());
@@ -390,7 +427,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return id;
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return id;
+				}
 			}
 		}
 	}
@@ -423,7 +467,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 
 	@Override
-	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {// TODO test with contact info
+	public ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient) {
 		String filename = this.saveStringAsFileForStateId(licenseFromClient.getPhoto(), licenseFromClient.getStateId(), ".jpeg");
 		if(filename != null){
 			Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
@@ -450,9 +494,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 //		throw new RuntimeException(sqr.toString());
 		String sql = "INSERT INTO stateQuestionsResponse (licenseId, stateQuestionsSpecificsId, responseText, responseBool) VALUES (?, ?, ?, ?)";
 		PreparedStatement statement = null;
+		Connection connection = null;
 		int i = 0;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, sqr.getLicenseId());
 			statement.setInt(2, sqr.getStateQuestionsSpecificsId());
@@ -469,7 +514,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return i;
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
 			}
 		}
 	}
@@ -477,12 +529,13 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@SuppressWarnings("finally")
 	@Override
-	public int deleteLicense(int licenseId) {
+	public Integer deleteLicense(int licenseId) {
 		String sql = "UPDATE licenses SET showInUserList = 0 WHERE id = ?";
 		PreparedStatement statement = null;
+		Connection connection = null;
 		int i = 0;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
 			statement.setInt(1, licenseId);
 			i = statement.executeUpdate();
@@ -495,7 +548,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return i;
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
 			}
 		}
 	}
@@ -544,8 +604,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		List<StateQuestions> results = new ArrayList<StateQuestions>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateId);
 			resultSet = statement.executeQuery();
@@ -565,7 +626,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -578,8 +646,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<StateQuestionsResponses> results = new ArrayList<StateQuestionsResponses>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, licenseId);
 			resultSet = statement.executeQuery();
@@ -599,7 +668,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -612,8 +688,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<StateQuestionsSpecifics> results = new ArrayList<StateQuestionsSpecifics>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateQuestionId);
 			resultSet = statement.executeQuery();
@@ -633,7 +710,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -646,8 +730,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<StateQuestionsWithResponses> results = new ArrayList<StateQuestionsWithResponses>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, licenseId);
 			resultSet = statement.executeQuery();
@@ -667,7 +752,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try {
+						if(connection != null)
+							connection.close();
+					} catch (SQLException e) {
+						throw new RuntimeException(e);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
@@ -680,8 +772,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<StateQuestionsSpecifics> results = new ArrayList<StateQuestionsSpecifics>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, stateId);
 			resultSet = statement.executeQuery();
@@ -701,16 +794,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					return results;
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
 				}
 			}
 		}
-	}
-
-	@Override
-	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
-		Buckets bucket = this.getBucketForBucketId(bucketId);
-		return this.getFileFromBucket(photoName, bucket.getName());
 	}
 
 
@@ -720,8 +814,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<Buckets> results = new ArrayList<Buckets>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, bucketId);
 			resultSet = statement.executeQuery();
@@ -741,32 +836,32 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					if(results.size() != 1)
-						throw new RuntimeException("expected number of buckets for bucket id to be 1, id: " + bucketId);
-					return results.get(0);
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() != 1)
+							throw new RuntimeException("expected number of buckets for bucket id to be 1, id: " + bucketId);
+						return results.get(0);
+					}
 				}
 			}
 		}
 	}
 
 
-	@Override
-	public File getLicenseImageForPhotoNameBucketName(String photoName,
-			String bucketName) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-
 	@SuppressWarnings("finally")
 	@Override
-	public ContactInfo getContactInfoForLicenseId(int licenseId) {
+	public ContactInfo getContactInfoForLicenseId(int licenseId){
 		String sql = "SELECT * FROM contactInfo WHERE licenseId = ?";
 		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, licenseId);
 			resultSet = statement.executeQuery();
@@ -786,9 +881,16 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					if(results.size() != 1)
-						throw new RuntimeException("expected number of buckets for contact info by licenseid to be 1, id: " + licenseId);
-					return results.get(0);
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() == 1)
+							return results.get(0);
+						return null;
+					}
 				}
 			}
 		}
@@ -802,8 +904,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
 		PreparedStatement statement = null;
 		ResultSet resultSet = null;
+		Connection connection = null;
 		try{
-			Connection connection = dataSource.getConnection();
+			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql);
 			statement.setInt(1, contactInfoId);
 			resultSet = statement.executeQuery();
@@ -823,9 +926,16 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException se){
 					throw new RuntimeException(se);
 				}finally{
-					if(results.size() != 1)
-						throw new RuntimeException("expected number of buckets for contact info by id to be 1, id: " + contactInfoId);
-					return results.get(0);
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() != 1)
+							throw new RuntimeException("expected number of buckets for contact info by id to be 1, id: " + contactInfoId);
+						return results.get(0);
+					}
 				}
 			}
 		}
@@ -833,7 +943,6 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	@SuppressWarnings("finally")
 	private int putContactInfoInDatabase(ContactInfo ci) {
-//		JDBCSalesmanBuddyDAO.log.fine(ci.toString());
 		String sql = "INSERT INTO contactInfo (userId, licenseId, firstName, lastName, email, phoneNumber, streetAddress, city, stateId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 		PreparedStatement statement = null;
 		Connection connection = null;
@@ -864,41 +973,125 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}catch(SQLException se){
 				throw new RuntimeException(se);
 			}finally{
-				return id;
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return id;
+				}
 			}
 		}
-//		throw new RuntimeException(sqr.toString());
-//		JDBCSalesmanBuddyDAO.log.error(ci.toString());
-//		String sql = "INSERT INTO contactInfo (userId, licenseId, firstName, lastName, email, phoneNumber, streetAddress, city, stateId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-//		PreparedStatement statement = null;
-//		int i = 0;
-//		try{
-//			Connection connection = dataSource.getConnection();
-//			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
-//			statement.setInt(1, ci.getUserId());
-//			statement.setInt(2, ci.getLicenseId());
-//			statement.setString(3, ci.getFirstName());
-//			statement.setString(4, ci.getLastName());
-//			statement.setString(5, ci.getEmail());
-//			statement.setString(6, ci.getPhoneNumber());
-//			statement.setString(7, ci.getStreetAddress());
-//			statement.setString(8, ci.getCity());
-//			statement.setInt(9, ci.getStateId());
-//			statement.setString(10, ci.getNotes());
-//			statement.execute();
-//			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
-//		}catch(SQLException sqle){
-//			throw new RuntimeException(sqle);
-//		}finally{
-//			try{
-//				if(statement != null)
-//					statement.close();
-//			}catch(SQLException se){
-//				throw new RuntimeException(se);
-//			}finally{
-//				return i;
-//			}
-//		}
+	}
+
+
+	@Override
+	public File getLicenseImageForLicenseId(int licenseId) {
+		Licenses l = this.getLicenseForLicenseId(licenseId);
+		return this.getLicenseImageForPhotoNameBucketId(l.getPhoto(), l.getBucketId());
+	}
+	
+	@SuppressWarnings("finally")
+	@Override
+	public Licenses getLicenseForLicenseId(int licenseId) {
+		String sql = "SELECT * FROM licenses WHERE id = ?";
+		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		Connection connection = null;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, licenseId);
+			resultSet = statement.executeQuery();
+			results = Licenses.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() > 0)
+							return results.get(0);
+						throw new RuntimeException("licenseId does not match any in the database");
+					}
+				}
+			}
+		}
+	}
+
+
+	@Override
+	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
+		Buckets bucket = this.getBucketForBucketId(bucketId);
+		return this.getFileFromBucket(photoName, bucket.getName());
+	}
+
+
+	@Override
+	public Integer putContactInfo(ContactInfo contactInfo) {
+		if(contactInfo.getId() == 0){
+			return this.putContactInfoInDatabase(contactInfo);
+		}else{
+			return this.updateContactInfoInDatabase(contactInfo);
+		}
+	}
+
+
+	@SuppressWarnings("finally")
+	private Integer updateContactInfoInDatabase(ContactInfo contactInfo) {
+		String sql = "UPDATE contactInfo SET city = ?, email = ?, firstName = ?, lastName = ?, notes = ?, phoneNumber = ?, streetAddress = ?, stateId = ? WHERE id = ?";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, contactInfo.getCity());
+			statement.setString(2, contactInfo.getEmail());
+			statement.setString(3, contactInfo.getFirstName());
+			statement.setString(4, contactInfo.getLastName());
+			statement.setString(5, contactInfo.getNotes());
+			statement.setString(6, contactInfo.getPhoneNumber());
+			statement.setString(7, contactInfo.getStreetAddress());
+			statement.setInt(8, contactInfo.getStateId());
+			statement.setInt(9, contactInfo.getId());
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
 	}
 }
 

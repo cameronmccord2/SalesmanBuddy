@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
+import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.StateQuestions;
@@ -26,7 +27,7 @@ public interface SalesmanBuddyDAO {
 
 	ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient);
 
-	int deleteLicense(int licenseId);
+	Integer deleteLicense(int licenseId);
 
 	boolean userOwnsLicenseId(int licenseId);
 
@@ -44,10 +45,14 @@ public interface SalesmanBuddyDAO {
 
 	String saveStringAsFileForStateId(String data, int stateId, String extension);
 
-	File getLicenseImageForPhotoNameBucketName(String photoName, String bucketName);
-
 	ContactInfo getContactInfoForLicenseId(int licenseId);
 
 	ContactInfo getContactInfoForContactInfoId(int contactInfoId);
+
+	File getLicenseImageForLicenseId(int licenseId);
+
+	Licenses getLicenseForLicenseId(int licenseId);
+
+	Integer putContactInfo(ContactInfo contactInfo);
 
 }

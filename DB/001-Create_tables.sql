@@ -45,8 +45,8 @@ CREATE TABLE users (
     dealershipId             int                                     NOT NULL FOREIGN KEY REFERENCES dealerships(id),
     deviceType               int                                     NOT NULL,
     type                     NUMERIC(3)     default 1                NOT NULL,
-    created                  DATETIME2      default SYSUTCDATETIME() NOT NULL
-    -- google fields
+    created                  DATETIME2      default SYSUTCDATETIME() NOT NULL,
+    googleUserId             NVARCHAR(25)                            NOT NULL
 );
 
 CREATE TABLE buckets (

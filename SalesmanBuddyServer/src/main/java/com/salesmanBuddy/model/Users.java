@@ -11,7 +11,7 @@ public class Users {
     protected Integer deviceType;
     protected Integer type;
     protected Date created;
-//    add google fields here TODO
+    protected String googleUserId;
     
     public static ArrayList<Users> parseResultSet(ResultSet resultSet){
     	ArrayList<Users> responses = new ArrayList<Users>();
@@ -23,6 +23,7 @@ public class Users {
 				response.setDealershipId(resultSet.getInt("dealershipId"));
 				response.setDeviceType(resultSet.getInt("deviceType"));
 				response.setType(resultSet.getInt("deviceType"));
+				response.setGoogleUserId(resultSet.getString("googleUserId"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -61,5 +62,15 @@ public class Users {
 	}
 	public void setCreated(Date created) {
 		this.created = created;
+	}
+
+
+	public String getGoogleUserId() {
+		return googleUserId;
+	}
+
+
+	public void setGoogleUserId(String googleUserId) {
+		this.googleUserId = googleUserId;
 	}
 }

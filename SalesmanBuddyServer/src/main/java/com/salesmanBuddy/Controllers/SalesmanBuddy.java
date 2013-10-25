@@ -218,7 +218,7 @@ public class SalesmanBuddy {
     	if(dao.userOwnsLicenseId(licenseId, googleUserId)){
     		File file = null;
     		if(bucketId > 0 && photoName.length() > 0){
-    			file = dao.getLicenseImageForPhotoNameBucketId(photoName, bucketId);
+    			file = dao.getLicenseImageForPhotoNameBucketId(photoName, bucketId);// Deprecated
     		}else{
     			file = dao.getLicenseImageForLicenseId(licenseId);// works 10/13
     		}

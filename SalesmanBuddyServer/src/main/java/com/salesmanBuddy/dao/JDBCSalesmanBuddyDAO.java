@@ -1247,7 +1247,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@Override
 	public LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId) {
-		this.putContactInfo(licenseFromClient.getContactInfo());
+		this.putContactInfo(licenseFromClient.getContactInfo());// TODO apparently this is null when updateing license
 		for(StateQuestionsResponses sqr : licenseFromClient.getStateQuestionsResponses()){
 			this.updateStateQuestionsResponsesInDatabase(sqr);
 		}

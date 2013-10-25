@@ -6,6 +6,7 @@ import java.util.List;
 
 import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
+import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
@@ -27,9 +28,9 @@ public interface SalesmanBuddyDAO {
 
 	ArrayList<LicensesListElement> getAllLicensesForUserId(String googleUserId);
 
-	ArrayList<LicensesListElement> putLicense(LicensesFromClient licenseFromClient, String googleUserId);
+	LicensesListElement putLicense(LicensesFromClient licenseFromClient, String googleUserId);
 
-	Integer deleteLicense(int licenseId);
+	DeleteLicenseResponse deleteLicense(int licenseId);
 
 	boolean userOwnsLicenseId(int licenseId, String googleUserId);
 
@@ -62,5 +63,11 @@ public interface SalesmanBuddyDAO {
 	int createUser(Users userFromClient);
 
 	Users getUserById(int userId);
+
+	LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId);
+
+	String randomAlphaNumericOfLength(Integer length);
+
+	FinishedPhoto saveFileToS3ForStateId(int stateId, File file);
 
 }

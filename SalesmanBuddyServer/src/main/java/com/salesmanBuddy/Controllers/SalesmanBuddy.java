@@ -1,6 +1,12 @@
 package com.salesmanBuddy.Controllers;
 
+import java.io.BufferedInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -8,6 +14,7 @@ import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
+import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
@@ -17,11 +24,15 @@ import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.xml.bind.DatatypeConverter;
+
+import org.apache.commons.io.IOUtils;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
+import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -94,12 +105,36 @@ public class SalesmanBuddy {
     }
     
     @Path("savedata")// Updated 10/23
+    //http://stackoverflow.com/questions/5999370/converting-between-nsdata-and-base64strings
+    /*
+     * try(InputStream is = new BufferedInputStream(request.getInputStream());){}
+     * To try changing project to 1.7
+     */
     @PUT
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response saveStringAsFileForStateId(@DefaultValue("44") @QueryParam("stateid") int stateId, String data, @QueryParam("extension") String extension){
-//    	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<FinishedPhoto> entity = new GenericEntity<FinishedPhoto>(dao.saveStringAsFileForStateId(data, stateId, extension)){};
+    public Response saveStringAsFileForStateId(@Context HttpServletRequest request, @DefaultValue("44") @QueryParam("stateid") int stateId){
+    	String mimeType = request.getHeader("Content-Type");
+		String extension = "";
+		File file = null;
+		try{
+			extension = getFileTypeExtension(mimeType);
+		}catch(Exception e){
+			return Response.status(Status.NOT_ACCEPTABLE).build();
+		}
+		try{
+			file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
+			file.deleteOnExit();
+			FileOutputStream fos = new FileOutputStream(file);
+			InputStream is = new BufferedInputStream(request.getInputStream());
+			String b64Bytes = IOUtils.toString(is);
+			byte [] fileBytes = DatatypeConverter.parseBase64Binary(b64Bytes);
+			IOUtils.write(fileBytes, fos);
+		}catch (IOException e){
+			throw new RuntimeException(e);
+		}
+		
+    	GenericEntity<FinishedPhoto> entity = new GenericEntity<FinishedPhoto>(dao.saveFileToS3ForStateId(stateId, file)){};
+    	file.delete();
     	return Response.ok(entity).build();
     }
     
@@ -112,26 +147,36 @@ public class SalesmanBuddy {
     	return Response.ok(entity).build();
     }
     
-    @Path("licenses")// works 10/13
+    @Path("licenses")// Updated 10/24
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putLicense(@Context HttpServletRequest request, LicensesFromClient licenseFromClient){
     	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.putLicense(licenseFromClient, googleUserId)){};
+    	GenericEntity<LicensesListElement> entity = new GenericEntity<LicensesListElement>(dao.putLicense(licenseFromClient, googleUserId)){};
     	return Response.ok(entity).build();
     }
     
-    @Path("licenses")// works 10/13 except for responding, create a successful response object TODO ************************************************************************************************
+    @Path("licenses")// updated 10/24, add delete license image if successful TODO ************************************************************************************************
     @DELETE
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteLicense(@Context HttpServletRequest request, @QueryParam("licenseid") int licenseId){
     	String googleUserId = request.getUserPrincipal().getName();
     	if(dao.userOwnsLicenseId(licenseId, googleUserId)){
-    		GenericEntity<Integer> entity = new GenericEntity<Integer>(dao.deleteLicense(licenseId)){};
+    		GenericEntity<DeleteLicenseResponse> entity = new GenericEntity<DeleteLicenseResponse>(dao.deleteLicense(licenseId)){};
     		return Response.ok(entity).build();
     	}else
     		return Response.status(Status.UNAUTHORIZED).build();
+    }
+    
+    @Path("licenses")// Added 10/24
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updateLicense(@Context HttpServletRequest request, LicensesFromClient licenseFromClient){
+    	String googleUserId = request.getUserPrincipal().getName();
+    	GenericEntity<LicensesListElement> entity = new GenericEntity<LicensesListElement>(dao.updateLicense(licenseFromClient, googleUserId)){};
+    	return Response.ok(entity).build();
     }
     
     @Path("contactinfo")
@@ -192,6 +237,89 @@ public class SalesmanBuddy {
     	GenericEntity<List<StateQuestionsSpecifics>> entity = new GenericEntity<List<StateQuestionsSpecifics>>(dao.getStateQuestionsSpecificsForStateId(stateId)){};
     	return Response.ok(entity).build();
     }
+    
+    private String getFileTypeExtension(String mimeType) throws Exception{
+		if(mimeType.contains("image/gif"))
+			return ".gif";
+		if(mimeType.contains("image/jpeg"))
+			return ".jpg";
+		if(mimeType.contains("image/png"))
+			return ".png";
+		if(mimeType.contains("image/svg+xml"))
+			return ".svg";
+		if(mimeType.contains("text/plain"))
+			return ".txt";
+		if(mimeType.contains("text/xml"))
+			return ".xml";
+		if(mimeType.contains("video/mp4"))
+			return ".mp4";
+		if(mimeType.contains("video/mpeg"))
+			return ".mpeg";
+		if(mimeType.contains("video/ogg"))
+			return ".ogv";
+		if(mimeType.contains("video/webm"))
+			return ".webm";
+		if(mimeType.contains("audio/mp4"))
+			return ".mp4";
+		if(mimeType.contains("audio/mpeg"))
+			return ".mp3";
+		if(mimeType.contains("audio/ogg"))
+			return ".oga";
+		if(mimeType.contains("audio/webm"))
+			return ".webm";
+		if(mimeType.contains("application/json"))
+			return ".json";
+		if(mimeType.contains("application/pdf"))
+			return ".pdf";
+		if(mimeType.contains("application/msword"))
+			return ".doc";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+			return ".docx";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.wordprocessingml.template"))
+			return ".dotx";
+		if(mimeType.contains("application/vnd.ms-word.document.macroEnabled.12"))
+			return ".docm";
+		if(mimeType.contains("application/vnd.ms-word.template.macroEnabled.12"))
+			return ".dotm";
+		if(mimeType.contains("application/vnd.ms-excel"))
+			return ".xls";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+			return ".xlsx";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.spreadsheetml.template"))
+			return ".xltx";
+		if(mimeType.contains("application/vnd.ms-excel.sheet.macroEnabled.12"))
+			return ".xlsm";
+		if(mimeType.contains("application/vnd.ms-excel.template.macroEnabled.12"))
+			return ".xltm";
+		if(mimeType.contains("application/vnd.ms-excel.addin.macroEnabled.12"))
+			return ".xlam";
+		if(mimeType.contains("application/vnd.ms-excel.sheet.binary.macroEnabled.12"))
+			return ".xlsb";
+		if(mimeType.contains("application/vnd.ms-powerpoint"))
+			return ".ppt";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.presentationml.presentation"))
+			return ".pptx";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.presentationml.template"))
+			return ".potx";
+		if(mimeType.contains("application/vnd.openxmlformats-officedocument.presentationml.slideshow"))
+			return ".ppsx";
+		if(mimeType.contains("application/vnd.ms-powerpoint.addin.macroEnabled.12"))
+			return ".ppam";
+		if(mimeType.contains("application/vnd.ms-powerpoint.presentation.macroEnabled.12"))
+			return ".pptm";
+		if(mimeType.contains("application/vnd.ms-powerpoint.template.macroEnabled.12"))
+			return ".potm";
+		if(mimeType.contains("application/vnd.ms-powerpoint.slideshow.macroEnabled.12"))
+			return ".ppsm";
+		if(mimeType.contains("application/x-iwork-keynote-sffkey"))
+			return ".keynote";
+		if(mimeType.contains("application/x-iwork-pages-sffpages"))
+			return ".pages";
+		if(mimeType.contains("application/x-iwork-numbers-sffnumbers"))
+			return ".numbers";
+		else
+			throw new Exception("Unsupported Media Type");
+	}
     
 }
 

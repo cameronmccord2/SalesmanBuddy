@@ -59,47 +59,51 @@ CREATE TABLE buckets (
 CREATE TABLE licenses (
     id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
     showInUserList             NUMERIC(2)  default 1                 NOT NULL,
-    photo                      NVARCHAR(30)                          NOT NULL,
-    bucketId                   int                                   NOT NULL FOREIGN KEY REFERENCES buckets(id),
     created                    DATETIME2   default SYSUTCDATETIME()  NOT NULL,
     longitude                  decimal(10, 6)                        NOT NULL, -- sub meter accuracy
     latitude                   decimal(10, 6)                        NOT NULL,
-    userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id)
-);
-
-CREATE TABLE contactInfo(--http://stackoverflow.com/questions/20958/list-of-standard-lengths-for-database-fields
-    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
     userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id),
-    licenseId                  int                                   NOT NULL FOREIGN KEY REFERENCES licenses(id),
-    created                  DATETIME2      default SYSUTCDATETIME() NOT NULL,
-    firstName                  NVARCHAR(50)                          NULL,
-    lastName                   NVARCHAR(50)                          NULL,
-    email                      NVARCHAR(255)                         NULL,
-    phoneNumber                NVARCHAR(15)                          NULL,
-    streetAddress              NVARCHAR(100)                         NULL,
-    city                       NVARCHAR(40)                          NULL,
-    stateId                    int                                   NULL FOREIGN KEY REFERENCES states(id),
-    notes                      NVARCHAR(500)                         NULL
+    stateId                     int                                   NOT NULL FOREIGN KEY REFERENCES states(id)
 );
 
-CREATE TABLE stateQuestions (
+CREATE TABLE questions (
     id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
+    version                    int          default 0                NOT NULL,
+    questionOrder              int          default 0                NOT NULL,
+    questionTextEnglish        NVARCHAR(1000)                        NOT NULL,
+    questionTextSpanish        NVARCHAR(1000)                        NOT NULL,
+    questionIsBool             BIT          default 0                NOT NULL,
+    questionIsText             BIT          default 0                NOT NULL,
+    questionIsDropdown         BIT          default 0                NOT NULL,
+    questionIsImage            BIT          default 0                NOT NULL,
+    required                   BIT          default 0                NOT NULL,
     created                    DATETIME2    default SYSUTCDATETIME() NOT NULL
 );
 
-CREATE TABLE stateQuestionsSpecifics (
-    id                          int               IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    stateQuestionId             int                             NOT NULL FOREIGN KEY REFERENCES stateQuestions(id),
-    questionText                NVARCHAR(200)                   NOT NULL,
-    responseType                NUMERIC(3)  default 1           NOT NULL,
-    questionOrder                       NUMERIC(3)  default 0           NOT NULL
+CREATE TABLE answers (
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    answerText                 NVARCHAR(500)                         NOT NULL,
+    answerBool                 BIT          default 0                NOT NULL,
+    answerIsBool               BIT          default 0                NOT NULL,
+    answerIsText               BIT          default 0                NOT NULL,
+    answerIsDropdown           BIT          default 0                NOT NULL,
+    licenseId                  int                                   NOT NULL FOREIGN KEY REFERENCES licenses(id),
+    questionId                 int                                   NOT NULL FOREIGN KEY REFERENCES questions(id),
+    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL
 );
 
-CREATE TABLE stateQuestionsResponse (
-    id                         int             IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    licenseId                  int                           NOT NULL FOREIGN KEY REFERENCES licenses(id),
-    stateQuestionsSpecificsId  int                           NOT NULL FOREIGN KEY REFERENCES stateQuestionsSpecifics(id),
-    responseText               NVARCHAR(50)                  NULL,
-    responseBool               NUMERIC(2)   default 0       NOT NULL
+CREATE TABLE imageDetails (
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    photoName                  NVARCHAR(30)                          NOT NULL,
+    bucketId                   int                                   NOT NULL FOREIGN KEY REFERENCES buckets(id),
+    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL,
+    answerId                   int                                   NOT NULL FOREIGN KEY REFERENCES answers(id)
+);
+
+CREATE TABLE dropdownOptions (
+    id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    optionText                  NVARCHAR(40)                          NOT NULL,
+    questionId                  int                                   NOT NULL FOREIGN KEY REFERENCES questions(id),
+    optionOrder                 int         default 0                 NOT NULL,
+    optionValue                 NVARCHAR(100)                         NOT NULL
 );

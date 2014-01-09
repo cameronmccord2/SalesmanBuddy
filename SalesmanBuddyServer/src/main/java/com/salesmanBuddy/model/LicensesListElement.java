@@ -8,12 +8,10 @@ import java.util.ArrayList;
 public class LicensesListElement{
 	// licenses
 	protected Integer id;
-    protected String photo;
-    protected Integer bucketId;
     protected Date created;
-    protected ContactInfo contactInfo;
+    protected Integer stateId;
     //custom here
-	protected ArrayList<StateQuestionsWithResponses> stateQuestions;
+    protected ArrayList<QuestionsAndAnswers> qaas;
 	
 	public static ArrayList<LicensesListElement> parseResultSet(ResultSet resultSet){
     	ArrayList<LicensesListElement> responses = new ArrayList<LicensesListElement>();
@@ -21,9 +19,8 @@ public class LicensesListElement{
 			while(resultSet.next()){
 				LicensesListElement response = new LicensesListElement();
 				response.setId(resultSet.getInt("id"));
-				response.setPhoto(resultSet.getString("photo"));
-				response.setBucketId(resultSet.getInt("bucketId"));
 				response.setCreated(resultSet.getDate("created"));
+				response.setStateId(resultSet.getInt("stateId"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -40,16 +37,6 @@ public class LicensesListElement{
 		this.id = id;
 	}
 
-	
-
-	public String getPhoto() {
-		return photo;
-	}
-
-	public void setPhoto(String photo) {
-		this.photo = photo;
-	}
-
 	public Date getCreated() {
 		return created;
 	}
@@ -58,29 +45,19 @@ public class LicensesListElement{
 		this.created = created;
 	}
 
-	
-	public ArrayList<StateQuestionsWithResponses> getStateQuestions() {
-		return stateQuestions;
+	public ArrayList<QuestionsAndAnswers> getQaas() {
+		return qaas;
 	}
 
-	public void setStateQuestions(
-			ArrayList<StateQuestionsWithResponses> stateQuestions) {
-		this.stateQuestions = stateQuestions;
+	public void setQaas(ArrayList<QuestionsAndAnswers> qaas) {
+		this.qaas = qaas;
 	}
 
-	public Integer getBucketId() {
-		return bucketId;
+	public Integer getStateId() {
+		return stateId;
 	}
 
-	public void setBucketId(Integer bucketId) {
-		this.bucketId = bucketId;
-	}
-
-	public ContactInfo getContactInfo() {
-		return contactInfo;
-	}
-
-	public void setContactInfo(ContactInfo contactInfo) {
-		this.contactInfo = contactInfo;
+	public void setStateId(Integer stateId) {
+		this.stateId = stateId;
 	}
 }

@@ -8,6 +8,7 @@ import java.io.Writer;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -42,10 +43,10 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.io.Files;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.Buckets;
-import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.ImageDetails;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -55,11 +56,21 @@ import com.salesmanBuddy.model.StateQuestionsSpecifics;
 import com.salesmanBuddy.model.StateQuestionsWithResponses;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
+import com.salesmanBuddy.model.Answers;
+import com.salesmanBuddy.model.Questions;
+import com.salesmanBuddy.model.QuestionsAndAnswers;
+
+
 
 public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 //	static Logger log = Logger.getLogger("log.dao");
 //	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
 	protected DataSource dataSource;
+	
+	static final private int isImage = 1;
+	static final private int isText = 2;
+	static final private int isBool = 3;
+	static final private int isDropdown = 4;
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -345,8 +356,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			resultSet = statement.executeQuery();
 			results = LicensesListElement.parseResultSet(resultSet);
 			for(int i = 0; i < results.size(); i++){
-				results.get(i).setStateQuestions(this.getStateQuestionsWithResponsesForLicenseId(results.get(i).getId()));
-				results.get(i).setContactInfo(this.getContactInfoForLicenseId(results.get(i).getId()));
+				results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId()));
 			}
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -370,6 +380,52 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 						throw new RuntimeException(sqle);
 					}finally{
 						return results;
+					}
+				}
+			}
+		}
+	}
+	
+	@SuppressWarnings("finally")
+	private LicensesListElement getLicenseListElementForLicenseId(int id) {
+		String sql = "SELECT * FROM licenses WHERE id = ?";
+		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		Connection connection = null;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, id);
+			resultSet = statement.executeQuery();
+			results = LicensesListElement.parseResultSet(resultSet);
+			for(int i = 0; i < results.size(); i++){
+				results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId()));
+			}
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() == 1)
+							return results.get(0);
+						throw new RuntimeException("couldnt find the license by id: " + id);
 					}
 				}
 			}
@@ -402,18 +458,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	@SuppressWarnings("finally")
 	private int putLicenseInDatabase(Licenses license){
-		String sql = "INSERT INTO licenses (photo, bucketId, longitude, latitude, userId) VALUES (?, ?, ?, ?, ?)";
+		String sql = "INSERT INTO licenses (photo, bucketId, longitude, latitude, userId, stateIs) VALUES (?, ?, ?, ?, ?, ?)";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int id = 0;
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
-			statement.setString(1, license.getPhoto());
-			statement.setInt(2, license.getBucketId());
 			statement.setFloat(3, license.getLongitude());
 			statement.setFloat(4, license.getLatitude());
 			statement.setInt(5, license.getUserId());
+			statement.setInt(6, license.getStateId());
 			statement.execute();
 			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
@@ -454,12 +509,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	private Licenses convertLicenseFromClientToLicense(LicensesFromClient lfc){
 		Licenses l = new Licenses();
-		l.setBucketId(this.getBucketForStateId(lfc.getStateId()).getId());
 		l.setLatitude(lfc.getLatitude());
 		l.setLongitude(lfc.getLongitude());
 		l.setUserId(lfc.getUserId());
-		l.setPhoto(lfc.getPhoto());
-		l.setContactInfo(lfc.getContactInfo());
+		l.setStateId(lfc.getStateId());
 		return l;
 	}
 
@@ -473,80 +526,53 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		licenseFromClient.setUserId(user.getId());
 		if(licenseFromClient.getUserId() == 0)
 			throw new RuntimeException("userid is 0, its invalid");
-		if(licenseFromClient.getPhoto() != null && licenseFromClient.getPhoto().length() > 3){
-			Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
-			licenseId = this.putLicenseInDatabase(l);
-			if(licenseId == 0)
-				throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId);
-			for(StateQuestionsResponses sqr : licenseFromClient.getStateQuestionsResponses()){
-				sqr.setLicenseId(licenseId);
-				if(this.putStateQuestionsResponsesInDatabase(sqr) == 0)
-					throw new RuntimeException("failed to put statequestionresponse in database, " + sqr.toString());
-			}
-			licenseFromClient.getContactInfo().setUserId(user.getId());
-			licenseFromClient.getContactInfo().setLicenseId(licenseId);
-			int contactResult = this.putContactInfoInDatabase(licenseFromClient.getContactInfo());
-			if( contactResult == 0)
-				throw new RuntimeException("Failed to put contact info in database, licenseId returned: " + licenseId + ", contactResult: " + contactResult);
-			ArrayList<LicensesListElement> licenses = this.getAllLicensesForUserId(googleUserId);
-			for(LicensesListElement lic : licenses){
-				if(lic.getId() == licenseId)
-					return lic;
-			}
-			throw new RuntimeException("couldnt find the license that was just inserted");
-		}else
-			throw new RuntimeException("error saving image to s3");
-	}
 
-	@SuppressWarnings("finally")
-	private int putStateQuestionsResponsesInDatabase(StateQuestionsResponses sqr) {
-//		throw new RuntimeException(sqr.toString());
-		String sql = "INSERT INTO stateQuestionsResponse (licenseId, stateQuestionsSpecificsId, responseText, responseBool) VALUES (?, ?, ?, ?)";
-		PreparedStatement statement = null;
-		Connection connection = null;
-		int i = 0;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
-			statement.setInt(1, sqr.getLicenseId());
-			statement.setInt(2, sqr.getStateQuestionsSpecificsId());
-			statement.setString(3, sqr.getResponseText());
-			statement.setInt(4, sqr.getResponseBool());
-			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(statement != null)
-					statement.close();
-			}catch(SQLException se){
-				throw new RuntimeException(se);
-			}finally{
-				try{
-					if(connection != null)
-						connection.close();
-				}catch(SQLException sqle){
-					throw new RuntimeException(sqle);
-				}finally{
-					return i;
-				}
-			}
+		Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
+		licenseId = this.putLicenseInDatabase(l);
+		if(licenseId == 0)
+			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId);
+		
+		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
+			if(this.putAnswerInDatabase(qaa.getAnswer()) == 0)
+				throw new RuntimeException("Failed to insert answer into database");
 		}
+		
+		ArrayList<LicensesListElement> licenses = this.getAllLicensesForUserId(googleUserId);
+		for(LicensesListElement lic : licenses){
+			if(lic.getId() == licenseId)
+				return lic;
+		}
+		throw new RuntimeException("couldnt find the license that was just inserted");
 	}
 
-
-	@SuppressWarnings("finally")
 	@Override
 	public DeleteLicenseResponse deleteLicense(int licenseId) {
-		String sql = "UPDATE licenses SET showInUserList = 0 WHERE id = ?";
+		int i = this.updateShowInUserListForLicenseId(licenseId, 0);
+		DeleteLicenseResponse dlr = new DeleteLicenseResponse();
+		dlr.setLicenseId(licenseId);
+		if(i != 0){
+			dlr.setMessage("Success, user wont see license anymore, rows edited: " + i);
+			dlr.setSuccess(1);
+		}else{
+			dlr.setMessage("failure, rows edited: " + i);
+			dlr.setSuccess(0);
+		}
+		return dlr;
+	}
+	
+	@SuppressWarnings("finally")
+	private int updateShowInUserListForLicenseId(int licenseId, int showInUserList){
+		if(!(showInUserList == 1 || showInUserList == 0))
+			throw new RuntimeException("updateShowInUserListForLicenseId failed because showInUserList was not 0 or 1");
+		String sql = "UPDATE licenses SET showInUserList = ? WHERE id = ?";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int i = 0;
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
-			statement.setInt(1, licenseId);
+			statement.setInt(1, showInUserList);
+			statement.setInt(2, licenseId);
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -563,16 +589,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException sqle){
 					throw new RuntimeException(sqle);
 				}finally{
-					DeleteLicenseResponse dlr = new DeleteLicenseResponse();
-					dlr.setLicenseId(licenseId);
-					if(i != 0){
-						dlr.setMessage("Success, user wont see license anymore, rows edited: " + i);
-						dlr.setSuccess(1);
-					}else{
-						dlr.setMessage("failure, rows edited: " + i);
-						dlr.setSuccess(0);
-					}
-					return dlr;
+					return i;
 				}
 			}
 		}
@@ -610,216 +627,6 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 					if(results.size() > 0)
 						return true;
 					return false;
-				}
-			}
-		}
-	}
-
-	@SuppressWarnings("finally")
-	@Override
-	public List<StateQuestions> getStateQuestionsForStateId(int stateId) {
-		String sql = "SELECT * FROM stateQuestions WHERE stateId = ?";
-		List<StateQuestions> results = new ArrayList<StateQuestions>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, stateId);
-			resultSet = statement.executeQuery();
-			results = StateQuestions.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						return results;
-					}
-				}
-			}
-		}
-	}
-
-	@SuppressWarnings("finally")
-	@Override
-	public ArrayList<StateQuestionsResponses> getStateQuestionsResponsesForLicenseId(int licenseId) {
-		String sql = "SELECT * FROM stateQuestionsResponses WHERE licenseId = ?";
-		ArrayList<StateQuestionsResponses> results = new ArrayList<StateQuestionsResponses>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, licenseId);
-			resultSet = statement.executeQuery();
-			results = StateQuestionsResponses.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						return results;
-					}
-				}
-			}
-		}
-	}
-
-	@SuppressWarnings("finally")
-	@Override
-	public ArrayList<StateQuestionsSpecifics> getStateQuestionsSpecificsForStateQuestionId(int stateQuestionId) {
-		String sql = "SELECT * FROM stateQuestionsSpecifics WHERE stateQuestionId = ?";
-		ArrayList<StateQuestionsSpecifics> results = new ArrayList<StateQuestionsSpecifics>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, stateQuestionId);
-			resultSet = statement.executeQuery();
-			results = StateQuestionsSpecifics.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						return results;
-					}
-				}
-			}
-		}
-	}
-
-	@SuppressWarnings("finally")
-	@Override
-	public ArrayList<StateQuestionsWithResponses> getStateQuestionsWithResponsesForLicenseId(int licenseId) {
-		String sql = "SELECT * FROM (SELECT id as responseId, licenseId, stateQuestionsSpecificsId, responseText, responseBool FROM stateQuestionsResponse) AS a LEFT JOIN (SELECT id as questionId, stateQuestionId, questionText, responseType, questionOrder FROM stateQuestionsSpecifics) AS b ON a.stateQuestionsSpecificsId = b.questionId WHERE licenseId = ?";
-		ArrayList<StateQuestionsWithResponses> results = new ArrayList<StateQuestionsWithResponses>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, licenseId);
-			resultSet = statement.executeQuery();
-			results = StateQuestionsWithResponses.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try {
-						if(connection != null)
-							connection.close();
-					} catch (SQLException e) {
-						throw new RuntimeException(e);
-					}finally{
-						return results;
-					}
-				}
-			}
-		}
-	}
-
-	@SuppressWarnings("finally")
-	@Override
-	public ArrayList<StateQuestionsSpecifics> getStateQuestionsSpecificsForStateId(int stateId) {// working 10/3/13
-		String sql = "SELECT * FROM stateQuestionsSpecifics WHERE stateQuestionId = (SELECT id FROM stateQuestions WHERE stateId = ?)";
-		ArrayList<StateQuestionsSpecifics> results = new ArrayList<StateQuestionsSpecifics>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, stateId);
-			resultSet = statement.executeQuery();
-			results = StateQuestionsSpecifics.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						return results;
-					}
 				}
 			}
 		}
@@ -867,147 +674,6 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}
 			}
 		}
-	}
-
-
-	@SuppressWarnings("finally")
-	@Override
-	public ContactInfo getContactInfoForLicenseId(int licenseId){
-		String sql = "SELECT * FROM contactInfo WHERE licenseId = ?";
-		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, licenseId);
-			resultSet = statement.executeQuery();
-			results = ContactInfo.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						if(results.size() == 1)
-							return results.get(0);
-						return null;
-					}
-				}
-			}
-		}
-	}
-
-
-	@SuppressWarnings("finally")
-	@Override
-	public ContactInfo getContactInfoForContactInfoId(int contactInfoId) {
-		String sql = "SELECT * FROM contactInfo WHERE id = ?";
-		ArrayList<ContactInfo> results = new ArrayList<ContactInfo>();
-		PreparedStatement statement = null;
-		ResultSet resultSet = null;
-		Connection connection = null;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql);
-			statement.setInt(1, contactInfoId);
-			resultSet = statement.executeQuery();
-			results = ContactInfo.parseResultSet(resultSet);
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(resultSet != null)
-					resultSet.close();
-			}catch(SQLException e){
-				throw new RuntimeException(e);
-			}finally{
-				try{
-					if(statement != null)
-						statement.close();
-				}catch(SQLException se){
-					throw new RuntimeException(se);
-				}finally{
-					try{
-						if(connection != null)
-							connection.close();
-					}catch(SQLException sqle){
-						throw new RuntimeException(sqle);
-					}finally{
-						if(results.size() != 1)
-							throw new RuntimeException("expected number of buckets for contact info by id to be 1, id: " + contactInfoId);
-						return results.get(0);
-					}
-				}
-			}
-		}
-	}
-	
-	@SuppressWarnings("finally")
-	private int putContactInfoInDatabase(ContactInfo ci) {
-		String sql = "INSERT INTO contactInfo (userId, licenseId, firstName, lastName, email, phoneNumber, streetAddress, city, stateId, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-		PreparedStatement statement = null;
-		Connection connection = null;
-		int id = 0;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
-			statement.setInt(1, ci.getUserId());
-			statement.setInt(2, ci.getLicenseId());
-			statement.setString(3, ci.getFirstName());
-			statement.setString(4, ci.getLastName());
-			statement.setString(5, ci.getEmail());
-			statement.setString(6, ci.getPhoneNumber());
-			statement.setString(7, ci.getStreetAddress());
-			statement.setString(8, ci.getCity());
-			statement.setInt(9, ci.getStateId());
-			statement.setString(10, ci.getNotes());
-			statement.execute();
-			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
-			if(id == 0)
-				throw new RuntimeException(statement.getWarnings().getLocalizedMessage());
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(statement != null)
-					statement.close();
-			}catch(SQLException se){
-				throw new RuntimeException(se);
-			}finally{
-				try{
-					if(connection != null)
-						connection.close();
-				}catch(SQLException sqle){
-					throw new RuntimeException(sqle);
-				}finally{
-					return id;
-				}
-			}
-		}
-	}
-
-
-	@Override
-	public File getLicenseImageForLicenseId(int licenseId) {
-		Licenses l = this.getLicenseForLicenseId(licenseId);
-		return this.getLicenseImageForPhotoNameBucketId(l.getPhoto(), l.getBucketId());
 	}
 	
 	@SuppressWarnings("finally")
@@ -1059,57 +725,6 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
 		Buckets bucket = this.getBucketForBucketId(bucketId);
 		return this.getFileFromBucket(photoName, bucket.getName());
-	}
-
-
-	@Override
-	public Integer putContactInfo(ContactInfo contactInfo) {
-		if(contactInfo.getId() == 0){
-			return this.putContactInfoInDatabase(contactInfo);
-		}else{
-			return this.updateContactInfoInDatabase(contactInfo);
-		}
-	}
-
-
-	@SuppressWarnings("finally")
-	private Integer updateContactInfoInDatabase(ContactInfo contactInfo) {
-		String sql = "UPDATE contactInfo SET city = ?, email = ?, firstName = ?, lastName = ?, notes = ?, phoneNumber = ?, streetAddress = ?, stateId = ? WHERE id = ?";
-		PreparedStatement statement = null;
-		Connection connection = null;
-		int i = 0;
-		try{
-			connection = dataSource.getConnection();
-			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
-			statement.setString(1, contactInfo.getCity());
-			statement.setString(2, contactInfo.getEmail());
-			statement.setString(3, contactInfo.getFirstName());
-			statement.setString(4, contactInfo.getLastName());
-			statement.setString(5, contactInfo.getNotes());
-			statement.setString(6, contactInfo.getPhoneNumber());
-			statement.setString(7, contactInfo.getStreetAddress());
-			statement.setInt(8, contactInfo.getStateId());
-			statement.setInt(9, contactInfo.getId());
-			i = statement.executeUpdate();
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}finally{
-			try{
-				if(statement != null)
-					statement.close();
-			}catch(SQLException se){
-				throw new RuntimeException(se);
-			}finally{
-				try{
-					if(connection != null)
-						connection.close();
-				}catch(SQLException sqle){
-					throw new RuntimeException(sqle);
-				}finally{
-					return i;
-				}
-			}
-		}
 	}
 
 
@@ -1247,30 +862,213 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@Override
 	public LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId) {
-		this.putContactInfo(licenseFromClient.getContactInfo());// TODO apparently this is null when updateing license
-		for(StateQuestionsResponses sqr : licenseFromClient.getStateQuestionsResponses()){
-			this.updateStateQuestionsResponsesInDatabase(sqr);
+		if(licenseFromClient.getId() == null || licenseFromClient.getId() == 0)
+			throw new RuntimeException("id is either null or 0: " + licenseFromClient.toString());
+		this.updateShowInUserListForLicenseId(licenseFromClient.getId(), licenseFromClient.getShowInUserList());
+		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
+			this.updateAnswerInDatabase(qaa.getAnswer());
 		}
-		ArrayList<LicensesListElement> list = this.getAllLicensesForUserId(googleUserId);
-		for(LicensesListElement l : list){
-			if(l.getId() == licenseFromClient.getId())
-				return l;
-		}
-		return list.get(0);
+		return this.getLicenseListElementForLicenseId(licenseFromClient.getId());
 	}
 
+
+	@Override
+	public ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId) {
+		ArrayList<Answers> answers = this.getAnswersForLicenseId(licenseId);
+		ArrayList<QuestionsAndAnswers> qas = new ArrayList<QuestionsAndAnswers>();
+		for(Answers a : answers){
+			QuestionsAndAnswers qa = new QuestionsAndAnswers();
+			qa.setAnswer(a);
+			qa.setQuestion(this.getQuestionById(a.getQuestionId()));
+			qas.add(qa);
+		}
+		return qas;
+	}
+	
 	@SuppressWarnings("finally")
-	private int updateStateQuestionsResponsesInDatabase(StateQuestionsResponses sqr) {
-		String sql = "UPDATE stateQuestionsResponse SET responseText = ?, responseBool = ? WHERE id = ?";
+	@Override
+	public ArrayList<Answers> getAnswersForLicenseId(int licenseId) {
+		String sql = "SELECT * FROM answers WHERE licenseId = ?";
+		ArrayList<Answers> results = new ArrayList<Answers>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		Connection connection = null;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, licenseId);
+			resultSet = statement.executeQuery();
+			results = Answers.parseResultSet(resultSet);
+			for(Answers a : results){
+				if(a.getAnswerType() == JDBCSalesmanBuddyDAO.isImage)
+					a.setImageDetails(this.getImageDetailsForAnswerId(a.getId()));
+			}
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						return results;
+					}
+				}
+			}
+		}
+	}
+
+
+	@SuppressWarnings("finally")
+	private ImageDetails getImageDetailsForAnswerId(Integer answerId) {
+		String sql = "SELECT * FROM imageDetails WHERE answerId = ?";
+		ArrayList<ImageDetails> results = new ArrayList<ImageDetails>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		Connection connection = null;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, answerId);
+			resultSet = statement.executeQuery();
+			results = ImageDetails.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					try{
+						if(connection != null)
+							connection.close();
+					}catch(SQLException sqle){
+						throw new RuntimeException(sqle);
+					}finally{
+						if(results.size() == 1)
+							return results.get(0);
+						throw new RuntimeException("couldnt find imageDetails for answer id: " + answerId);
+					}
+				}
+			}
+		}
+	}
+	
+	@SuppressWarnings("finally")
+	private int updateAnswerInDatabase(Answers answer) {
+		String sql = "UPDATE answers SET answerBool = ?, answerType = ?, answerText = ?, licenseId = ?, questionId = ? WHERE id = ?";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int i = 0;
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
-			statement.setString(1, sqr.getResponseText());
-			statement.setInt(2, sqr.getResponseBool());
-			statement.setInt(3, sqr.getId());
+			statement.setInt(1, answer.getAnswerBool());
+			statement.setInt(2, answer.getAnswerType());
+			statement.setString(3, answer.getAnswerText());
+			statement.setInt(4, answer.getLicenseId());
+			statement.setInt(5, answer.getQuestionId());
+			statement.setInt(6, answer.getId());
+			i = statement.executeUpdate();
+			if(i == 0)
+				throw new RuntimeException("update answers failed for id: " + answer.getId());
+			if(answer.getAnswerType() == JDBCSalesmanBuddyDAO.isImage)
+				this.updateImageDetailsInDatabase(answer.getImageDetails());
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
+	}
+	
+	@SuppressWarnings("finally")
+	private int updateImageDetailsInDatabase(ImageDetails imageDetails) {
+		String sql = "UPDATE imageDetails SET photoName = ?, bucketId = ? WHERE id = ?";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, imageDetails.getPhotoName());
+			statement.setInt(2, imageDetails.getBucketId());
+			statement.setInt(3, imageDetails.getId());
+			i = statement.executeUpdate();
+			if(i == 0)
+				throw new RuntimeException("update imageDetails failed for id: " + imageDetails.getId());
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
+	}
+
+
+	@SuppressWarnings("finally")
+	private int updateQuestionInDatabase(Questions q){
+		String sql = "UPDATE questions SET version = ?, questionOrder = ?, questionTextEnglish = ?, questionTextSpanish = ?, required = ?, questionType = ? WHERE id = ?";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, q.getVersion());
+			statement.setInt(2, q.getQuestionOrder());
+			statement.setString(3, q.getQuestionTextEnglish());
+			statement.setString(4, q.getQuestionTextSpanish());
+			statement.setInt(5, q.getRequired());
+			statement.setInt(6, q.getQuestionType());
+			statement.setInt(7, q.getId());
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -1291,6 +1089,188 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}
 			}
 		}
+	}
+	
+	
+	@SuppressWarnings("finally")
+	private int putQuestionInDatabase(Questions q){
+		String sql = "INSERT INTO questions (version, questionOrder, questionTextEnglish, questionTextSpanish, required, questionType) VALUES (?, ?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, q.getVersion());
+			statement.setInt(2, q.getQuestionOrder());
+			statement.setString(3, q.getQuestionTextEnglish());
+			statement.setString(4, q.getQuestionTextSpanish());
+			statement.setInt(5, q.getRequired());
+			statement.setInt(6, q.getQuestionType());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
+	}
+	
+	@SuppressWarnings("finally")
+	private int putAnswerInDatabase(Answers answer) {
+		String sql = "INSERT INTO answers (answerText, answerBool, licenseId, questionId, answerType) VALUES (?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			if(answer.getAnswerText() == null)
+				answer.setAnswerText("");
+			statement.setString(1, answer.getAnswerText());
+			statement.setInt(2, answer.getAnswerBool());
+			statement.setInt(3, answer.getLicenseId());
+			statement.setInt(4, answer.getQuestionId());
+			statement.setInt(5, answer.getAnswerType());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			if(i == 0)
+				throw new RuntimeException("failed to insert question into database");
+			if(this.putImageDetailsInDatabase(answer.getImageDetails()) == 0)
+				throw new RuntimeException("failed to insert image details into database");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
+	}
+
+
+	@SuppressWarnings("finally")
+	@Override
+	public Questions getQuestionById(Integer questionId) {
+		String sql = "SELECT * FROM questions WHERE id = ?";
+		ArrayList<Questions> results = new ArrayList<Questions>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, questionId);
+			resultSet = statement.executeQuery();
+			results = Questions.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					if(results.size() == 1)
+						return results.get(0);
+					return null;
+				}
+			}
+		}
+	}
+
+
+	@Override
+	public boolean userOwnsQuestionId(int questionId, String googleUserId) {
+		// TODO Auto-generated method stub
+		return true;
+	}
+
+
+	@Override
+	public File getLicenseImageForAnswerId(int answerId) {
+		ImageDetails imageDetails = this.getImageDetailsForAnswerId(answerId);
+		return this.getLicenseImageForPhotoNameBucketId(imageDetails.getPhotoName(), imageDetails.getBucketId());
+	}
+	
+	@SuppressWarnings("finally")
+	private int putImageDetailsInDatabase(ImageDetails imageDetails){
+		String sql = "INSERT INTO imageDetails (photoName, bucketId, answerId) VALUES (?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setString(1, imageDetails.getPhotoName());
+			statement.setInt(2, imageDetails.getBucketId());
+			statement.setInt(3, imageDetails.getAnswerId());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					return i;
+				}
+			}
+		}
+	}
+
+
+	@Override
+	public Questions putQuestion(Questions question) {
+		this.putQuestionInDatabase(question);
+		return this.getQuestionById(question.getId());
+	}
+
+
+	@Override
+	public Questions updateQuestion(Questions question) {
+		this.updateQuestionInDatabase(question);
+		return this.getQuestionById(question.getId());
 	}
 }
 

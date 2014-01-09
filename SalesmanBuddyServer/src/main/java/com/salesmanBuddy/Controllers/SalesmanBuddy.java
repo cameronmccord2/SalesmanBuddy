@@ -36,9 +36,11 @@ import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
+import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.StateQuestionsSpecifics;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
+
 
 /**
  * Root resource (exposed at "salesmanbuddy" path)
@@ -112,29 +114,67 @@ public class SalesmanBuddy {
      */
     @PUT
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response saveStringAsFileForStateId(@Context HttpServletRequest request, @DefaultValue("44") @QueryParam("stateid") int stateId){
+    public Response saveStringAsFileForStateId(@Context HttpServletRequest request, @DefaultValue("44") @QueryParam("stateid") int stateId, @DefaultValue("1") @QueryParam("base64") int base64){
     	String mimeType = request.getHeader("Content-Type");
 		String extension = "";
 		File file = null;
+		String b64Bytes = "";
+		FileOutputStream fos = null;
 		try{
 			extension = getFileTypeExtension(mimeType);
 		}catch(Exception e){
 			return Response.status(Status.NOT_ACCEPTABLE).build();
 		}
-		try{
-			file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
-			file.deleteOnExit();
-			FileOutputStream fos = new FileOutputStream(file);
-			InputStream is = new BufferedInputStream(request.getInputStream());
-			String b64Bytes = IOUtils.toString(is);
-			byte [] fileBytes = DatatypeConverter.parseBase64Binary(b64Bytes);
-			IOUtils.write(fileBytes, fos);
-		}catch (IOException e){
-			throw new RuntimeException(e);
+		if(base64 == 1){
+			try{// working 10/25
+				file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
+				file.deleteOnExit();
+				fos = new FileOutputStream(file);
+				InputStream is = new BufferedInputStream(request.getInputStream());
+				b64Bytes = IOUtils.toString(is);
+				byte [] fileBytes = DatatypeConverter.parseBase64Binary(b64Bytes);
+				IOUtils.write(fileBytes, fos);
+			}catch (IOException e){
+				throw new RuntimeException(e);
+			}finally{
+				try {
+					fos.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}else{
+			try{// untested
+				file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
+				file.deleteOnExit();
+				fos = new FileOutputStream(file);
+				InputStream is = new BufferedInputStream(request.getInputStream());
+				MessageDigest messageDigest = MessageDigest.getInstance("SHA1");
+				byte[] buffer = new byte[1024];
+				for (int read = 0; (read = is.read(buffer)) != -1;) {
+					messageDigest.update(buffer, 0, read);
+					fos.write(buffer,0,read);
+				}
+				fos.close();
+//				byte [] sha1bytes = messageDigest.digest();
+//				sha1 = DatatypeConverter.printBase64Binary(sha1bytes);
+			}catch (IOException e){
+				throw new RuntimeException(e);
+			}catch (NoSuchAlgorithmException e){
+				throw new RuntimeException(e);
+			}finally{
+				if(fos != null)
+					try {
+						fos.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+			}
 		}
 		
-    	GenericEntity<FinishedPhoto> entity = new GenericEntity<FinishedPhoto>(dao.saveFileToS3ForStateId(stateId, file)){};
+    	GenericEntity<FinishedPhoto> entity = new GenericEntity<FinishedPhoto>(dao.saveFileToS3ForStateId(stateId, file)){};// file from this is usable everywhere else, works in chrome
     	file.delete();
+//		GenericEntity<FinishedPhoto> entity = new GenericEntity<FinishedPhoto>(dao.saveStringAsFileForStateId(b64Bytes, stateId, extension)){};// iphone likes this one right now
     	return Response.ok(entity).build();
     }
     
@@ -179,63 +219,49 @@ public class SalesmanBuddy {
     	return Response.ok(entity).build();
     }
     
-    @Path("contactinfo")
+    
+    
+    @Path("questions")// works 10/13
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getContactInfoForLicenseIdOrContactInfoId(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("licenseid") int licenseId, @DefaultValue("0") @QueryParam("contactinfoid") int contactInfoId){
+    public Response getAllQuestions(@Context HttpServletRequest request){
     	String googleUserId = request.getUserPrincipal().getName();
-    	if(dao.userOwnsLicenseId(licenseId, googleUserId)){
-    		if(licenseId != 0){
-    			GenericEntity<ContactInfo> entity = new GenericEntity<ContactInfo>(dao.getContactInfoForLicenseId(licenseId)){};
-    			return Response.ok(entity).build();
-    		}else if(contactInfoId != 0){
-    			GenericEntity<ContactInfo> entity = new GenericEntity<ContactInfo>(dao.getContactInfoForContactInfoId(contactInfoId)){};
-	    		return Response.ok(entity).build();
-    		}else
-    			return Response.status(Status.BAD_REQUEST).entity(new GenericEntity<String>("you must specify a licenseid or contactinfoid as a query param"){}).build();
-    	}else
-    		return Response.status(Status.UNAUTHORIZED).build();
+    	GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
+    	return Response.ok(entity).build();
     }
     
-    @Path("contactinfo")
+    @Path("questions")// Updated 10/24
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response putContactInfo(@Context HttpServletRequest request, ContactInfo contactInfo){
-    	String googleUserId = request.getUserPrincipal().getName();
-    	if(dao.userOwnsLicenseId(contactInfo.getLicenseId(), googleUserId)){
-	    	GenericEntity<Integer> entity = new GenericEntity<Integer>(dao.putContactInfo(contactInfo)){};
-	    	return Response.ok(entity).build();
-    	}else
-    		return Response.status(Status.UNAUTHORIZED).build();
+    public Response putQuestion(@Context HttpServletRequest request, Questions question){
+    	GenericEntity<Questions> entity = new GenericEntity<Questions>(dao.putQuestion(question)){};
+    	return Response.ok(entity).build();
     }
+    
+    @Path("questions")// Added 10/24
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updateQuestion(@Context HttpServletRequest request, Questions question){
+    	GenericEntity<Questions> entity = new GenericEntity<Questions>(dao.updateQuestion(question)){};
+    	return Response.ok(entity).build();
+    }
+    
+    
     
     @Path("licenseimage")
     @GET
     @Produces("image/jpeg")
-    public Response getImageForLicenseId(@Context HttpServletRequest request, @QueryParam("licenseid") int licenseId, @DefaultValue("") @QueryParam("photoname") String photoName, @DefaultValue("-1") @QueryParam("bucketid") Integer bucketId){
+    public Response getImageForAnswerId(@Context HttpServletRequest request, @QueryParam("answerid") int answerId){
     	String googleUserId = request.getUserPrincipal().getName();
-    	if(dao.userOwnsLicenseId(licenseId, googleUserId)){
-    		File file = null;
-    		if(bucketId > 0 && photoName.length() > 0){
-    			file = dao.getLicenseImageForPhotoNameBucketId(photoName, bucketId);// Deprecated
-    		}else{
-    			file = dao.getLicenseImageForLicenseId(licenseId);// works 10/13
-    		}
-    		Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).build();
+    	if(dao.userOwnsQuestionId(answerId, googleUserId)){
+    		File file = dao.getLicenseImageForAnswerId(answerId);// works 10/13
+    		Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).header("Content-Length", file.length()).build();
 //    		file.delete();
     		return response;
     	}else
     		return Response.status(Status.UNAUTHORIZED).build();
-    }
-    
-    @Path("statequestions")// works 10/13
-    @GET
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getStateQuestionsSpecificsForStateId(@Context HttpServletRequest request, @QueryParam("stateid") int stateId){
-//    	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<List<StateQuestionsSpecifics>> entity = new GenericEntity<List<StateQuestionsSpecifics>>(dao.getStateQuestionsSpecificsForStateId(stateId)){};
-    	return Response.ok(entity).build();
     }
     
     private String getFileTypeExtension(String mimeType) throws Exception{

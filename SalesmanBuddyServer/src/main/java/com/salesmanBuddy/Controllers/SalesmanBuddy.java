@@ -30,14 +30,12 @@ import org.apache.commons.io.IOUtils;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
-import com.salesmanBuddy.model.ContactInfo;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.Questions;
-import com.salesmanBuddy.model.StateQuestionsSpecifics;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
 
@@ -225,8 +223,7 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getAllQuestions(@Context HttpServletRequest request){
-    	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
+    	GenericEntity<List<Questions>> entity = new GenericEntity<List<Questions>>(dao.getAllQuestions()){};
     	return Response.ok(entity).build();
     }
     

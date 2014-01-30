@@ -14,6 +14,7 @@ public class Questions {
     protected String questionTextSpanish;
     protected Integer questionType;
     protected Integer required;
+    protected Integer tag;
 
     
     public static ArrayList<Questions> parseResultSet(ResultSet resultSet){
@@ -28,6 +29,8 @@ public class Questions {
 				response.setQuestionTextEnglish(resultSet.getString("questionTextEnglish"));
 				response.setQuestionTextSpanish(resultSet.getString("questionTextSpanish"));
 				response.setQuestionType(resultSet.getInt("questionType"));
+				response.setTag(resultSet.getInt("tag"));
+				response.setRequired(resultSet.getInt("required"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -98,6 +101,14 @@ public class Questions {
 
 	public void setQuestionType(Integer questionType) {
 		this.questionType = questionType;
+	}
+
+	public Integer getTag() {
+		return tag;
+	}
+
+	public void setTag(Integer tag) {
+		this.tag = tag;
 	}
 }
 

@@ -26,6 +26,8 @@ public class Licenses {
 		sb.append(this.latitude);
 		sb.append(", userId:");
 		sb.append(this.userId);
+		sb.append(", stateId:");
+		sb.append(this.stateId);
 		sb.append("}");
 		return sb.toString();
 	}

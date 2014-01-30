@@ -8,13 +8,11 @@ import java.io.Writer;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.sql.Connection;
-import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
 
 import javax.naming.Context;
@@ -50,10 +48,6 @@ import com.salesmanBuddy.model.ImageDetails;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
-import com.salesmanBuddy.model.StateQuestions;
-import com.salesmanBuddy.model.StateQuestionsResponses;
-import com.salesmanBuddy.model.StateQuestionsSpecifics;
-import com.salesmanBuddy.model.StateQuestionsWithResponses;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
@@ -458,17 +452,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	@SuppressWarnings("finally")
 	private int putLicenseInDatabase(Licenses license){
-		String sql = "INSERT INTO licenses (photo, bucketId, longitude, latitude, userId, stateIs) VALUES (?, ?, ?, ?, ?, ?)";
+		String sql = "INSERT INTO licenses (longitude, latitude, userId, stateId) VALUES (?, ?, ?, ?)";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int id = 0;
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
-			statement.setFloat(3, license.getLongitude());
-			statement.setFloat(4, license.getLatitude());
-			statement.setInt(5, license.getUserId());
-			statement.setInt(6, license.getStateId());
+			statement.setFloat(1, license.getLongitude());
+			statement.setFloat(2, license.getLatitude());
+			statement.setInt(3, license.getUserId());
+			statement.setInt(4, license.getStateId());
 			statement.execute();
 			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
@@ -522,27 +516,29 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		Users user = this.getUserByGoogleId(googleUserId);
 		int licenseId = 0;
 		if(user == null)
-			throw new RuntimeException("couldnt find user for google id");
+			throw new RuntimeException("couldnt find user for google id: " + googleUserId);
 		licenseFromClient.setUserId(user.getId());
 		if(licenseFromClient.getUserId() == 0)
-			throw new RuntimeException("userid is 0, its invalid");
+			throw new RuntimeException("userid is " + licenseFromClient.getUserId() + ", its invalid");
 
 		Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
 		licenseId = this.putLicenseInDatabase(l);
 		if(licenseId == 0)
-			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId);
+			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId + ", license: " + l.toString());
 		
 		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
+			qaa.getAnswer().setLicenseId(licenseId);
 			if(this.putAnswerInDatabase(qaa.getAnswer()) == 0)
 				throw new RuntimeException("Failed to insert answer into database");
 		}
 		
-		ArrayList<LicensesListElement> licenses = this.getAllLicensesForUserId(googleUserId);
-		for(LicensesListElement lic : licenses){
-			if(lic.getId() == licenseId)
-				return lic;
-		}
-		throw new RuntimeException("couldnt find the license that was just inserted");
+//		ArrayList<LicensesListElement> licenses = this.getAllLicensesForUserId(googleUserId);
+//		for(LicensesListElement lic : licenses){
+//			if(lic.getId() == licenseId)// TODO change this to only get one
+//				return lic;
+//		}
+		return this.getLicenseListElementForLicenseId(licenseId);
+//		throw new RuntimeException("couldnt find the license that was just inserted");
 	}
 
 	@Override
@@ -771,8 +767,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}
 		}
 	}
-
-
+	
 	@SuppressWarnings("finally")
 	@Override
 	public int createUser(Users user) {
@@ -784,7 +779,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
-			statement.setInt(1, this.getAllDealerships().get(0).getId());// TODO fix this
+			statement.setInt(1, 1);// TODO fix this to actually use dealerships
 			statement.setInt(2, user.getDeviceType());
 			statement.setInt(3, 1);
 			statement.setString(4, user.getGoogleUserId());
@@ -900,8 +895,9 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			resultSet = statement.executeQuery();
 			results = Answers.parseResultSet(resultSet);
 			for(Answers a : results){
-				if(a.getAnswerType() == JDBCSalesmanBuddyDAO.isImage)
+				if(a.getAnswerType() == JDBCSalesmanBuddyDAO.isImage) {
 					a.setImageDetails(this.getImageDetailsForAnswerId(a.getId()));
+				}
 			}
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -967,6 +963,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 						throw new RuntimeException(sqle);
 					}finally{
 						if(results.size() == 1)
+//							throw new RuntimeException("got image details for answerId: " + answerId + ", id: " + results.get(0).getId());
 							return results.get(0);
 						throw new RuntimeException("couldnt find imageDetails for answer id: " + answerId);
 					}
@@ -1130,6 +1127,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		}
 	}
 	
+	/*
+	 * CREATE TABLE answers (
+    id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    answerText                 NVARCHAR(500)                         NOT NULL,
+    answerBool                 BIT          default 0                NOT NULL,
+    answerType                 int          default 0                NOT NULL,
+    licenseId                  int                                   NOT NULL FOREIGN KEY REFERENCES licenses(id),
+    questionId                 int                                   NOT NULL FOREIGN KEY REFERENCES questions(id),
+    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL
+);
+	 */
 	@SuppressWarnings("finally")
 	private int putAnswerInDatabase(Answers answer) {
 		String sql = "INSERT INTO answers (answerText, answerBool, licenseId, questionId, answerType) VALUES (?, ?, ?, ?, ?)";
@@ -1150,8 +1158,11 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 			if(i == 0)
 				throw new RuntimeException("failed to insert question into database");
-			if(this.putImageDetailsInDatabase(answer.getImageDetails()) == 0)
-				throw new RuntimeException("failed to insert image details into database");
+			if(answer.getImageDetails() != null){
+				answer.getImageDetails().setAnswerId(i);
+				if(this.putImageDetailsInDatabase(answer.getImageDetails()) == 0)
+					throw new RuntimeException("failed to insert image details into database");
+			}
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}finally{
@@ -1209,6 +1220,39 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			}
 		}
 	}
+	
+	@SuppressWarnings("finally")
+	@Override
+	public ArrayList<Questions> getAllQuestions() {
+		String sql = "SELECT * FROM questions ORDER BY questionOrder";
+		ArrayList<Questions> results = new ArrayList<Questions>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			resultSet = statement.executeQuery();
+			results = Questions.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}finally{
+					return results;
+				}
+			}
+		}
+	}
 
 
 	@Override
@@ -1253,7 +1297,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 				}catch(SQLException sqle){
 					throw new RuntimeException(sqle);
 				}finally{
-					return i;
+					if(i == 0)
+						throw new RuntimeException("insert image failed");
+					throw new RuntimeException("inserted image");
+//					return i;
 				}
 			}
 		}

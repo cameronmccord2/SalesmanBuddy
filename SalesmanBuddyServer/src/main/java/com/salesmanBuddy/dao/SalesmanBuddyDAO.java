@@ -64,4 +64,6 @@ public interface SalesmanBuddyDAO {
 
 	Questions updateQuestion(Questions question);
 
+	ArrayList<Questions> getAllQuestions();
+
 }

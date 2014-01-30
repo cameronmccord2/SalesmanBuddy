@@ -63,7 +63,7 @@ CREATE TABLE licenses (
     longitude                  decimal(10, 6)                        NOT NULL, -- sub meter accuracy
     latitude                   decimal(10, 6)                        NOT NULL,
     userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id),
-    stateId                     int                                   NOT NULL FOREIGN KEY REFERENCES states(id)
+    stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id)
 );
 
 CREATE TABLE questions (
@@ -72,11 +72,9 @@ CREATE TABLE questions (
     questionOrder              int          default 0                NOT NULL,
     questionTextEnglish        NVARCHAR(1000)                        NOT NULL,
     questionTextSpanish        NVARCHAR(1000)                        NOT NULL,
-    questionIsBool             BIT          default 0                NOT NULL,
-    questionIsText             BIT          default 0                NOT NULL,
-    questionIsDropdown         BIT          default 0                NOT NULL,
-    questionIsImage            BIT          default 0                NOT NULL,
+    questionType               int          default 0                NOT NULL,
     required                   BIT          default 0                NOT NULL,
+    tag                        int          default 0                NOT NULL,
     created                    DATETIME2    default SYSUTCDATETIME() NOT NULL
 );
 
@@ -84,9 +82,7 @@ CREATE TABLE answers (
     id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
     answerText                 NVARCHAR(500)                         NOT NULL,
     answerBool                 BIT          default 0                NOT NULL,
-    answerIsBool               BIT          default 0                NOT NULL,
-    answerIsText               BIT          default 0                NOT NULL,
-    answerIsDropdown           BIT          default 0                NOT NULL,
+    answerType                 int          default 0                NOT NULL,
     licenseId                  int                                   NOT NULL FOREIGN KEY REFERENCES licenses(id),
     questionId                 int                                   NOT NULL FOREIGN KEY REFERENCES questions(id),
     created                    DATETIME2    default SYSUTCDATETIME() NOT NULL

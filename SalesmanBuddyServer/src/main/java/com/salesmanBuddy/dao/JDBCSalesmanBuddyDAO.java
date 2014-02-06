@@ -13,6 +13,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import javax.naming.Context;
@@ -41,13 +42,17 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.google.common.io.Files;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.Buckets;
+import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.ImageDetails;
+import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
+import com.salesmanBuddy.model.MaxValue;
+import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
@@ -1318,6 +1323,387 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	public Questions updateQuestion(Questions question) {
 		this.updateQuestionInDatabase(question);
 		return this.getQuestionById(question.getId());
+	}
+	
+	
+	
+	
+//	trainer stuff
+
+
+	@Override
+	public ArrayList<Captions> putCaptions(List<Captions> captions) {
+		if(captions.size() == 0)
+			return new ArrayList<Captions>();
+		
+		// get latest version to use
+		int version = this.getLatestCaptionVersionForMediaIdLanguageId(captions.get(0).getMediaId(), captions.get(0).getLanguageId());
+		version++;
+		
+		for(Captions c : captions){
+			c.setVersion(version);
+			this.putCaption(c);
+		}
+		return this.getAllCaptionsForMediaIdLanguageId(captions.get(0).getMediaId(), captions.get(0).getLanguageId());
+	}
+	
+	private int getLatestCaptionVersionForMediaIdLanguageId(Integer mediaId, Integer languageId) {
+		String sql = "SELECT MAX(version) AS maxValue FROM captions WHERE mediaId = ? AND languageId = ?";
+		Integer maxValue = 0;
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, mediaId);
+			statement.setInt(2, languageId);
+			resultSet = statement.executeQuery();
+			maxValue = MaxValue.parseResultSetForMaxValue(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}
+			}
+		}
+		return maxValue;
+	}
+
+
+	private int putCaption(Captions caption){
+		String sql = "INSERT INTO captions (version, caption, mediaId, startTime, endTime, type, languageId) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setInt(1, caption.getVersion());
+			statement.setString(2, caption.getCaption());
+			statement.setInt(3, caption.getMediaId());
+			statement.setInt(4, caption.getStartTime());
+			statement.setInt(5, caption.getEndTime());
+			statement.setInt(6, caption.getType());
+			statement.setInt(7, caption.getLanguageId());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					if(i == 0)
+						throw new RuntimeException("insert captions failed, i == 0");
+				}
+			}
+		}
+		return i;
+	}
+
+
+	@Override
+	public ArrayList<Captions> getAllCaptionsForMediaIdLanguageId(int mediaId, int languageId) {
+		Integer latestVersion = this.getLatestCaptionVersionForMediaIdLanguageId(mediaId, languageId);
+		
+		String sql = "SELECT * FROM captions WHERE mediaId = ? AND languageId = ? AND version = ? ORDER BY startTime";
+		ArrayList<Captions> results = new ArrayList<Captions>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, mediaId);
+			statement.setInt(2, languageId);
+			statement.setInt(3, latestVersion);
+			resultSet = statement.executeQuery();
+			results = Captions.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}
+			}
+		}
+		return results;
+	}
+
+
+	@Override
+	public Media putMedia(Media media) {
+		if(media.getId() == 0)
+			return this.putNewMedia(media);
+		else
+			return this.updateMedia(media);
+	}
+		
+	private Media updateMedia(Media media){
+		String sql = "UPDATE media SET name = ?, filename = ?, type = ?, audioLanguageId = ? WHERE id = ?";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		Media updatedMedia = null;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
+			statement.setString(1, media.getName());
+			statement.setString(2, media.getFilename());
+			statement.setInt(3, media.getType());
+			statement.setInt(4, media.getAudioLanguageId());
+			statement.setInt(5, media.getId());
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					if(i == 0)
+						throw new RuntimeException("update media failed for id: " + media.getId() + ", object: " + media.toString());
+					else
+						updatedMedia = this.getMediaById(media.getId());
+				}
+			}
+		}
+		return updatedMedia;
+	}
+	
+	private Media putNewMedia(Media media){
+		String sql = "INSERT INTO media (name, filename, type, audioLanguageId) VALUES (?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setString(1, media.getName());
+			statement.setString(2, media.getFilename());
+			statement.setInt(3, media.getType());
+			statement.setInt(4, media.getAudioLanguageId());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					if(i == 0)
+						throw new RuntimeException("insert media failed, i == 0");
+				}
+			}
+		}
+		return this.getMediaById(i);
+	}
+
+	@Override
+	public Media getMediaById(int id) {
+		String sql = "SELECT * FROM media WHERE id = ?";
+		ArrayList<Media> results = new ArrayList<Media>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setInt(1, id);
+			resultSet = statement.executeQuery();
+			results = Media.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}
+			}
+		}
+		if(results.size() == 1)
+			return results.get(0);
+		throw new RuntimeException("couldnt find media by id: " + id + ", result set size was: " + results.size());
+	}
+
+
+	@Override
+	public ArrayList<Media> getAllMedia() {
+		String sql = "SELECT * FROM media";
+		ArrayList<Media> results = new ArrayList<Media>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+
+			resultSet = statement.executeQuery();
+			results = Media.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}
+			}
+		}
+		return results;
+	}
+
+
+	@Override
+	public ArrayList<Languages> putLanguages(List<Languages> languages) {
+		
+		for(Languages l : languages){
+			this.putLanguage(l);
+		}
+		return this.getAllLanguages(0);
+	}
+	
+	private int putLanguage(Languages language){
+		/*
+		 * mtcId                    NVARCHAR(5)                            NOT NULL,
+    code1                    NVARCHAR(5)                            NULL,
+    code2                    NVARCHAR(5)                            NULL,
+    name                     NVARCHAR(30)                           NOT NULL,
+    mtcTaught                NUMERIC(2) default 0                   NOT NULL,
+    alternateName            NVARCHAR(30)                           NULL,
+    nativeName               NVARCHAR(30)                           NULL
+		 */
+		
+		String sql = "INSERT INTO languages (mtcId, code1, code2, name, mtcTaught, alternateName, nativeName) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS);
+			statement.setString(1, language.getMtcId());
+			statement.setString(2, language.getCode1());
+			statement.setString(3, language.getCode2());
+			statement.setString(4, language.getName());
+			statement.setInt(5, language.getMtcTaught());
+			statement.setString(6, language.getAlternateName());
+			statement.setString(7, language.getNativeName());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}finally{
+					if(i == 0)
+						throw new RuntimeException("insert language failed, i == 0, object: " + language.toString());
+				}
+			}
+		}
+		return i;
+	}
+
+
+	@Override
+	public ArrayList<Languages> getAllLanguages(int onlyMtcTaught) {
+		String sql = "SELECT * FROM languages";
+		if(onlyMtcTaught == 1)
+			sql = "SELECT * FROM languages WHERE mtcTaught = 1";
+		ArrayList<Languages> results = new ArrayList<Languages>();
+		PreparedStatement statement = null;
+		ResultSet resultSet = null;
+		try{
+			Connection connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+
+			resultSet = statement.executeQuery();
+			results = Languages.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(resultSet != null)
+					resultSet.close();
+			}catch(SQLException e){
+				throw new RuntimeException(e);
+			}finally{
+				try{
+					if(statement != null)
+						statement.close();
+				}catch(SQLException se){
+					throw new RuntimeException(se);
+				}
+			}
+		}
+		return results;
 	}
 }
 

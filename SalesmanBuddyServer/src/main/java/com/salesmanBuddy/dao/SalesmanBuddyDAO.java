@@ -5,12 +5,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.salesmanBuddy.model.Answers;
+import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
+import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.QuestionsAndAnswers;
 import com.salesmanBuddy.model.States;
@@ -65,5 +68,21 @@ public interface SalesmanBuddyDAO {
 	Questions updateQuestion(Questions question);
 
 	ArrayList<Questions> getAllQuestions();
+	
+//	trainer stuff
+
+	ArrayList<Captions> putCaptions(List<Captions> captions);
+
+	ArrayList<Captions> getAllCaptionsForMediaIdLanguageId(int mediaId, int languageId);
+
+	Media putMedia(Media media);
+
+	ArrayList<Media> getAllMedia();
+
+	ArrayList<Languages> putLanguages(List<Languages> languages);
+
+	ArrayList<Languages> getAllLanguages(int mtcTaught);
+
+	Media getMediaById(int id);
 
 }

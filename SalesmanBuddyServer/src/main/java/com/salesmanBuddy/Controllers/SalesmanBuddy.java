@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -30,11 +31,14 @@ import org.apache.commons.io.IOUtils;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
+import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
+import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
@@ -343,6 +347,73 @@ public class SalesmanBuddy {
 		else
 			throw new Exception("Unsupported Media Type");
 	}
+    
+    
+    
+    
+//    stuff for trainer app
+    @Path("languages")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getAllLanguages(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("onlyMTCTaught") int onlyMtcTaught){
+    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(dao.getAllLanguages(onlyMtcTaught)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("languages")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putLanguages(@Context HttpServletRequest request, List<Languages> languages){
+    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(dao.putLanguages(languages)){};
+    	return Response.ok(entity).build();
+    }
+    
+//    @Path("media")// works 10/13
+//    @GET
+//    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+//    public Response allMedia(@Context HttpServletRequest request){
+//    	
+//    }
+    
+    @Path("media")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getMediaById(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("mediaid") int mediaId){
+    	if(mediaId == -1){
+    		GenericEntity<List<Media>> entity = new GenericEntity<List<Media>>(dao.getAllMedia()){};
+        	return Response.ok(entity).build();
+    	}else{
+	    	GenericEntity<Media> entity = new GenericEntity<Media>(dao.getMediaById(mediaId)){};
+	    	return Response.ok(entity).build();
+    	}
+    }
+    
+    @Path("media")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putQuestion(@Context HttpServletRequest request, Media media){
+    	GenericEntity<Media> entity = new GenericEntity<Media>(dao.putMedia(media)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("captions")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getAllCaptionsForMediaIdAndLanguageId(@Context HttpServletRequest request, @QueryParam("mediaid") int mediaId, @QueryParam("languageid") int languageId){
+    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(dao.getAllCaptionsForMediaIdLanguageId(mediaId, languageId)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("captions")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putCaptions(@Context HttpServletRequest request, List<Captions> captions){
+    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(dao.putCaptions(captions)){};
+    	return Response.ok(entity).build();
+    }
     
 }
 

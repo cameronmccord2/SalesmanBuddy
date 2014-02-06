@@ -103,3 +103,39 @@ CREATE TABLE dropdownOptions (
     optionOrder                 int         default 0                 NOT NULL,
     optionValue                 NVARCHAR(100)                         NOT NULL
 );
+
+
+
+
+-- stuff for trainer app
+
+CREATE TABLE languages(
+    id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    mtcId                    NVARCHAR(5)                            NOT NULL,
+    code1                    NVARCHAR(5)                            NULL,
+    code2                    NVARCHAR(10)                            NULL,
+    name                     NVARCHAR(60)                           NOT NULL,
+    mtcTaught                NUMERIC(2) default 0                   NOT NULL,
+    alternateName            NVARCHAR(25)                           NULL,
+    nativeName               NVARCHAR(25)                           NULL
+);
+
+CREATE TABLE media (
+    id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name                     NVARCHAR(100)                           NOT NULL,
+    filename                 NVARCHAR(100)                          NOT NULL,
+    type                     NUMERIC(2) default 0                   NOT NULL,
+    audioLanguageId          int                                    NOT NULL FOREIGN KEY REFERENCES languages(id)
+);
+
+CREATE TABLE captions (
+    id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    version                  int                                   NOT NULL,
+    caption                  NVARCHAR(300)                         NOT NULL,
+    mediaId                  int                                   NOT NULL FOREIGN KEY REFERENCES media(id),
+    startTime                int                                   NOT NULL,
+    endTime                  int                                   NOT NULL,
+    type                     int          default 0                NOT NULL,
+    created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
+    languageId               int                                   NOT NULL FOREIGN KEY REFERENCES languages(id)
+);

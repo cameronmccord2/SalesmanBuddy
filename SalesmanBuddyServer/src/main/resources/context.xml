@@ -34,7 +34,7 @@
 		driverClassName="com.microsoft.sqlserver.jdbc.SQLServerDriver"
 		factory="org.apache.tomcat.dbcp.dbcp.BasicDataSourceFactory"
 		initialSize="0"
-		maxActive="100"
+		maxActive="30"
 		maxIdle="10"
 		minIdle="0"
 		maxWait="-1"

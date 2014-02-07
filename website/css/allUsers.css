@@ -1,0 +1,68 @@
+#allUsers .content{
+
+}
+
+#allUsers .tableHead {
+	float: left;
+	height: 45px;
+	width: 1180px;
+	cursor: pointer;
+}
+
+#allUsers .subTitleRow{
+
+}
+
+#allUsers .subTitleRowElement{
+
+}
+
+#allUsers .titleRowElement {
+	float: left;
+	font-weight: bold;
+	height: 100%;
+	border-bottom: solid 1px black;
+	padding-top: 10px;
+	font-size: 12px;
+}
+
+#allUsers .innerRow {
+	float: left;
+	width: 95%;
+	cursor: pointer;
+	margin-left: 5%;
+	min-height: 30px;
+}
+
+#allUsers .odd {
+	background-color: #F5F5F5;
+}
+
+#allUsers .appNameSelect{
+
+}
+
+#allUsers .row{
+	float: left;
+	min-height: 30px;
+	width: 100%;
+	cursor: pointer;
+}
+
+#allUsers .rowElement{
+	float: left;
+	min-height: 30px;
+}
+
+#allUsers .rowText{
+	margin-top: 5px;
+	margin-bottom: 0px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: inherit;
+	font-size: 12px;
+}
+
+#allUsers .tableText{
+	font-weight: bold;
+}

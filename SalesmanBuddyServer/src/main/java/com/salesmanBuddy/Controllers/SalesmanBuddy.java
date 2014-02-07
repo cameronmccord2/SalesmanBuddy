@@ -18,6 +18,7 @@ import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.PUT;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Context;
@@ -103,9 +104,36 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllDealerships(@Context HttpServletRequest request){
-//    	String googleUserId = request.getUserPrincipal().getName();
     	GenericEntity<List<Dealerships>> entity = new GenericEntity<List<Dealerships>>(dao.getAllDealerships()){};
     	return Response.ok(entity).build();
+    }
+    
+    @Path("dealerships")// Updated 10/23
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response newDealership(@Context HttpServletRequest request, Dealerships dealership){
+    	String googleUserId = request.getUserPrincipal().getName();
+    	int userType = dao.getUserByGoogleId(googleUserId).getType();
+    	if(userType == 3){
+    		GenericEntity<Dealerships> entity = new GenericEntity<Dealerships>(dao.newDealership(dealership)){};
+        	return Response.ok(entity).build();
+    	}
+    	throw new RuntimeException("you must be of type 3 to make new dealerships");
+    }
+    
+    @Path("dealerships")// Updated 10/23
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updateDealership(@Context HttpServletRequest request, Dealerships dealership){
+    	String googleUserId = request.getUserPrincipal().getName();
+    	int userType = dao.getUserByGoogleId(googleUserId).getType();
+    	if(userType == 3){
+    		GenericEntity<Dealerships> entity = new GenericEntity<Dealerships>(dao.updateDealership(dealership)){};
+        	return Response.ok(entity).build();
+    	}
+    	throw new RuntimeException("you must be of type 3 to update a dealership");
     }
     
     @Path("savedata")// Updated 10/23
@@ -183,10 +211,15 @@ public class SalesmanBuddy {
     @Path("licenses")// works 10/13
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getAllLicensesForUserId(@Context HttpServletRequest request){
+    public Response getAllLicensesForUserId(@Context HttpServletRequest request, @DefaultValue("false") @QueryParam("dealership") boolean dealershipList){
     	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
-    	return Response.ok(entity).build();
+    	if(dealershipList){
+    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForDealershipForUserId(googleUserId)){};
+        	return Response.ok(entity).build();
+    	}else{
+    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
+        	return Response.ok(entity).build();
+    	}
     }
     
     @Path("licenses")// Updated 10/24
@@ -247,6 +280,43 @@ public class SalesmanBuddy {
     public Response updateQuestion(@Context HttpServletRequest request, Questions question){
     	GenericEntity<Questions> entity = new GenericEntity<Questions>(dao.updateQuestion(question)){};
     	return Response.ok(entity).build();
+    }
+    
+    
+    @Path("users")// works 2-6-14
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getAllUsers(@Context HttpServletRequest request){
+    	String googleUserId = request.getUserPrincipal().getName();
+    	Users user = dao.getUserByGoogleId(googleUserId);
+    	if(user.getType() > 1){
+    		GenericEntity<List<Users>> entity = new GenericEntity<List<Users>>(dao.getAllUsers()){};
+        	return Response.ok(entity).build();
+    	}
+    	throw new RuntimeException("invalid user type, your type must be more than 1 to get all users, you are: " + user.toString());
+    	
+    }
+    
+    @Path("users/{googleUserId}")
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// TODO this may need a body object
+    public Response updateUserToType(@Context HttpServletRequest request, @PathParam("googleUserId") String googleUserId, @DefaultValue("0") @QueryParam("type") int type, 
+    		@DefaultValue("a") @QueryParam("dealershipcode") String dealershipCode){	
+    	if(googleUserId.length() == 0)
+    		throw new RuntimeException("invalid google user id");
+    	int yourType = dao.getUserByGoogleId(request.getUserPrincipal().getName()).getType();
+    	if(type > 0){
+    		if(type > yourType){// trying to create user above yourself
+    			throw new RuntimeException("cant assign someone to type " + type + " unless you are of the same type or higher, you are: " + yourType);
+    		}
+    		GenericEntity<Users> entity = new GenericEntity<Users>(dao.updateUserToType(googleUserId, type)){};// works 2-6-14
+        	return Response.ok(entity).build();
+    	}else if(!dealershipCode.equals("a")){
+    		GenericEntity<Users> entity = new GenericEntity<Users>(dao.updateUserToDealershipCode(googleUserId, dealershipCode)){};// works 2-6-14
+        	return Response.ok(entity).build();
+    	}
+    	throw new RuntimeException("You are missing required query params, type: " + type + ", dealershipCode: " + dealershipCode);
     }
     
     

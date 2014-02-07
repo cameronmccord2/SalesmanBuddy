@@ -6,11 +6,11 @@
     <groupId>SalesmanBuddy</groupId>
     <artifactId>Salesman-Buddy</artifactId>
     <packaging>war</packaging>
-    <version>0.0.14</version>
+    <version>0.0.15</version>
     <name>SalesmanBuddy</name>
 
     <build>
-        <finalName>SalesmanBuddy-0.0.14</finalName>
+        <finalName>SalesmanBuddy-0.0.15</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

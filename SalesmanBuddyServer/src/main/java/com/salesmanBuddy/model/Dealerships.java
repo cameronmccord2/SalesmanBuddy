@@ -11,6 +11,7 @@ public class Dealerships {
     protected String city;
     protected Integer stateId;
     protected Date created;
+    protected String dealershipCode;
     
     public static ArrayList<Dealerships> parseResultSet(ResultSet resultSet){
     	ArrayList<Dealerships> responses = new ArrayList<Dealerships>();
@@ -22,6 +23,7 @@ public class Dealerships {
 				response.setCity(resultSet.getString("city"));
 				response.setStateId(resultSet.getInt("stateId"));
 				response.setCreated(resultSet.getDate("created"));
+				response.setDealershipCode(resultSet.getString("dealershipCode"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -59,5 +61,13 @@ public class Dealerships {
 	}
 	public void setCreated(Date created) {
 		this.created = created;
+	}
+
+	public String getDealershipCode() {
+		return dealershipCode;
+	}
+
+	public void setDealershipCode(String dealershipCode) {
+		this.dealershipCode = dealershipCode;
 	}
 }

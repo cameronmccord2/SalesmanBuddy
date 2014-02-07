@@ -22,7 +22,7 @@ public class Users {
 				response.setId(resultSet.getInt("id"));
 				response.setDealershipId(resultSet.getInt("dealershipId"));
 				response.setDeviceType(resultSet.getInt("deviceType"));
-				response.setType(resultSet.getInt("deviceType"));
+				response.setType(resultSet.getInt("type"));
 				response.setGoogleUserId(resultSet.getString("googleUserId"));
 				responses.add(response);
 			}
@@ -72,5 +72,25 @@ public class Users {
 
 	public void setGoogleUserId(String googleUserId) {
 		this.googleUserId = googleUserId;
+	}
+
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("Users [id=");
+		builder.append(id);
+		builder.append(", dealershipId=");
+		builder.append(dealershipId);
+		builder.append(", deviceType=");
+		builder.append(deviceType);
+		builder.append(", type=");
+		builder.append(type);
+		builder.append(", created=");
+		builder.append(created);
+		builder.append(", googleUserId=");
+		builder.append(googleUserId);
+		builder.append("]");
+		return builder.toString();
 	}
 }

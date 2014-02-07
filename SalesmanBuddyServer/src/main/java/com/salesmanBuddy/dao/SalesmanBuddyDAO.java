@@ -53,7 +53,7 @@ public interface SalesmanBuddyDAO {
 
 	FinishedPhoto saveFileToS3ForStateId(int stateId, File file);
 
-	ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId);
+	ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId, ArrayList<Questions> questions);
 
 	ArrayList<Answers> getAnswersForLicenseId(int licenseId);
 
@@ -68,6 +68,19 @@ public interface SalesmanBuddyDAO {
 	Questions updateQuestion(Questions question);
 
 	ArrayList<Questions> getAllQuestions();
+	
+	List<Users> getAllUsers();
+
+	Users updateUserToType(String googleUserId, int type);
+
+	Users updateUserToDealershipCode(String googleUserId, String dealershipCode);
+
+	List<LicensesListElement> getAllLicensesForDealershipForUserId(String googleUserId);
+
+	Dealerships newDealership(Dealerships dealership);
+
+	Dealerships updateDealership(Dealerships dealership);
+	
 	
 //	trainer stuff
 
@@ -84,5 +97,4 @@ public interface SalesmanBuddyDAO {
 	ArrayList<Languages> getAllLanguages(int mtcTaught);
 
 	Media getMediaById(int id);
-
 }

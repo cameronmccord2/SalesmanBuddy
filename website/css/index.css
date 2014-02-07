@@ -1,0 +1,47 @@
+.viewBox{
+	width: 1200px;
+	margin-left: auto;
+	margin-right: auto;
+	margin-top: 10px;
+	background: white;
+}
+
+.topBarContainer{
+	background: rgb(0, 102, 153);
+	height: 81px;
+	width: 100%;
+	border-bottom: solid rgb(219, 205, 161) 1px;
+	min-width: 1200px;
+}
+
+.topBar{
+	height: 80px;
+	width: 1200px;
+	background: rgb(0, 102, 153);
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.logOutContainer {
+	display: block;
+	float: right;
+	margin-top: 20px;
+}
+
+.userName, .logOut {
+	margin-right: 00px;
+	color: rgb(255, 255, 255);
+	font-family: Arial;
+	font-size: 14px;
+	display: block;
+	height: 20px;
+	width: 260px;
+	text-align: right;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.logOut {
+	cursor: pointer;
+}

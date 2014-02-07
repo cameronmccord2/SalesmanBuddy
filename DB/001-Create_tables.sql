@@ -38,12 +38,15 @@ CREATE TABLE dealerships (
     city                     NVARCHAR(100)                         NOT NULL,
     stateId                  int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
     created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
+    dealershipCode           NVARCHAR(40)                          NOT NULL
 );
 
+
+-- 1:normal/salesman, 2:can see all dealership users, 3: Salesman Buddy employees/all powerful
 CREATE TABLE users (
     id                       int                       IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    dealershipId             int                                     NOT NULL FOREIGN KEY REFERENCES dealerships(id),
-    deviceType               int                                     NOT NULL,
+    dealershipId             int                                     NULL FOREIGN KEY REFERENCES dealerships(id),
+    deviceType               int                                     NOT NULL,-- 1:ios, 2:web
     type                     NUMERIC(3)     default 1                NOT NULL,
     created                  DATETIME2      default SYSUTCDATETIME() NOT NULL,
     googleUserId             NVARCHAR(25)                            NOT NULL

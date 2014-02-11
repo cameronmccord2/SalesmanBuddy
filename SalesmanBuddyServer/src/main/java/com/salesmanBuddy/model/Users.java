@@ -12,6 +12,7 @@ public class Users {
     protected Integer type;
     protected Date created;
     protected String googleUserId;
+    protected String refreshToken;
     
     public static ArrayList<Users> parseResultSet(ResultSet resultSet){
     	ArrayList<Users> responses = new ArrayList<Users>();
@@ -24,6 +25,7 @@ public class Users {
 				response.setDeviceType(resultSet.getInt("deviceType"));
 				response.setType(resultSet.getInt("type"));
 				response.setGoogleUserId(resultSet.getString("googleUserId"));
+				response.setRefreshToken(resultSet.getString("refreshToken"));
 				responses.add(response);
 			}
     	}catch(SQLException e){
@@ -63,15 +65,17 @@ public class Users {
 	public void setCreated(Date created) {
 		this.created = created;
 	}
-
-
 	public String getGoogleUserId() {
 		return googleUserId;
 	}
-
-
 	public void setGoogleUserId(String googleUserId) {
 		this.googleUserId = googleUserId;
+	}
+	public String getRefreshToken() {
+		return refreshToken;
+	}
+	public void setRefreshToken(String refreshToken) {
+		this.refreshToken = refreshToken;
 	}
 
 
@@ -90,6 +94,8 @@ public class Users {
 		builder.append(created);
 		builder.append(", googleUserId=");
 		builder.append(googleUserId);
+		builder.append(", refreshToken=");
+		builder.append(refreshToken);
 		builder.append("]");
 		return builder.toString();
 	}

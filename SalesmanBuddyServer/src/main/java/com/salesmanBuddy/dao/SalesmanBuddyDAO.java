@@ -9,6 +9,8 @@ import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
+import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
@@ -18,6 +20,7 @@ import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.QuestionsAndAnswers;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
+import com.salesmanBuddy.model.UsersName;
 
 public interface SalesmanBuddyDAO {
 
@@ -81,6 +84,14 @@ public interface SalesmanBuddyDAO {
 
 	Dealerships updateDealership(Dealerships dealership);
 	
+	void updateRefreshTokenForUser(Users userFromClient);
+	
+	GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId);
+	
+	UsersName getUsersName(String googleUserId);
+
+	GoogleUserInfo getGoogleUserInfo(String googleUserId);
+	
 	
 //	trainer stuff
 
@@ -97,4 +108,6 @@ public interface SalesmanBuddyDAO {
 	ArrayList<Languages> getAllLanguages(int mtcTaught);
 
 	Media getMediaById(int id);
+
+	
 }

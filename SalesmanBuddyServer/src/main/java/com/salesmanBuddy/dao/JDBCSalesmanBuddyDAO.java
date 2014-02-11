@@ -6,6 +6,9 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.math.BigInteger;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -22,6 +25,8 @@ import javax.naming.NamingException;
 import javax.sql.DataSource;
 
 import org.apache.commons.io.IOUtils;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
@@ -46,6 +51,8 @@ import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
+import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.ImageDetails;
 import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.Licenses;
@@ -58,6 +65,7 @@ import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.QuestionsAndAnswers;
+import com.salesmanBuddy.model.UsersName;
 
 
 
@@ -70,6 +78,15 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	static final private int isText = 2;
 	static final private int isBool = 3;
 	static final private int isDropdown = 4;
+	
+	private static String GoogleClientIdWeb = "185872110398-icdle47mq6dtff0ktdpc7qrpojkh5jrj.apps.googleusercontent.com";
+	private static String GoogleClientSecretWeb = "BWJTZ4AGamoJ4rmPnIHPs2Ak";
+	private static String GoogleClientIdAndroid = "";
+	private static String GoogleClientSecretAndroid = "";
+	private static String GoogleClientIdiOS = "38235450166-dgbh1m7aaab7kopia2upsdj314odp8fc.apps.googleusercontent.com";
+	private static String GoogleClientSecretiOS = "zC738ZbMHopT2C1cyKiKDBQ6";
+	private static String GoogleTokenEnpoint = "https://accounts.google.com/o/oauth2/token";
+	private static String GoogleUserEndpoint = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -783,7 +800,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	@Override
 	public int createUser(Users user) {
-		String sql = "INSERT INTO users (deviceType, type, googleUserId) VALUES(?, ?, ?)";
+		String sql = "INSERT INTO users (deviceType, type, googleUserId, refreshToken) VALUES(?, ?, ?, ?)";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int i = 0;
@@ -791,10 +808,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		try{
 			connection = dataSource.getConnection();
 			statement = connection.prepareStatement(sql,Statement.RETURN_GENERATED_KEYS);
-//			statement.setInt(1, 1);// TODO fix this to actually use dealerships
 			statement.setInt(1, user.getDeviceType());
-			statement.setInt(2, 1);// 1:normal/salesman, 2:can see all dealership users
+			statement.setInt(2, 1);// 1:normal/salesman, 2:can see all dealership users, 3:salesman buddy employees
 			statement.setString(3, user.getGoogleUserId());
+			statement.setString(4, user.getRefreshToken());
 			i = statement.executeUpdate();
 			if(i != 0)
 				id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
@@ -1614,10 +1631,21 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			return results.get(0);
 		throw new RuntimeException("failed to get the dealership by id: " + dealershipId);
 	}
+	
+	/*
+	 * CREATE TABLE dealerships (
+    id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name                     NVARCHAR(100)                         NOT NULL,
+    city                     NVARCHAR(100)                         NOT NULL,
+    stateId                  int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
+    created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
+    dealershipCode           NVARCHAR(40)                          NOT NULL
+);
+ */
 
 	@Override
 	public Dealerships newDealership(Dealerships dealership) {
-		String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode) VALUES (?, ?, ?, ?)";
+		String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode, notes) VALUES (?, ?, ?, ?, ?)";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int i = 0;
@@ -1628,6 +1656,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			statement.setString(2, dealership.getCity());
 			statement.setInt(3, dealership.getStateId());
 			statement.setString(4, UUID.randomUUID().toString());
+			statement.setString(5, dealership.getNotes());
 			statement.execute();
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
@@ -1655,7 +1684,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 
 	@Override
 	public Dealerships updateDealership(Dealerships dealership) {
-		String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ? WHERE id = ?";
+		String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ?, notes = ? WHERE id = ?";
 		PreparedStatement statement = null;
 		Connection connection = null;
 		int i = 0;
@@ -1665,7 +1694,8 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			statement.setString(1, dealership.getName());
 			statement.setString(2, dealership.getCity());
 			statement.setInt(3, dealership.getStateId());
-			statement.setInt(4, dealership.getId());
+			statement.setString(4, dealership.getNotes());
+			statement.setInt(5, dealership.getId());
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -1688,6 +1718,161 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			throw new RuntimeException("failed to update dealership");
 		return this.getDealershipById(dealership.getId());
 	}
+	
+	@Override
+	public void updateRefreshTokenForUser(Users userFromClient) {
+		if(userFromClient.getDeviceType() < 1 || userFromClient.getDeviceType() > 3)
+			throw new RuntimeException("their device type is not within the range 1-3, user: " + userFromClient.toString());
+		
+		String sql = "UPDATE users SET refreshToken = ?, deviceType = ? WHERE id = ?";
+		PreparedStatement statement = null;
+		Connection connection = null;
+		int i = 0;
+		try{
+			connection = dataSource.getConnection();
+			statement = connection.prepareStatement(sql);
+			statement.setString(1, userFromClient.getRefreshToken());
+			statement.setInt(2, userFromClient.getDeviceType());
+			statement.setInt(3, userFromClient.getId());
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}finally{
+			try{
+				if(statement != null)
+					statement.close();
+			}catch(SQLException se){
+				throw new RuntimeException(se);
+			}finally{
+				try{
+					if(connection != null)
+						connection.close();
+				}catch(SQLException sqle){
+					throw new RuntimeException(sqle);
+				}
+			}
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to update user's refresh token, refreshToken length: " + userFromClient.getRefreshToken().length() + ", userFromClient: " + userFromClient.toString());
+		return;
+	}
+	
+	@Override
+	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId) {
+		Users user = this.getUserByGoogleId(googleUserId);
+//    	String data2 = "client_secret=BWJTZ4AGamoJ4rmPnIHPs2Ak"
+//    			+ "&grant_type=refresh_token"
+//    			+ "&refresh_token=1/hwo3wv-LKEVzGoArddQPOjHx_p7_zzyHsycYrIEy4kg"
+//    			+ "&client_id=185872110398-icdle47mq6dtff0ktdpc7qrpojkh5jrj.apps.googleusercontent.com";
+    	String iosString = "client_secret=" + GoogleClientSecretiOS
+    			+ "&grant_type=refresh_token"
+    			+ "&refresh_token=" + user.getRefreshToken()
+    			+ "&client_id=" + GoogleClientIdiOS;
+    	String webString = "refresh_token=" + user.getRefreshToken() +
+                "&client_id=" + GoogleClientIdWeb +
+                "&client_secret=" + GoogleClientSecretWeb +
+                "&grant_type=refresh_token";
+    	String androidString = "refresh_token=" + user.getRefreshToken() +
+                "&client_id=" + GoogleClientIdAndroid +
+                "&client_secret=" + GoogleClientSecretAndroid +
+                "&grant_type=refresh_token";
+
+        byte[] body = null;
+        
+        if(user.getDeviceType() == 1)
+        	body = iosString.getBytes();
+        else if(user.getDeviceType() == 2)
+        	body = webString.getBytes();
+        else if(user.getDeviceType() == 3)
+        	body = androidString.getBytes();
+        else
+        	throw new RuntimeException("the user's device type doesnt conform to any known types, their type: " + user.getDeviceType());
+        
+        URL url;
+        JSONObject json = null;
+		try {
+			url = new URL(GoogleTokenEnpoint);
+			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+	        conn.setDoOutput(true);
+	        conn.setFixedLengthStreamingMode(body.length);
+	        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+	        conn.getOutputStream().write(body);
+	        body = IOUtils.toByteArray(conn.getInputStream());
+	        json = new JSONObject(new String(body));
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw new RuntimeException("IOException: " + e.getLocalizedMessage());
+		}catch(JSONException jse){
+			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
+		}
+
+		if(json == null)
+			throw new RuntimeException("json object was null");
+		
+        GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
+        if(grtr.isInError())
+        	throw new RuntimeException("the GoogleRefreshTokenResponse is in error, message: " + grtr.getErrorMessage() + ", body: " + new String(body));
+        // put token in database for caching?
+        
+        return grtr;
+	}
+	
+	@Override
+	public UsersName getUsersName(String googleUserId) {
+		GoogleUserInfo gui = this.getGoogleUserInfo(googleUserId);
+		if(gui.isInError())
+			throw new RuntimeException("error getGoogleUserInfo, message: " + gui.getErrorMessage());
+//		throw new RuntimeException(gui.toString());
+		UsersName name = new UsersName();
+		name.setName(gui.getName());
+		return name;
+	}
+	
+	@Override
+	public GoogleUserInfo getGoogleUserInfo(String googleUserId) {
+GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId);
+		
+		URL url;
+		byte[] body = null;
+        JSONObject json = null;
+        String whatItHas = "";
+		try {
+			url = new URL(GoogleUserEndpoint);
+			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+	        conn.setDoOutput(true);
+	        conn.setRequestMethod("GET");
+	        conn.setRequestProperty("Authorization", grtr.getTokenType() + " " + grtr.getAccessToken());
+	        whatItHas = conn.getRequestProperty("Authorization");
+	        body = IOUtils.toByteArray(conn.getInputStream());// dying here
+	        json = new JSONObject(new String(body));
+		} catch (MalformedURLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+
+			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", thing: " + grtr.toString() + ", auth:" + whatItHas + ", user:" + this.getUserByGoogleId(googleUserId).toString());
+		}catch(JSONException jse){
+			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
+		}
+		
+		GoogleUserInfo gui = new GoogleUserInfo(json);
+		return gui;
+	}
+	
+	
+	
+	
+	
+	
+	
 	
 	
 	

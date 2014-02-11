@@ -38,7 +38,8 @@ CREATE TABLE dealerships (
     city                     NVARCHAR(100)                         NOT NULL,
     stateId                  int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
     created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
-    dealershipCode           NVARCHAR(40)                          NOT NULL
+    dealershipCode           NVARCHAR(40)                          NOT NULL,
+    notes                    NVARCHAR(4000)                        NOT NULL
 );
 
 
@@ -46,10 +47,11 @@ CREATE TABLE dealerships (
 CREATE TABLE users (
     id                       int                       IDENTITY(1,1) NOT NULL PRIMARY KEY,
     dealershipId             int                                     NULL FOREIGN KEY REFERENCES dealerships(id),
-    deviceType               int                                     NOT NULL,-- 1:ios, 2:web
+    deviceType               int                                     NOT NULL,-- 1:ios, 2:web, 3:android
     type                     NUMERIC(3)     default 1                NOT NULL,
     created                  DATETIME2      default SYSUTCDATETIME() NOT NULL,
-    googleUserId             NVARCHAR(25)                            NOT NULL
+    googleUserId             NVARCHAR(25)                            NOT NULL,
+    refreshToken             NVARCHAR(60)                            NOT NULL
 );
 
 CREATE TABLE buckets (
@@ -57,6 +59,13 @@ CREATE TABLE buckets (
     stateId                     int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
     name                        NVARCHAR(100)                         NOT NULL,
     created                     DATETIME2    default SYSUTCDATETIME() NOT NULL
+);
+
+CREATE TABLE tokens(
+    id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    accessToken                 NVARCHAR(100)                         NOT NULL,
+    type                        NVARCHAR(20)                          NOT NULL,
+    expiresIn                   int                                   NOT NULL
 );
 
 CREATE TABLE licenses (

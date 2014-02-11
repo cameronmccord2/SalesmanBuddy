@@ -5,6 +5,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -29,6 +32,8 @@ import javax.ws.rs.core.Response.Status;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.IOUtils;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
@@ -36,6 +41,8 @@ import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.FinishedPhoto;
+import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
+import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -43,6 +50,10 @@ import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
+import com.salesmanBuddy.model.UsersName;
+
+
+
 
 
 /**
@@ -50,7 +61,9 @@ import com.salesmanBuddy.model.Users;
  */
 @Path("salesmanbuddy")
 public class SalesmanBuddy {
-
+	
+	
+	
 //	@PATH(your_path)	Sets the path to base URL + /your_path. The base URL is based on your application name, the servlet and the URL pattern from the web.xml" configuration file.
 //	@POST	Indicates that the following method will answer to a HTTP POST request
 //	@GET	Indicates that the following method will answer to a HTTP GET request
@@ -87,6 +100,13 @@ public class SalesmanBuddy {
     		userFromClient.setGoogleUserId(googleUserId);
     		user = dao.getUserById(dao.createUser(userFromClient));
     	}
+    	
+    	if(!user.getRefreshToken().equals(userFromClient.getRefreshToken())){
+    		userFromClient.setId(user.getId());
+			dao.updateRefreshTokenForUser(userFromClient);
+			user.setRefreshToken(userFromClient.getRefreshToken());
+		}
+//    	user.setRefreshToken("");// clear this out when in production type environments
     	GenericEntity<Users> entity = new GenericEntity<Users>(user){};
     	return Response.ok(entity).build();
     }
@@ -115,11 +135,11 @@ public class SalesmanBuddy {
     public Response newDealership(@Context HttpServletRequest request, Dealerships dealership){
     	String googleUserId = request.getUserPrincipal().getName();
     	int userType = dao.getUserByGoogleId(googleUserId).getType();
-    	if(userType == 3){
+    	if(userType > 2){
     		GenericEntity<Dealerships> entity = new GenericEntity<Dealerships>(dao.newDealership(dealership)){};
         	return Response.ok(entity).build();
     	}
-    	throw new RuntimeException("you must be of type 3 to make new dealerships");
+    	throw new RuntimeException("you must be of type 3 or higher to make new dealerships");
     }
     
     @Path("dealerships")// Updated 10/23
@@ -129,11 +149,11 @@ public class SalesmanBuddy {
     public Response updateDealership(@Context HttpServletRequest request, Dealerships dealership){
     	String googleUserId = request.getUserPrincipal().getName();
     	int userType = dao.getUserByGoogleId(googleUserId).getType();
-    	if(userType == 3){
+    	if(userType > 2){
     		GenericEntity<Dealerships> entity = new GenericEntity<Dealerships>(dao.updateDealership(dealership)){};
         	return Response.ok(entity).build();
     	}
-    	throw new RuntimeException("you must be of type 3 to update a dealership");
+    	throw new RuntimeException("you must be of type 3 or more to update a dealership");
     }
     
     @Path("savedata")// Updated 10/23
@@ -294,7 +314,23 @@ public class SalesmanBuddy {
         	return Response.ok(entity).build();
     	}
     	throw new RuntimeException("invalid user type, your type must be more than 1 to get all users, you are: " + user.toString());
+    }
+    
+    @Path("users/{googleUserId}/google/name")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getNameForGoogleUserId(@Context HttpServletRequest request, @DefaultValue("") @PathParam("googleUserId") String googleUserId){
     	
+//    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(googleUserId);
+    	
+    	UsersName name = dao.getUsersName(googleUserId);
+//    	GoogleUserInfo gui = dao.getGoogleUserInfo(googleUserId);
+//    	throw new RuntimeException(name.toString());
+    	
+    	
+        GenericEntity<UsersName> entity = new GenericEntity<UsersName>(name){};
+
+        return Response.ok(entity).build();
     }
     
     @Path("users/{googleUserId}")

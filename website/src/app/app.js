@@ -1,7 +1,7 @@
 var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationService']);
 
-// app.value("baseUrl", "http://salesmanbuddytest1.elasticbeanstalk.com/v1/salesmanbuddy/");
-app.value("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
+app.value("baseUrl", "http://salesmanbuddytest1.elasticbeanstalk.com/v1/salesmanbuddy/");
+// app.value("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.value("usersPath", "users");
 app.value("dealershipsPath", "dealerships");
 app.value("statesPath", "states");

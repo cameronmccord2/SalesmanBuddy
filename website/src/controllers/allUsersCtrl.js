@@ -3,29 +3,42 @@ function allUsersCtrl($scope, usersFactory){
 	$scope.loading = true;
 	$scope.cache = {};
 
-	$scope.columns = [
-		{name:'Id', realColumnName:'id', desiredWidth:100, columnType:'main', type:''},
-		{name:'Dealership Id', realColumnName:'dealershipId', desiredWidth:100, columnType:'main', type:''},
-		{name:'Device Type', realColumnName:'deviceType', desiredWidth:100, columnType:'main', type:''},
-		{name:'Type', realColumnName:'type', desiredWidth:100, columnType:'main', type:''},
-		{name:'Created', realColumnName:'created', desiredWidth:100, columnType:'main', type:'date'},
-		{name:'Google User Id', realColumnName:'googleUserId', desiredWidth:100, columnType:'main', type:''}
-	];
-
-	$scope.types = [1, 2, 3, 4];
-
-	usersFactory.getAllUsers().then(function(users){
-		$scope.users = users;
-		$scope.loading = false;
-	}, function(data){
-		console.log(data)
-	});
-
 	$scope.changeUserToType = function(index, type){
+		console.log('changeUserToType', index, type)
 		usersFactory.updateUserToType($scope.users[index].googleUserId, type).then(function(data){
 			$scope.users[index] = data;
 		});
 	}
+
+	$scope.columns = [
+		{name:'Id', realColumnName:'id', desiredWidth:100, columnType:'main', type:''},
+		{name:'Dealership Id', realColumnName:'dealershipId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Device Type', realColumnName:'deviceType', desiredWidth:100, columnType:'main', type:''},
+		{name:'Type', realColumnName:'type', desiredWidth:100, columnType:'main', type:'select', options:[1, 2, 3, 4, 5], ngChange:$scope.changeUserToType},
+		{name:'Created', realColumnName:'created', desiredWidth:100, columnType:'main', type:'date'},
+		{name:'Google User Id', realColumnName:'googleUserId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Name', realColumnName:'name', desiredWidth:100, columnType:'main', type:''}
+	];
+
+	usersFactory.getAllUsers().then(function(users){
+		$scope.users = users;
+		$scope.loading = false;
+		
+		for (var i = $scope.users.length - 1; i >= 0; i--) {
+			$scope.getNameForUser($scope.users[i]);
+		};
+	}, function(data){
+		console.log(data)
+	});
+
+	$scope.getNameForUser = function(user){
+		usersFactory.getNameForUser(user.googleUserId).then(function(data){
+			console.log(data);
+			user.name = data.name;
+		});
+	}
+
+	
 
 	$scope.getAdjustedColumnWidth = function(width, columns, rowWidth){
 		var count = 0;
@@ -33,7 +46,7 @@ function allUsersCtrl($scope, usersFactory){
 			count += columns[i].desiredWidth;
 		};
 		var obj = {width: width * rowWidth / count + "px"};
-		console.log(obj)
+		// console.log(obj)
 		return obj;
 
 	}

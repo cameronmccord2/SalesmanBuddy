@@ -16,8 +16,11 @@
 				<div class="rowText" ng-show="column.type == ''">{{user[column.realColumnName]}}</div>
 				<div class="rowText" ng-show="column.type == 'date'">{{user[column.realColumnName] | date}}</div>
 				<div class="rowText" ng-show="column.type == 'bool'">{{user[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'select'">
+					<select class="changeUserType" ng-model="user[column.realColumnName]" ng-options="option as option for option in column.options" ng-change="column.ngChange($parent.$index, user[column.realColumnName])"></select>
+				</div>
 			</div>
-			<select class="changeUserType" ng-model="user.type" ng-options="type as type for type in types" ng-change="changeUserToType($index, user.type)"></select>
+			
 			<!-- <div ng-show="user.showDetails">
 				<div class="subTitleRow">
 					<div class="subTitleRowElement" ng-repeat="column in getColumnsForColumnType('details')" ng-show="column.desiredWidth != 0">

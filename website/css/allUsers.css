@@ -17,6 +17,10 @@
 
 }
 
+#allUsers .changeUserType{
+	float:left;
+}
+
 #allUsers .titleRowElement {
 	float: left;
 	font-weight: bold;

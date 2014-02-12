@@ -1,0 +1,43 @@
+<div id="dealershipManager" class="content">
+	<div ng-show="loading">
+		<!-- <img class="loadingGif" src="assets/ajax-loader.gif"> -->loading gif
+		<div style="margin-left:500px; padding-top:40px;"></div>
+	</div>
+	<div ng-hide="loading" class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in getColumnsForColumnType('main')">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
+				{{column.name}}
+			</div>
+		</div>
+	</div>
+	<div ng-hide="loading" class="tableBody">
+		<div class="row" ng-repeat="dealership in dealerships | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(dealership)">
+			<div class="rowElement" ng-repeat="column in getColumnsForColumnType('main')" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
+				<div class="rowText" ng-show="column.type == '' && !column.editable">{{dealership[column.realColumnName]}}</div>
+				<input ng-click="$event.stopPropagation()" class="rowText" style="width:150px" ng-show="column.type == '' && column.editable" ng-model="dealership[column.realColumnName]">
+				<div class="rowText" ng-show="column.type == 'date'">{{dealership[column.realColumnName] | date}}</div>
+				<button ng-show="column.type == 'saveChanges'" ng-click="$event.stopPropagation(); saveUpdatedDealership(dealership)">Save</button>
+			</div>
+			<div ng-show="dealership.showDetails" class="notesRow">
+				<!-- <div class="subTitleRow"> -->
+				<input ng-model="dealership.newUserLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new user link.">
+				<textarea ng-model="dealership.notes" ng-click="$event.stopPropagation();" style="width:90%; margin:10px 0px 5px 20px;" placeholder="Notes" maxLength="4000"></textarea>
+					<!-- <div class="subTitleRowElement" ng-repeat="column in getColumnsForColumnType('details')" ng-show="column.desiredWidth != 0">
+						<div class="assessmentTitleRowText" ng-style="{width:''+getAdjustedColumnWidth(column.desiredWidthInPixels, getColumnsForColumnType('assessment'), 1080)+'px'}">{{column.name}}</div>
+					</div> -->
+				<!-- </div> -->
+				<!-- <div class="stackTraceRow" ng-repeat="stackTrace in error.shownStackTraces" ng-class-odd="'odd'" ng-class-even="'even'">
+					{{stackTrace}}
+				</div> -->
+			</div>
+		</div>
+	</div>
+	<div ng-hide="loading" class="newDealershipRow">
+		New Dealership:
+		<div ng-repeat="column in newDealershipColumns">
+			<input type="text" ng-model="newDealership[column.realColumnName]" ng-style="getInputStyleForColumn(column)" placeholder="{{column.name}}" ng-show="column.type == ''">
+			<select ng-model="newDealership[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-show="column.type == 'select'"></select>
+		</div>
+		<button ng-click="saveNewDealership(newDealership)">Save Dealership</button>
+	</div>
+</div>

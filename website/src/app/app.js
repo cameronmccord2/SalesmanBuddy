@@ -1,7 +1,7 @@
-var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute']);
+var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationService']);
 
 // app.value("baseUrl", "http://salesmanbuddytest1.elasticbeanstalk.com/v1/salesmanbuddy/");
-app.value("baseUrl", "https://localhost/salesmanBuddy/v1/salesmanbuddy/");
+app.value("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.value("usersPath", "users");
 app.value("dealershipsPath", "dealerships");
 app.value("statesPath", "states");
@@ -18,7 +18,14 @@ app.config(['$routeProvider', function($routeProvider, $locationProvider) {
 	when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl }).
 	when('/licensesList', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl }).
 	when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl }).
+	when('/newUser/:dealershipCode', { templateUrl: 'templates/newUser.html', controller: newUserCtrl }).
     otherwise({ redirectTo: '/comingSoon' });
+}]);
+
+app.config(['AuthServiceProvider', function(AuthServiceProvider){
+		AuthServiceProvider.setClientID('38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com');
+		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me') ;
+		AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
 }]);
 
 
@@ -27,30 +34,25 @@ app.factory('genericFactory', function($http, $q){
 	factory.request = function(verb, url, errorMessage, object, options){
 		var defer = $q.defer();
 		verb = verb.toLowerCase();
-		console.log("make sure these are in the right categories")
-		if(verb == 'get' || verb == 'delete'){
-			if(url.length > 0){
-				$http[verb](url, options).success(function(data){
-					defer.resolve(data);
-				}).error(function(data, status, headers, config){
-					console.log(errorMessage || "", data, status, headers, config);
-					defer.reject(data);
-				});
-				return defer.promise;
-			}else
-				console.log("you need to specify a valid url");
-		}else if(verb == 'put' || verb == 'post' || verb == 'options'){
+
+		if(verb == 'get' || verb == 'delete' || verb == 'head' || verb == 'jsonp'){
+			$http[verb](url, options).success(function(data){
+				defer.resolve(data);
+			}).error(function(data, status, headers, config){
+				console.log(errorMessage || "", data, status, headers, config);
+				defer.reject(data);
+			});
+			return defer.promise;
+
+		}else if(verb == 'put' || verb == 'post'){
 			
-			if(url.length > 0){
-				$http[verb](url, object, options).success(function(data){
-					defer.resolve(data);
-				}).error(function(data, status, headers, config){
-					console.log(errorMessage || "", data, status, headers, config);
-					defer.reject(data);
-				});
-				return defer.promise;
-			}else
-				console.log("you need to specify a valid url");
+			$http[verb](url, object, options).success(function(data){
+				defer.resolve(data);
+			}).error(function(data, status, headers, config){
+				console.log(errorMessage || "", data, status, headers, config);
+				defer.reject(data);
+			});
+			return defer.promise;
 		}
 		else
 			console.log("you need to specify a valid restful verb");
@@ -62,8 +64,8 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory){
 	var factory = {};
 
 	factory.userExists = function(){
-		var user = {deviceType:2};
-
+		var user = {deviceType:2};//1:ios, 2:web, 3:android
+		// TODO finish this((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))
 	}
 
 	factory.getAllUsers = function(){
@@ -88,6 +90,14 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory){
 		return genericFactory.request('post', baseUrl + usersPath + "/" + googleUserId, "error updateUserToDealershipCode", undefined, options);
 	}
 
+	factory.getGoogleUserObject = function(){
+		return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject');
+	}
+
+	factory.getNameForUser = function(googleUserId){
+		return genericFactory.request('get', baseUrl + usersPath + "/" + googleUserId + "/google/name", undefined, {cache:true})
+	}
+
 	return factory;
 });
 
@@ -99,11 +109,11 @@ app.factory('dealershipsFactory',function(baseUrl, dealershipsPath, genericFacto
 	}
 
 	factory.newDealership = function(dealership){
-		return genericFactory.request('put', baseUrl, dealershipsPath, "error newDealership", dealership);
+		return genericFactory.request('put', baseUrl + dealershipsPath, "error newDealership", dealership);
 	}
 
 	factory.updateDealership = function(dealership){
-		return genericFactory.request('post', baseUrl, dealershipsPath, "error updateDealership", dealership);
+		return genericFactory.request('post', baseUrl + dealershipsPath, "error updateDealership", dealership);
 	}
 
 	return factory;
@@ -192,7 +202,8 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //********************************************
 app.run(function ($rootScope, $http) {
     $http.defaults.headers.common.authprovider = "google";
-    $http.defaults.headers.common.Authorization = "Bearer ya29.1.AADtN_X_Qp24Kd0DqS-BVoXaX4XRnC07UFtP4H78rB4Uqd2X0iwTqWBNMN77JWNpLQ";
+
+    
 });
 
 

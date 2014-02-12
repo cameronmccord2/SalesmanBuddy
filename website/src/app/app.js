@@ -26,6 +26,12 @@ app.config(['AuthServiceProvider', function(AuthServiceProvider){
 		AuthServiceProvider.setClientID('38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com');
 		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me') ;
 		AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
+
+		// this only supports matching the first part of the path without any /
+		AuthServiceProvider.pushNonAuthenticatedPath("comingSoon");
+		AuthServiceProvider.pushNonAuthenticatedPath("home");
+		AuthServiceProvider.pushNonAuthenticatedPath("help");
+		AuthServiceProvider.pushNonAuthenticatedPath("contactUs");
 }]);
 
 

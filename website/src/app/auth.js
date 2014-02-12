@@ -79,12 +79,16 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.byuEncouraged = false;
 	oauth.byuEnforcedEachTime = false;
 	oauth.redirect_uri = "";
+	oauth.unauthenticatedPaths = [];
 	return {
 		setClientID: function(id) {
 			oauth.client_id = id;
 		},
 		pushScope: function(scope) {
 			oauth.scope.push(scope);
+		},
+		pushNonAuthenticatedPath: function(path) {
+			oauth.unauthenticatedPaths.push(path)
 		},
 		setRedirectURI: function(path) {
 			oauth.redirect_uri = path;
@@ -111,6 +115,12 @@ auth.provider('AuthService', function($httpProvider){
 						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
 						return true;
 					}
+					return false;
+				},
+				needsToBeLoggedIn: function(){
+					var firstPartOfCurrentPath = $location.path().split("/")[1];
+					if(oauth.unauthenticatedPaths.indexOf(firstPartOfCurrentPath) == -1)// not found, require authentication
+						return true;
 					return false;
 				},
 				setToken : function(t) {
@@ -406,9 +416,13 @@ auth.config(['$httpProvider', function($httpProvider){
  
 // On app Run, listen for route changes and check token
 auth.run(['$rootScope', 'AuthService', '$http', 'Async', '$window', function($rootScope, AuthService, $http, Async, $window){
+	$http.defaults.headers.common.authprovider = "google";
+	
 	$rootScope.$on("$routeChangeStart",function(event, next, current){
-		// If its bad, go get it asynchronously
-		if (!AuthService.checkToken()) {
+		if(!AuthService.needsToBeLoggedIn()){
+			console.log("dont need to be logged in for the current page");
+			return;
+		}else if (!AuthService.checkToken()) {// If its bad, go get it asynchronously
 			if (location.host.indexOf("mtc.byu.edu") != -1 && $window.sessionStorage.accessToken) {
 				Async.getTokenAsync().then(function(){
 					$http.defaults.headers.common.Authorization = "Bearer " + AuthService.getToken();

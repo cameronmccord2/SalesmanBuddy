@@ -5,19 +5,17 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
-public class Buckets {
+public class BucketsCE {
 	protected Integer id;
-	protected Integer stateId;
 	protected String name;
 	protected Date created;
 	
-	public static ArrayList<Buckets> parseResultSet(ResultSet resultSet){
-    	ArrayList<Buckets> responses = new ArrayList<Buckets>();
+	public static ArrayList<BucketsCE> parseResultSet(ResultSet resultSet){
+    	ArrayList<BucketsCE> responses = new ArrayList<BucketsCE>();
     	try{
 			while(resultSet.next()){
-				Buckets response = new Buckets();
+				BucketsCE response = new BucketsCE();
 				response.setId(resultSet.getInt("id"));
-				response.setStateId(resultSet.getInt("stateId"));
 				response.setName(resultSet.getString("name"));
 				response.setCreated(resultSet.getDate("created"));
 				responses.add(response);
@@ -27,41 +25,36 @@ public class Buckets {
     	}
     	return responses;
     }
-	
+
 	public Integer getId() {
 		return id;
 	}
+
 	public void setId(Integer id) {
 		this.id = id;
 	}
+
 	public String getName() {
 		return name;
 	}
+
 	public void setName(String name) {
 		this.name = name;
 	}
+
 	public Date getCreated() {
 		return created;
 	}
+
 	public void setCreated(Date created) {
 		this.created = created;
-	}
-
-	public Integer getStateId() {
-		return stateId;
-	}
-
-	public void setStateId(Integer stateId) {
-		this.stateId = stateId;
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
-		builder.append("Buckets [id=");
+		builder.append("BucketsCE [id=");
 		builder.append(id);
-		builder.append(", stateId=");
-		builder.append(stateId);
 		builder.append(", name=");
 		builder.append(name);
 		builder.append(", created=");

@@ -132,12 +132,21 @@ CREATE TABLE languages(
     nativeName               NVARCHAR(25)                           NULL
 );
 
+CREATE TABLE bucketsCE (
+    id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    name                        NVARCHAR(100)                         NOT NULL,
+    created                     DATETIME2    default SYSUTCDATETIME() NOT NULL
+);
+
 CREATE TABLE media (
     id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    name                     NVARCHAR(100)                           NOT NULL,
+    name                     NVARCHAR(100)                          NOT NULL,
     filename                 NVARCHAR(100)                          NOT NULL,
     type                     NUMERIC(2) default 0                   NOT NULL,
-    audioLanguageId          int                                    NOT NULL FOREIGN KEY REFERENCES languages(id)
+    audioLanguageId          int                                    NOT NULL FOREIGN KEY REFERENCES languages(id),
+    bucketId                 int                                    NULL FOREIGN KEY REFERENCES bucketsCE(id),
+    extension                NVARCHAR(10)                           NULL,
+    filenameInBucket         NVARCHAR(30)                           NULL
 );
 
 CREATE TABLE captions (
@@ -150,4 +159,19 @@ CREATE TABLE captions (
     type                     int          default 0                NOT NULL,
     created                  DATETIME2    default SYSUTCDATETIME() NOT NULL,
     languageId               int                                   NOT NULL FOREIGN KEY REFERENCES languages(id)
+);
+
+CREATE TABLE popups (
+    id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    displayName              NVARCHAR(30)                          NOT NULL,
+    popupText                NVARCHAR(4000)                        NULL,
+    mediaId                  int                                   NOT NULL FOREIGN KEY REFERENCES media(id),
+    languageId               int                                   NOT NULL FOREIGN KEY REFERENCES languages(id),
+    startTime                int                                   NOT NULL,
+    endTime                  int                                   NOT NULL,
+    filename                 NVARCHAR(100)                         NULL,
+    bucketId                 int                                   NULL FOREIGN KEY REFERENCES bucketsCE(id),
+    filenameInBucket         NVARCHAR(30)                          NULL,
+    extension                NVARCHAR(10)                          NULL,
+    created                  DATETIME2    default SYSUTCDATETIME() NOT NULL
 );

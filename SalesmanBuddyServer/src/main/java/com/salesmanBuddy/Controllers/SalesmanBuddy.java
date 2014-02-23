@@ -37,6 +37,7 @@ import org.codehaus.jettison.json.JSONObject;
 
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.dao.SalesmanBuddyDAO;
+import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
@@ -47,6 +48,7 @@ import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.Media;
+import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
@@ -333,6 +335,26 @@ public class SalesmanBuddy {
         return Response.ok(entity).build();
     }
     
+    @Path("users/me")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getMeFromGoogle(@Context HttpServletRequest request){
+//    	String googleUserId = request.getUserPrincipal().getName();
+    	String accessToken = (String)request.getAttribute("accessToken");
+//    	throw new RuntimeException(accessToken);
+////    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(googleUserId);
+//    	
+////    	UsersName name = dao.getUsersName(googleUserId);
+//    	GoogleUserInfo gui = dao.getGoogleUserInfo(googleUserId);
+////    	throw new RuntimeException(name.toString());
+//    	
+    	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer", accessToken);
+//    	throw new RuntimeException(gui.toString());
+        GenericEntity<GoogleUserInfo> entity = new GenericEntity<GoogleUserInfo>(gui){};
+//        throw new RuntimeException("Bearer " + accessToken);
+        return Response.ok(entity).build();
+    }
+    
     @Path("users/{googleUserId}")
     @POST
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
@@ -495,11 +517,24 @@ public class SalesmanBuddy {
     	}
     }
     
+    @Path("mediaFile")
+    @GET
+    public Response getMediaFile(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("mediaid") int mediaId){
+    	return Response.ok(dao.getFileForMediaId(mediaId)).build();
+    }
+    
     @Path("media")// Updated 10/24
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putQuestion(@Context HttpServletRequest request, Media media){
+    	if(media.getBase64Data() != null){
+    		try{
+    			media.setExtension(getFileTypeExtension(media.getContentType()));
+    		}catch(Exception e){
+    			return Response.status(Status.NOT_ACCEPTABLE).build();
+    		}
+    	}
     	GenericEntity<Media> entity = new GenericEntity<Media>(dao.putMedia(media)){};
     	return Response.ok(entity).build();
     }
@@ -518,6 +553,134 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putCaptions(@Context HttpServletRequest request, List<Captions> captions){
     	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(dao.putCaptions(captions)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("popups")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
+    public Response getAllPopups(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("mediaid") int mediaId, @DefaultValue("0") @QueryParam("languageid") int languageId){
+    	if(mediaId == 0 && languageId == 0){
+	    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopups()){};
+	    	return Response.ok(entity).build();
+    	}else if(mediaId == 0 && languageId != 0){
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopupsForLanguageId(languageId)){};
+	    	return Response.ok(entity).build();
+    	}else if(mediaId != 0 && languageId == 0){
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopupsForMediaId(mediaId)){};
+	    	return Response.ok(entity).build();
+    	}else if(mediaId != 0 && languageId != 0){
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getPopupsForMediaIdLanguageId(languageId, mediaId)){};
+	    	return Response.ok(entity).build();
+    	}else{
+    		throw new RuntimeException("This should never get here, get popups, mediaId: " + mediaId + ", languageId: " + languageId);
+    	}
+    }
+    
+    @Path("popups")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putPopups(@Context HttpServletRequest request, List<Popups> popups){
+    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.putPopups(popups)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("popups")
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updatePopup(@Context HttpServletRequest request, Popups popup){
+    	GenericEntity<Popups> entity = new GenericEntity<Popups>(dao.updatePopup(popup)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("popups")// Updated 10/24
+    @DELETE
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response deletePopup(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("popupId") int popupId){
+    	if(dao.deletePopup(popupId) == 1)
+    		return Response.ok().build();
+    	throw new RuntimeException("delete popup didnt return a 1");
+    }
+    
+    @Path("buckets/captionEditor")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getCaptionEditorBucket(@Context HttpServletRequest request){
+    	GenericEntity<BucketsCE> entity = new GenericEntity<BucketsCE>(dao.getCaptionEditorBucket()){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("saveData")// Updated 10/23
+    //http://stackoverflow.com/questions/5999370/converting-between-nsdata-and-base64strings
+    /*
+     * try(InputStream is = new BufferedInputStream(request.getInputStream());){}
+     * To try changing project to 1.7
+     */
+    @PUT
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response saveStringAsFileForCaptionEditor(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("base64") int base64, @DefaultValue("0") @QueryParam("mediaId") int mediaId, @DefaultValue("0") @QueryParam("popupId") int popupId){
+    	String mimeType = request.getHeader("Content-Type");
+		String extension = "";
+		File file = null;
+		String b64Bytes = "";
+		FileOutputStream fos = null;
+		try{
+			extension = getFileTypeExtension(mimeType);
+		}catch(Exception e){
+			return Response.status(Status.NOT_ACCEPTABLE).entity("there was an exception getting file type: " + e.getLocalizedMessage()).build();
+		}
+		if(base64 == 1){
+			try{// working 10/25
+				file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
+				file.deleteOnExit();
+				fos = new FileOutputStream(file);
+				InputStream is = new BufferedInputStream(request.getInputStream());
+				b64Bytes = IOUtils.toString(is);
+				byte [] fileBytes = DatatypeConverter.parseBase64Binary(b64Bytes);
+				IOUtils.write(fileBytes, fos);
+			}catch (IOException e){
+				throw new RuntimeException(e);
+			}finally{
+				try {
+					fos.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}else{
+			try{// untested
+				file = File.createTempFile(dao.randomAlphaNumericOfLength(15), extension);
+				file.deleteOnExit();
+				fos = new FileOutputStream(file);
+				InputStream is = new BufferedInputStream(request.getInputStream());
+				MessageDigest messageDigest = MessageDigest.getInstance("SHA1");
+				byte[] buffer = new byte[1024];
+				for (int read = 0; (read = is.read(buffer)) != -1;) {
+					messageDigest.update(buffer, 0, read);
+					fos.write(buffer,0,read);
+				}
+				fos.close();
+//				byte [] sha1bytes = messageDigest.digest();
+//				sha1 = DatatypeConverter.printBase64Binary(sha1bytes);
+			}catch (IOException e){
+				throw new RuntimeException(e);
+			}catch (NoSuchAlgorithmException e){
+				throw new RuntimeException(e);
+			}finally{
+				if(fos != null)
+					try {
+						fos.close();
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
+			}
+		}
+		
+    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId)){};// file from this is usable everywhere else, works in chrome
+    	file.delete();
     	return Response.ok(entity).build();
     }
     

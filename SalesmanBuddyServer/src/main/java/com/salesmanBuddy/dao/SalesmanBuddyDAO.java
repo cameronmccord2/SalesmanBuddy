@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.salesmanBuddy.model.Answers;
+import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
@@ -16,6 +17,7 @@ import com.salesmanBuddy.model.Licenses;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.Media;
+import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.QuestionsAndAnswers;
 import com.salesmanBuddy.model.States;
@@ -90,7 +92,9 @@ public interface SalesmanBuddyDAO {
 	
 	UsersName getUsersName(String googleUserId);
 
-	GoogleUserInfo getGoogleUserInfo(String googleUserId);
+	GoogleUserInfo getGoogleUserInfoWithId(String googleUserId);
+	
+	GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken);
 	
 	
 //	trainer stuff
@@ -109,5 +113,29 @@ public interface SalesmanBuddyDAO {
 
 	Media getMediaById(int id);
 
-	
+	List<Popups> getAllPopups();
+
+	List<Popups> getAllPopupsForLanguageId(int languageId);
+
+	List<Popups> getAllPopupsForMediaId(int mediaId);
+
+	List<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId);
+
+	Popups newPopup(Popups popup);
+
+	Popups updatePopup(Popups popup);
+
+	int deletePopup(int popupId);
+
+	String saveStringAsFileForCaptionEditor(String data, String extension);
+
+	String saveFileToS3ForCaptionEditor(File file, String extension, int mediaId, int popupId);
+
+	File getFileForMediaId(int mediaId);
+
+	BucketsCE getCaptionEditorBucket();
+
+	List<Popups> putPopups(List<Popups> popups);
+
+	Popups updatePopupWithUploadedFile(String newFilename, Integer bucketId, String extension, int popupId);
 }

@@ -138,4 +138,6 @@ public interface SalesmanBuddyDAO {
 	List<Popups> putPopups(List<Popups> popups);
 
 	Popups updatePopupWithUploadedFile(String newFilename, Integer bucketId, String extension, int popupId);
+
+	int deleteCaption(int captionId);
 }

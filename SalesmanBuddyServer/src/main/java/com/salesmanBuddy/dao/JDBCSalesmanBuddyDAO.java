@@ -1386,7 +1386,10 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	public List<Popups> putPopups(List<Popups> popups) {
 		ArrayList<Popups> newList = new ArrayList<Popups>();
 		for(Popups popup : popups){
-			newList.add(this.newPopup(popup));
+			if(popup.getId() == 0)
+				newList.add(this.newPopup(popup));
+			else
+				newList.add(this.updatePopup(popup));
 		}
 		return newList;
 	}
@@ -1433,7 +1436,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		String sql = "UPDATE popups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(2, bucketId);
+			statement.setInt(1, bucketId);
 			statement.setString(2, newFilename);
 			statement.setString(3, extension);
 			statement.setInt(4, popupId);
@@ -1454,6 +1457,20 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return i;
+	}
+	
+	@Override
+	public int deleteCaption(int captionId) {
+		String sql = "DELETE FROM captions WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, captionId);
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){

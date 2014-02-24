@@ -418,6 +418,8 @@ public class SalesmanBuddy {
 			return ".mp4";
 		if(mimeType.contains("audio/mpeg"))
 			return ".mp3";
+		if(mimeType.contains("audio/mp3"))
+			return ".mp3";
 		if(mimeType.contains("audio/ogg"))
 			return ".oga";
 		if(mimeType.contains("audio/webm"))
@@ -556,6 +558,16 @@ public class SalesmanBuddy {
     	return Response.ok(entity).build();
     }
     
+    @Path("captions")// Updated 10/24
+    @DELETE
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response deleteCaption(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("captionId") int captionId){
+    	if(dao.deleteCaption(captionId) == 1)
+    		return Response.ok().build();
+    	throw new RuntimeException("delete popup didnt return a 1");
+    }
+    
     @Path("popups")
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
@@ -630,7 +642,7 @@ public class SalesmanBuddy {
 		try{
 			extension = getFileTypeExtension(mimeType);
 		}catch(Exception e){
-			return Response.status(Status.NOT_ACCEPTABLE).entity("there was an exception getting file type: " + e.getLocalizedMessage()).build();
+			return Response.status(Status.NOT_ACCEPTABLE).entity("there was an exception getting file type: " + mimeType + ", error: " + e.getLocalizedMessage()).build();
 		}
 		if(base64 == 1){
 			try{// working 10/25
@@ -679,7 +691,7 @@ public class SalesmanBuddy {
 			}
 		}
 		
-    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId)){};// file from this is usable everywhere else, works in chrome
+    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId)){};
     	file.delete();
     	return Response.ok(entity).build();
     }

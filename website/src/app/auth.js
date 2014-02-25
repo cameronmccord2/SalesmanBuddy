@@ -117,6 +117,11 @@ auth.provider('AuthService', function($httpProvider){
 					}
 					return false;
 				},
+				isUserLoggedIn: function(){
+					if($window.sessionStorage.accessToken)
+						return true;
+					return false;
+				},
 				needsToBeLoggedIn: function(){
 					var firstPartOfCurrentPath = $location.path().split("/")[1];
 					if(oauth.unauthenticatedPaths.indexOf(firstPartOfCurrentPath) == -1)// not found, require authentication
@@ -419,7 +424,7 @@ auth.run(['$rootScope', 'AuthService', '$http', 'Async', '$window', function($ro
 	$http.defaults.headers.common.authprovider = "google";
 	
 	$rootScope.$on("$routeChangeStart",function(event, next, current){
-		if(!AuthService.needsToBeLoggedIn()){
+		if(!AuthService.isUserLoggedIn() && !AuthService.needsToBeLoggedIn()){// TODO check to see if the user is already logged in
 			console.log("dont need to be logged in for the current page");
 			return;
 		}else if (!AuthService.checkToken()) {// If its bad, go get it asynchronously

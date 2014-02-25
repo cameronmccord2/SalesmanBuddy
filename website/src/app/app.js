@@ -1,6 +1,6 @@
 var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationService']);
 
-app.value("baseUrl", "http://salesmanbuddytest1.elasticbeanstalk.com/v1/salesmanbuddy/");
+app.value("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
 // app.value("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.value("usersPath", "users");
 app.value("dealershipsPath", "dealerships");
@@ -97,7 +97,8 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory){
 	}
 
 	factory.getGoogleUserObject = function(){
-		return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject');
+		return genericFactory.request('get', baseUrl + usersPath + "/me", "error getGoogleUserObject");
+		// return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject');
 	}
 
 	factory.getNameForUser = function(googleUserId){

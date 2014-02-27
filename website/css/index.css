@@ -42,6 +42,6 @@
 	text-overflow: ellipsis;
 }
 
-.logOut {
+.logOutContainer .logOut {
 	cursor: pointer;
 }

@@ -5,22 +5,6 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
-/*
-CREATE TABLE popups (
-    id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    displayName              NVARCHAR(30)                          NOT NULL,
-    popupText                NVARCHAR(4000)                        NULL,
-    mediaId                  int                                   NOT NULL FOREIGN KEY REFERENCES media(id),
-    languageId               int                                   NOT NULL FOREIGN KEY REFERENCES languages(id),
-    startTime                int                                   NOT NULL,
-    endTime                  int                                   NOT NULL,
-    filename                 NVARCHAR(100)                         NULL,
-    bucketId                 int                                   NULL FOREIGN KEY REFERENCES bucketsCE(id),
-    filenameInBucket         NVARCHAR(30)                          NULL,
-    extension                NVARCHAR(10)                          NULL,
-    created                  DATETIME2    default SYSUTCDATETIME() NOT NULL
-);
- */
 public class Popups {
 	protected Integer id;
 	protected String displayName;

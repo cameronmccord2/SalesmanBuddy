@@ -91,6 +91,19 @@ public class SalesmanBuddy {
         return "Got it Working!!";
     }
     
+    @Path("codeForToken")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
+    public Response getAllStates(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("code") String code){
+//    	String googleUserId = request.getUserPrincipal().getName();
+    	if(code.length() == 0)
+    		throw new RuntimeException("didnt recieve a code as a query param");
+    	
+    	GenericEntity<List<GoogleRefreshTokenResponse>> entity = new GenericEntity<List<GoogleRefreshTokenResponse>>(dao.codeForToken(code)){};
+    	return Response.ok(entity).build();
+    }
+    
+    
     @Path("userExists")// Updated 10/23
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})

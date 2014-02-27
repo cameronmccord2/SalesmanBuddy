@@ -15,6 +15,13 @@
 </head>
 
 <body ng-cloak>
+	<div class="topBarContainer">
+		<div class="topBar">
+			<div ng-show="isUserLoggedIn()" class="logOutContainer">
+				<div class="logOut" ng-click="logout()">Logout</div>
+			</div>
+		</div>
+	</div>
 	<div ng-view class="viewBox"></div>
 </body>
 	<script src="lib/angular.js"></script>
@@ -27,4 +34,7 @@
 	<script src="src/controllers/licensesListCtrl.js"></script>
 	<script src="src/controllers/dealershipManagerCtrl.js"></script>
 	<script src="src/controllers/newUserCtrl.js"></script>
+	<script src="src/controllers/helpCtrl.js"></script>
+	<script src="src/controllers/contactUsCtrl.js"></script>
+	<script src="src/controllers/loggedOutCtrl.js"></script>
 </html>

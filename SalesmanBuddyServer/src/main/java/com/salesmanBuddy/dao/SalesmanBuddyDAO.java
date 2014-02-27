@@ -96,6 +96,8 @@ public interface SalesmanBuddyDAO {
 	
 	GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken);
 	
+	List<GoogleRefreshTokenResponse> codeForToken(String code);
+	
 	
 //	trainer stuff
 

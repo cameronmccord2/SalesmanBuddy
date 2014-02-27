@@ -954,6 +954,22 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 	
 	@Override
+	public List<GoogleRefreshTokenResponse> codeForToken(String code) {
+		/*
+		 * code=4/P7q7W91a-oMsCeLvIaQm6bTrgtp7&
+client_id=8819981768.apps.googleusercontent.com&
+client_secret={client_secret}&
+redirect_uri=https://oauth2-login-demo.appspot.com/code&
+grant_type=authorization_code
+		 */
+		String webString = "code=" + code +
+                "&client_id=" + GoogleClientIdWeb +
+                "&client_secret=" + GoogleClientSecretWeb +
+                "&redirect_uri=http://salesmanbuddy.com" +
+                "&grant_type=authorization_code";
+	}
+	
+	@Override
 	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId) {
 		Users user = this.getUserByGoogleId(googleUserId);
     	String iosString = "client_secret=" + GoogleClientSecretiOS

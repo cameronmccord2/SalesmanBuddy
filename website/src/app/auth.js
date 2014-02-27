@@ -75,6 +75,7 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.state = "";
 	oauth.response_type = 'token';
 	oauth.scope = []; // We Required Auth scope for User Object
+	oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
 	oauth.byuRequired = false;
 	oauth.byuEncouraged = false;
 	oauth.byuEnforcedEachTime = false;
@@ -134,6 +135,11 @@ auth.provider('AuthService', function($httpProvider){
 					$window.sessionStorage.accessToken = token;
 					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (t.expires_in - 300) * 1000).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+
+					if(t.refresh_token && t.refresh_token.length > 0)// only save off the refresh token if it isnt blank
+						$window.sessionStorage.refreshToken = t.refresh_token;
+					else
+						console.log("refresh token didnt exist", t);
 				},
 				getToken: function() {
 					return token;
@@ -235,6 +241,111 @@ auth.provider('AuthService', function($httpProvider){
 					}
 					return url;
 				},
+	// 			retrieveToken: function() {
+ 
+	// 				// Try to get the token from 3 different places
+	// 				// First: Check route params and see if we have it there
+	// 				// Second: Check sessionStorage for token
+	// 				// Third: Redirect to signin and get token
+	// 				// Look on route params
+	// 				var params = {}, queryString = '', path = String(window.location), regex = /([^&=]+)=([^&]*)/g, m;
+	// 				// remove the # added to the front of the URL
+	// 				var pathChunks = path.split("?");// changed from mtc's hash
+	// // 				console.log(pathChunks)
+ // // alert("stop1")
+	// 				if(pathChunks.length > 1) {
+ 
+ // 						// if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
+	// 					if(pathChunks[1].charAt(0) === "#")// if hash was found, this shouldnt be undefined
+	// 						pathChunks[1] = pathChunks[1].substring(1);
+ 
+	// 					queryString = pathChunks[1];
+							   
+ 
+	// 					while (m = regex.exec(queryString)) {
+	// 						params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);// save out each query param
+	// 					}
+
+	// 					// console.log(params)
+
+	// 					// if(params && params.code){
+	// 					// 	var request = new XMLHttpRequest();
+	// 					// 	request.open('GET', oauth.codeUrl, false);  // `false` makes the request synchronous
+	// 					// 	request.send(null);
+
+	// 					// 	if (request.status === 200) {
+	// 					// 		console.log(request.responseText);
+	// 					// 	}
+	// 					// }
+			
+	 
+	// 					if(params && params.access_token && params.expires_in && params.state) {
+	// 						// Got token from a redirect query string
+	// 						this.setToken(params);
+	// 						if(params.state && params.state !== "initial")
+	// 							setTimeout(function LEAVEANGULAR() {
+	// 								window.location.href = pathChunks[0] + "#" + params.state;
+	// 							}, 0);
+	// 					}
+	// 				}
+ // // alert("stop2")
+	// 				// Look in sessionStorage, verify token in there is good
+	// 				if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
+	// 					token = $window.sessionStorage.accessToken;
+	// 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+	// 				}
+	// 				// If checkToken is still false, and there is nothing in sessionStorage
+	// 				// redirect to sign in
+	// 				if (!this.checkToken()) {
+	// 					var url = this.buildUrl();
+	// 					$window.open(url, '_self');
+	// 				}
+ 
+	// 				return this.getToken();
+	// 			},
+	// 			buildUrl: function() {
+	// 				function spaceDelimitScope(scopes) {
+	// 					var string = '';
+	// 					for (var i = scopes.length - 1; i >= 0; i--) {
+	// 						var scope = scopes[i];
+	// 						string += scope;
+	// 						if (i != 0) { // Last one, no space
+	// 							string += ' ';
+	// 						}
+	// 					};
+	// 					return string;
+	// 				}
+ 
+	// 				var locationSplit = window.location.href.split("#");
+	// 				var redirect = locationSplit[0];
+
+	// 				if(!oauth.state)
+	// 					oauth.state = encodeURIComponent(locationSplit.length > 1 ? locationSplit[1] : oauth.state);
+ 
+	// 				// If user set the redirect URI manually, ignore the implicit angular path for redirect
+	// 				if (oauth.redirect_uri === "")
+	// 					oauth.redirect_uri = redirect;
+	// 				var url = oauth.url;
+	// 				url += '?client_id=' + oauth.client_id;
+	// 				url += '&response_type=' + oauth.response_type;
+	// 				url += '&redirect_uri=' + oauth.redirect_uri;
+	// 				url += '&scope=' + spaceDelimitScope(oauth.scope);
+	// 				url += '&state=' + oauth.state;
+	// 				url += '&access_type=offline';
+					
+	// 				return url;
+
+
+	// 				/*
+	// https://accounts.google.com/o/oauth2/auth?
+ // scope=email%20profile&
+ // state=%2Fprofile&
+ // redirect_uri=https%3A%2F%2Foauth2-login-demo.appspot.com%2Fcode&
+ // response_type=code&
+ // client_id=812741506391.apps.googleusercontent.com&
+ // access_type=offline
+	// 				*/
+	// 			},
 				// UTILITY FUNCTIONS FOR GETTING USER LOGGED IN, LOGGING OUT, ETC
 				// DEPRECATED
 				logout: function() {
@@ -249,7 +360,7 @@ auth.provider('AuthService', function($httpProvider){
 	}
 });
 // Configure User Service
-auth.factory('User', function(AuthService, $http, $q, $window){
+auth.factory('User', function(AuthService, $http, $q, $window, $location){
 	var user = null; // DEPRECATED
 	var newUser = null;
 	var config = {
@@ -262,7 +373,7 @@ auth.factory('User', function(AuthService, $http, $q, $window){
 				// Go get the user object
 				// DEPRECATED ----
 				AuthService.retrieveToken();
-			    this.needsReset = false;
+				this.needsReset = false;
 				// $http.get("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=" + AuthService.getToken()).success(function(data,status,headers,config){
 				// 	user = data;
 				// 	user.id = AuthService.getToken();
@@ -276,7 +387,7 @@ auth.factory('User', function(AuthService, $http, $q, $window){
 						d.reject();
 					});
 				// });
-			              
+						  
 			} else {
 				d.resolve(user); // We already have user
 			}
@@ -305,7 +416,8 @@ auth.factory('User', function(AuthService, $http, $q, $window){
 			// Clear session storage
 			$window.sessionStorage.accessToken = '';
 			$window.sessionStorage.expiresAt = '';
-			$window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
+			$location.path('/loggedOut');
+			// $window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
 		},
 		getUserLocations: function() {
 			if (user) {
@@ -382,7 +494,7 @@ auth.factory('Async', function($q, AuthService, $rootScope, $window){
 auth.config(['$httpProvider', function($httpProvider){
 	// Set up OAUTH headers
 	$httpProvider.defaults.useXDomain = true;
-    $httpProvider.defaults.headers.common['Accept'] = 'application/json, text/plain, text/html';
+	$httpProvider.defaults.headers.common['Accept'] = 'application/json, text/plain, text/html';
 	delete $httpProvider.defaults.headers.common["X-Requested-With"];
 	// Intercept API reqeuests and check token
 	// Only do this if we are on a valid mtc domain
@@ -390,7 +502,7 @@ auth.config(['$httpProvider', function($httpProvider){
 		$httpProvider.interceptors.push(function(Async, AuthService) {
 			return {
 				'request': function (config) {
-				              
+							  
 					// Check config object.  We don't want an infinite loop if we
 					// are getting our new token
 					// The only request that "bypasses" our interceptor is when we go to authenticate or request static content
@@ -420,7 +532,7 @@ auth.config(['$httpProvider', function($httpProvider){
  
  
 // On app Run, listen for route changes and check token
-auth.run(['$rootScope', 'AuthService', '$http', 'Async', '$window', function($rootScope, AuthService, $http, Async, $window){
+auth.run(function($rootScope, AuthService, $http, Async, $window){
 	$http.defaults.headers.common.authprovider = "google";
 	
 	$rootScope.$on("$routeChangeStart",function(event, next, current){
@@ -440,4 +552,4 @@ auth.run(['$rootScope', 'AuthService', '$http', 'Async', '$window', function($ro
 			}
 		}
 	});
-}]);
+});

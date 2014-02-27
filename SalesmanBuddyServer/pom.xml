@@ -105,12 +105,14 @@
 			<version>3.1.3.RELEASE</version>
     	</dependency>
     	<!-- End oauth filter required dependencies -->
+    	<!-- Start Amazon dependencies, used for s3 buckets -->
     	<dependency>
 			<groupId>com.amazonaws</groupId>
 			<artifactId>aws-java-sdk</artifactId>
 			<version>1.7.1</version>
 		</dependency>
-		<dependency>
+		<!-- End Amazon dependencies -->
+		<dependency><!-- usefull for copying bit streams and other usefull operations -->
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-io</artifactId>
 			<version>1.3.2</version>

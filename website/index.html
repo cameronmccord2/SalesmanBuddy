@@ -1,28 +1,41 @@
 <!doctype html>
 <html lang="en" ng-app="SALESMANBUDDYADMIN">
 <head>
-    <meta charset="utf-8">
-    
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title>Salesman Buddy Admin</title>
-    <link rel="stylesheet" href="css/index.css">
-    <link rel="stylesheet" href="css/comingSoon.css">
-    <link rel="stylesheet" href="css/allUsers.css">
-    <link rel="stylesheet" href="css/home.css">
-    <link rel="stylesheet" href="css/licensesList.css">
-    <link rel="stylesheet" href="css/dealershipManager.css">
-    <!-- Latest compiled and minified CSS -->
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+	<meta charset="utf-8">
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+	<title>Salesman Buddy Admin</title>
+	<link rel="stylesheet" href="css/index.css">
+	<link rel="stylesheet" href="css/comingSoon.css">
+	<link rel="stylesheet" href="css/allUsers.css">
+	<link rel="stylesheet" href="css/home.css">
+	<link rel="stylesheet" href="css/licensesList.css">
+	<link rel="stylesheet" href="css/dealershipManager.css">
+	<link rel="stylesheet" href="css/help.css">
+	<link rel="stylesheet" href="css/how.css">
+	<!-- Latest compiled and minified CSS -->
+	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
 
-    <!-- Optional theme -->
-    <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
+	<!-- Optional theme -->
+	<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap-theme.min.css">
 </head>
 
 <body ng-cloak>
+	<div class="topBarCompanyName">
+		<div class="companyName">SalesmanBuddy.com</div>
+	</div>
 	<div class="topBarContainer">
-		<div class="topBar">
-			<div ng-show="isUserLoggedIn()" class="logOutContainer">
+		<div class="topBar" ng-hide="isPath('comingSoon')">
+			<div class="navOption" ng-click="goToPage('home')" ng-class="isSelected('home', true)"><div class="navOptionText" ng-class="isSelected('home')">Home</div></div>
+			<div class="navOption" ng-click="goToPage('how')" ng-class="isSelected('how', true)"><div class="navOptionText" ng-class="isSelected('how')">How</div></div>
+			<div class="navOption" ng-click="goToPage('pricing')" ng-class="isSelected('pricing', true)"><div class="navOptionText" ng-class="isSelected('pricing')">Pricing</div></div>
+			<div class="navOption" ng-click="goToPage('licensesList')" ng-show="doesUserHaveAccessTo('licensesList')" ng-class="isSelected('licensesList', true)"><div class="navOptionText" ng-class="isSelected('licensesList')">Licences List</div></div>
+			<div class="navOption" ng-click="goToPage('allUsers')" ng-show="doesUserHaveAccessTo('allUsers')" ng-class="isSelected('allUsers', true)"><div class="navOptionText" ng-class="isSelected('allUsers')">All Users</div></div>
+			<div class="navOption" ng-click="goToPage('dealershipManager')" ng-show="doesUserHaveAccessTo('dealershipManager')" ng-class="isSelected('dealershipManager', true)"><div class="navOptionText" ng-class="isSelected('dealershipManager')">Dealership Manager</div></div>
+			<div class="navOption" ng-click="goToPage('faq')" ng-class="isSelected('faq', true)"><div class="navOptionText" ng-class="isSelected('faq')">FAQ</div></div>
+			<div class="navOption" ng-click="goToPage('contactUs')" ng-class="isSelected('contactUs', true)"><div class="navOptionText" ng-class="isSelected('contactUs')">Contact Us</div></div>
+			<div ng-show="user" class="logOutContainer">
 				<div class="logOut" ng-click="logout()">Logout</div>
 			</div>
 		</div>
@@ -42,4 +55,5 @@
 	<script src="src/controllers/helpCtrl.js"></script>
 	<script src="src/controllers/contactUsCtrl.js"></script>
 	<script src="src/controllers/loggedOutCtrl.js"></script>
+	<script src="src/controllers/loggingInCtrl.js"></script>
 </html>

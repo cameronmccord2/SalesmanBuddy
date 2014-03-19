@@ -11,6 +11,7 @@ public class GoogleRefreshTokenResponse {
 	protected String tokenType;
 	protected boolean inError;
 	protected String errorMessage;
+	protected String refreshToken;
 	
 	public GoogleRefreshTokenResponse(JSONObject json) {
 		if(json.optString("error").length() != 0){
@@ -30,6 +31,8 @@ public class GoogleRefreshTokenResponse {
 	        this.expiresIn = calendar.getTimeInMillis();
 	        
 	        this.tokenType = json.optString("token_type");
+	        
+	        this.refreshToken = json.optString("refresh_token");
 		}
 	}
 	public String getAccessToken() {
@@ -75,7 +78,15 @@ public class GoogleRefreshTokenResponse {
 		builder.append(inError);
 		builder.append(", errorMessage=");
 		builder.append(errorMessage);
+		builder.append(", refreshToken=");
+		builder.append(refreshToken);
 		builder.append("]");
 		return builder.toString();
+	}
+	public String getRefreshToken() {
+		return refreshToken;
+	}
+	public void setRefreshToken(String refreshToken) {
+		this.refreshToken = refreshToken;
 	}
 }

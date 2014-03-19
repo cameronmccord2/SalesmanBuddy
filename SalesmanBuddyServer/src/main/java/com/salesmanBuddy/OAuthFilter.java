@@ -2,6 +2,7 @@ package com.salesmanBuddy;
 
 import java.io.IOException;
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -45,7 +46,7 @@ public class OAuthFilter implements Filter{
 			RestTemplate restTemplate = new RestTemplate();
 			Map<String, String> map = new HashMap<String, String>();
 			map.put("access_token", oauthRequest.getAccessToken());
-			if(((HttpServletRequest)request).getHeader("Authprovider").equals("google")){
+//			if(((HttpServletRequest)request).getHeader("Authprovider").equals("google")){
 				GOAuthResponse gresponse = restTemplate.getForObject("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + accessToken, GOAuthResponse.class);
 	
 				request.setAttribute("accessToken", oauthRequest.getAccessToken());
@@ -53,18 +54,19 @@ public class OAuthFilter implements Filter{
 				//place the userid on the request
 				List<String> roles = Arrays.asList(gresponse.getScope().split("\\s*\\s\\s*"));
 				wrapper = new UserRoleRequestWrapper(gresponse.getUser_id(), roles, (HttpServletRequest) request);
-			}else{
-				FOAuthResponse fresponse = restTemplate.getForObject("https://graph.facebook.com/debug_token?input_token=" + accessToken+"&access_token=485439128189555%7C0dfcd78f2829cf61fab9059b41a92e91", FOAuthResponse.class);
-
-				request.setAttribute("accessToken", oauthRequest.getAccessToken());
-				request.setAttribute("authProvider", "Facebook");
-				//place the userid on the request
-				List<String> roles = fresponse.getData().getScopes();
-				wrapper = new UserRoleRequestWrapper(fresponse.getData().getUser_id(), roles, (HttpServletRequest) request);
-			}
+//			}else{
+//				FOAuthResponse fresponse = restTemplate.getForObject("https://graph.facebook.com/debug_token?input_token=" + accessToken+"&access_token=485439128189555%7C0dfcd78f2829cf61fab9059b41a92e91", FOAuthResponse.class);
+//
+//				request.setAttribute("accessToken", oauthRequest.getAccessToken());
+//				request.setAttribute("authProvider", "Facebook");
+//				//place the userid on the request
+//				List<String> roles = fresponse.getData().getScopes();
+//				wrapper = new UserRoleRequestWrapper(fresponse.getData().getUser_id(), roles, (HttpServletRequest) request);
+//			}
 		}catch(Exception ex){
-			((HttpServletResponse) response).sendError(401, ex.getMessage());
-			return;
+//			((HttpServletResponse) response).sendError(401, ex.getMessage());
+//			return;
+			wrapper = new UserRoleRequestWrapper("", new ArrayList<String>(), (HttpServletRequest) request);
 		}
 		chain.doFilter(wrapper, response);
 	}
@@ -134,65 +136,65 @@ class FOAuthObject{
 	}
 }
 
-class GOAuthResponse{
-	private String issued_to;
-	private String audience;
-	private String scope;
-	private String user_id;
-	private int expires_in;
-	private String email;
-	private boolean verified_email;
-	private String access_type;
-	
-	public String getIssued_to() {
-		return issued_to;
-	}
-	public void setIssued_to(String issued_to) {
-		this.issued_to = issued_to;
-	}
-	public String getAudience() {
-		return audience;
-	}
-	public void setAudience(String audience) {
-		this.audience = audience;
-	}
-	public String getScope() {
-		return scope;
-	}
-	public void setScope(String scope) {
-		this.scope = scope;
-	}
-	public String getUser_id() {
-		return user_id;
-	}
-	public void setUser_id(String user_id) {
-		this.user_id = user_id;
-	}
-	public int getExpires_in() {
-		return expires_in;
-	}
-	public void setExpires_in(int expires_in) {
-		this.expires_in = expires_in;
-	}
-	public String getEmail() {
-		return email;
-	}
-	public void setEmail(String email) {
-		this.email = email;
-	}
-	public boolean isVerified_email() {
-		return verified_email;
-	}
-	public void setVerified_email(boolean verified_email) {
-		this.verified_email = verified_email;
-	}
-	public String getAccess_type() {
-		return access_type;
-	}
-	public void setAccess_type(String access_type) {
-		this.access_type = access_type;
-	}
-}
+//class GOAuthResponse{
+//	private String issued_to;
+//	private String audience;
+//	private String scope;
+//	private String user_id;
+//	private int expires_in;
+//	private String email;
+//	private boolean verified_email;
+//	private String access_type;
+//	
+//	public String getIssued_to() {
+//		return issued_to;
+//	}
+//	public void setIssued_to(String issued_to) {
+//		this.issued_to = issued_to;
+//	}
+//	public String getAudience() {
+//		return audience;
+//	}
+//	public void setAudience(String audience) {
+//		this.audience = audience;
+//	}
+//	public String getScope() {
+//		return scope;
+//	}
+//	public void setScope(String scope) {
+//		this.scope = scope;
+//	}
+//	public String getUser_id() {
+//		return user_id;
+//	}
+//	public void setUser_id(String user_id) {
+//		this.user_id = user_id;
+//	}
+//	public int getExpires_in() {
+//		return expires_in;
+//	}
+//	public void setExpires_in(int expires_in) {
+//		this.expires_in = expires_in;
+//	}
+//	public String getEmail() {
+//		return email;
+//	}
+//	public void setEmail(String email) {
+//		this.email = email;
+//	}
+//	public boolean isVerified_email() {
+//		return verified_email;
+//	}
+//	public void setVerified_email(boolean verified_email) {
+//		this.verified_email = verified_email;
+//	}
+//	public String getAccess_type() {
+//		return access_type;
+//	}
+//	public void setAccess_type(String access_type) {
+//		this.access_type = access_type;
+//	}
+//}
 
 class UserRoleRequestWrapper extends HttpServletRequestWrapper {
 	String user;

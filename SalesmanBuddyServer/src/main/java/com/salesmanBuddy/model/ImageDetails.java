@@ -69,4 +69,21 @@ public class ImageDetails {
 	public void setAnswerId(Integer answerId) {
 		this.answerId = answerId;
 	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("ImageDetails [id=");
+		builder.append(id);
+		builder.append(", photoName=");
+		builder.append(photoName);
+		builder.append(", bucketId=");
+		builder.append(bucketId);
+		builder.append(", created=");
+		builder.append(created);
+		builder.append(", answerId=");
+		builder.append(answerId);
+		builder.append("]");
+		return builder.toString();
+	}
 }

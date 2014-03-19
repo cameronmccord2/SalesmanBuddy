@@ -1,36 +1,50 @@
 package com.salesmanBuddy.dao;
 
-import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
+import java.net.ProtocolException;
 import java.net.URL;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
+import javax.mail.Message;
+import javax.mail.MessagingException;
+import javax.mail.NoSuchProviderException;
+import javax.mail.Session;
+import javax.mail.Transport;
+import javax.mail.internet.AddressException;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
-import javax.ws.rs.core.GenericEntity;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
 import javax.xml.bind.DatatypeConverter;
+
+
+
+
+
+
+
+
+
+
+
 
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jettison.json.JSONException;
@@ -47,7 +61,6 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
-import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.Buckets;
 import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
@@ -73,7 +86,7 @@ import com.salesmanBuddy.model.UsersName;
 
 
 
-public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
+public class JDBCSalesmanBuddyDAO {
 //	static Logger log = Logger.getLogger("log.dao");
 //	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
 	protected DataSource dataSource;
@@ -83,14 +96,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	static final private int isBool = 3;
 	static final private int isDropdown = 4;
 	
-	private static String GoogleClientIdWeb = "185872110398-icdle47mq6dtff0ktdpc7qrpojkh5jrj.apps.googleusercontent.com";
-	private static String GoogleClientSecretWeb = "BWJTZ4AGamoJ4rmPnIHPs2Ak";
+	private static String GoogleClientIdWeb = "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com";
+	private static String GoogleClientSecretWeb = "NRheOilfAEKqTatHltqNhV2y";
 	private static String GoogleClientIdAndroid = "";
 	private static String GoogleClientSecretAndroid = "";
 	private static String GoogleClientIdiOS = "38235450166-dgbh1m7aaab7kopia2upsdj314odp8fc.apps.googleusercontent.com";
 	private static String GoogleClientSecretiOS = "zC738ZbMHopT2C1cyKiKDBQ6";
-	private static String GoogleTokenEnpoint = "https://accounts.google.com/o/oauth2/token";
+	private static String GoogleTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
 	private static String GoogleUserEndpoint = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
+	private static String GoogleRefreshTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
+	private static String EMAIL_USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
+    private static String EMAIL_PASSWORD = "27&M2rk4$k"; // GMail password
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -157,7 +173,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return newBucket.getName();
 	}
 	
-	@Override
+	
 	public FinishedPhoto saveFileToS3ForStateId(int stateId, File file){
 		if(file == null)
 			throw new RuntimeException("file trying to save to s3 is null");
@@ -175,7 +191,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return fp;
 	}
 	
-	@Override
+	
 	public String randomAlphaNumericOfLength(Integer length){
 		switch(length.intValue()){
 		case 15:
@@ -221,12 +237,12 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		throw new RuntimeException("could not find state for id: " + stateId);
 	}
 
-	@Override
+	
 	public String getString() {
 		return "From the dao";
 	}
 
-	@Override
+	
 	public ArrayList<States> getAllStates(int getInactiveToo) {// working 10/3/13
 		String sql = "SELECT * FROM states WHERE status = 1";
 		if(getInactiveToo > 0)
@@ -241,7 +257,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return states;
 	}
 
-	@Override
+	
 	public ArrayList<Dealerships> getAllDealerships() {// working 10/3/13
 		String sql = "SELECT * FROM dealerships";
 		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
@@ -254,7 +270,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return results;
 	}
 
-	@Override
+	
 	public ArrayList<LicensesListElement> getAllLicensesForUserId(String googleUserId) {
 		String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
 		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
@@ -297,7 +313,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		throw new RuntimeException("couldnt find the license by id: " + id);
 	}
 
-	@Override
+	
 	public FinishedPhoto saveStringAsFileForStateId(String data, int stateId, String extension) {// working 10/3/13
 		File f = null;
 		Writer writer = null;
@@ -360,7 +376,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public LicensesListElement putLicense(LicensesFromClient licenseFromClient, String googleUserId) {
 		Users user = this.getUserByGoogleId(googleUserId);
 		int licenseId = 0;
@@ -378,13 +394,13 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
 			qaa.getAnswer().setLicenseId(licenseId);
 			if(this.putAnswerInDatabase(qaa.getAnswer()) == 0)
-				throw new RuntimeException("Failed to insert answer into database");
+				throw new RuntimeException("Failed to insert answer into database, " + qaa.getAnswer().toString());
 		}
-		
+		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
 		return this.getLicenseListElementForLicenseId(licenseId);
 	}
 
-	@Override
+	
 	public DeleteLicenseResponse deleteLicense(int licenseId) {
 		int i = this.updateShowInUserListForLicenseId(licenseId, 0);
 		DeleteLicenseResponse dlr = new DeleteLicenseResponse();
@@ -415,7 +431,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return i;
 	}
 
-	@Override
+	
 	public boolean userOwnsLicenseId(int licenseId, String googleUserId) {
 		String sql = "SELECT * FROM licenses WHERE id = ? AND userId = (SELECT id FROM users WHERE googleUserId = ?)";
 		ArrayList<Licenses> results = new ArrayList<Licenses>();
@@ -448,7 +464,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return results.get(0);
 	}
 	
-	@Override
+	
 	public Licenses getLicenseForLicenseId(int licenseId) {
 		String sql = "SELECT * FROM licenses WHERE id = ?";
 		ArrayList<Licenses> results = new ArrayList<Licenses>();
@@ -465,13 +481,13 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
 		Buckets bucket = this.getBucketForBucketId(bucketId);
 		return this.getFileFromBucket(photoName, bucket.getName());
 	}
 
-	@Override
+	
 	public Users getUserByGoogleId(String googleUserId) {
 		String sql = "SELECT * FROM users WHERE googleUserId = ?";
 		ArrayList<Users> results = new ArrayList<Users>();
@@ -487,7 +503,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return null;
 	}
 	
-	@Override
+	
 	public int createUser(Users user) {
 		String sql = "INSERT INTO users (deviceType, type, googleUserId, refreshToken) VALUES(?, ?, ?, ?)";
 		int id = 0;
@@ -507,7 +523,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public Users getUserById(int userId) {
 		String sql = "SELECT * FROM users WHERE id = ?";
 		ArrayList<Users> results = new ArrayList<Users>();
@@ -524,7 +540,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId) {
 		if(licenseFromClient.getId() == null || licenseFromClient.getId() == 0)
 			throw new RuntimeException("id is either null or 0: " + licenseFromClient.toString());
@@ -536,7 +552,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId, ArrayList<Questions> questions) {
 		ArrayList<Answers> answers = this.getAnswersForLicenseId(licenseId);
 		ArrayList<QuestionsAndAnswers> qas = new ArrayList<QuestionsAndAnswers>();
@@ -558,7 +574,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return null;
 	}
 	
-	@Override
+	
 	public ArrayList<Answers> getAnswersForLicenseId(int licenseId) {
 		String sql = "SELECT * FROM answers WHERE licenseId = ?";
 		ArrayList<Answers> results = new ArrayList<Answers>();
@@ -689,17 +705,17 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			throw new RuntimeException(sqle);
 		}
 		if(i == 0)
-			throw new RuntimeException("failed to insert question into database");
-		if(answer.getImageDetails() != null){
+			throw new RuntimeException("failed to insert answer into database, " + answer.toString());
+		if(answer.getAnswerType() == 1){
 			answer.getImageDetails().setAnswerId(i);
 			if(this.putImageDetailsInDatabase(answer.getImageDetails()) == 0)
-				throw new RuntimeException("failed to insert image details into database");
+				throw new RuntimeException("failed to insert image details into database, " + answer.getImageDetails().toString());
 		}
 		return i;
 	}
 
 
-	@Override
+	
 	public Questions getQuestionById(Integer questionId) {
 		String sql = "SELECT * FROM questions WHERE id = ?";
 		ArrayList<Questions> results = new ArrayList<Questions>();
@@ -715,7 +731,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return null;
 	}
 	
-	@Override
+	
 	public ArrayList<Questions> getAllQuestions() {
 		String sql = "SELECT * FROM questions ORDER BY questionOrder";
 		ArrayList<Questions> results = new ArrayList<Questions>();
@@ -729,14 +745,14 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public boolean userOwnsQuestionId(int questionId, String googleUserId) {
 		// TODO Auto-generated method stub
 		return true;
 	}
 
 
-	@Override
+	
 	public File getLicenseImageForAnswerId(int answerId) {
 		ImageDetails imageDetails = this.getImageDetailsForAnswerId(answerId);
 		return this.getLicenseImageForPhotoNameBucketId(imageDetails.getPhotoName(), imageDetails.getBucketId());
@@ -752,22 +768,22 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 			statement.execute();
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+			throw new RuntimeException(sqle + ", imageDetials: " + imageDetails.toString());
 		}
 		if(i == 0)
-			throw new RuntimeException("insert image failed");
+			throw new RuntimeException("insert imageDetails failed, " + imageDetails.toString());
 		return i;
 	}
 
 
-	@Override
+	
 	public Questions putQuestion(Questions question) {
 		this.putQuestionInDatabase(question);
 		return this.getQuestionById(question.getId());
 	}
 
 
-	@Override
+	
 	public Questions updateQuestion(Questions question) {
 		this.updateQuestionInDatabase(question);
 		return this.getQuestionById(question.getId());
@@ -775,7 +791,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	
 	
 	
-	@Override
+	
 	public ArrayList<Languages> getAllLanguages(int onlyMtcTaught) {
 		String sql = "SELECT * FROM languages";
 		if(onlyMtcTaught == 1)
@@ -791,7 +807,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public List<Users> getAllUsers() {
 		String sql = "SELECT * FROM users";
 		ArrayList<Users> results = new ArrayList<Users>();
@@ -805,7 +821,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public Users updateUserToType(String googleUserId, int type) {
 		String sql = "UPDATE users SET type = ? WHERE googleUserId = ?";
 		int i = 0;
@@ -822,7 +838,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public Users updateUserToDealershipCode(String googleUserId, String dealershipCode) {
 		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
 		String sql = "UPDATE users SET dealershipId = ? WHERE googleUserId = ?";
@@ -856,7 +872,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public List<LicensesListElement> getAllLicensesForDealershipForUserId(String googleUserId) {
 		int dealershipId = this.getUserByGoogleId(googleUserId).getDealershipId();
 		String sql = "SELECT * FROM users WHERE dealershipId = ?";
@@ -893,7 +909,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		throw new RuntimeException("failed to get the dealership by id: " + dealershipId);
 	}
 	
-	@Override
+	
 	public Dealerships newDealership(Dealerships dealership) {
 		String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode, notes) VALUES (?, ?, ?, ?, ?)";
 		int i = 0;
@@ -914,7 +930,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 	}
 
 
-	@Override
+	
 	public Dealerships updateDealership(Dealerships dealership) {
 		String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ?, notes = ? WHERE id = ?";
 		int i = 0;
@@ -933,7 +949,7 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return this.getDealershipById(dealership.getId());
 	}
 	
-	@Override
+	
 	public void updateRefreshTokenForUser(Users userFromClient) {
 		if(userFromClient.getDeviceType() < 1 || userFromClient.getDeviceType() > 3)
 			throw new RuntimeException("their device type is not within the range 1-3, user: " + userFromClient.toString());
@@ -953,23 +969,71 @@ public class JDBCSalesmanBuddyDAO implements SalesmanBuddyDAO{
 		return;
 	}
 	
-	@Override
-	public List<GoogleRefreshTokenResponse> codeForToken(String code) {
-		/*
-		 * code=4/P7q7W91a-oMsCeLvIaQm6bTrgtp7&
-client_id=8819981768.apps.googleusercontent.com&
-client_secret={client_secret}&
-redirect_uri=https://oauth2-login-demo.appspot.com/code&
-grant_type=authorization_code
-		 */
+	
+	public GoogleRefreshTokenResponse codeForToken(String code, String redirectUri, String state) {
 		String webString = "code=" + code +
                 "&client_id=" + GoogleClientIdWeb +
                 "&client_secret=" + GoogleClientSecretWeb +
-                "&redirect_uri=http://salesmanbuddy.com" +
+                "&redirect_uri=" + redirectUri + 
                 "&grant_type=authorization_code";
+
+		String responseBody = this.postRequest(webString, GoogleTokenEndpoint, "application/x-www-form-urlencoded");
+		
+		JSONObject json = null;
+		try{
+			json = new JSONObject(responseBody);
+		}catch(JSONException e){
+			e.printStackTrace();
+			throw new RuntimeException(e.getLocalizedMessage());
+		}
+		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
+		return grtr;
 	}
 	
-	@Override
+	private String postRequest(String postData, String baseUrl, String contentType){
+         
+        // Connect to google.com
+        URL url;
+        StringBuilder responseSB = new StringBuilder();
+		try {
+			url = new URL(baseUrl);
+	        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+	        connection.setDoOutput(true);
+	        connection.setRequestMethod("POST");
+	        connection.setRequestProperty("Content-Type", contentType);
+	        connection.setRequestProperty("Content-Length",  String.valueOf(postData.length()));
+	//        connection.setRequestProperty("Accept", "application/json");
+	         
+	        // Write data
+	        OutputStream os = connection.getOutputStream();
+	        os.write(postData.getBytes());
+	         
+	        // Read response
+	        
+	        BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+	          
+	        String line;
+	        while ( (line = br.readLine()) != null)
+	            responseSB.append(line);
+	                 
+	        // Close streams
+	        br.close();
+	        os.close();
+		} catch (MalformedURLException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e.getLocalizedMessage());
+		} catch (ProtocolException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e.getLocalizedMessage());
+		} catch (IOException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e.getLocalizedMessage());
+		}
+         
+        return responseSB.toString();
+	}
+	
+	
 	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId) {
 		Users user = this.getUserByGoogleId(googleUserId);
     	String iosString = "client_secret=" + GoogleClientSecretiOS
@@ -985,6 +1049,13 @@ grant_type=authorization_code
                 "&client_secret=" + GoogleClientSecretAndroid +
                 "&grant_type=refresh_token";
 
+    	/*
+    	 * 
+    	 * client_id=8819981768.apps.googleusercontent.com&
+client_secret={client_secret}&
+refresh_token=1/6BMfW9j53gdGImsiyUH5kU5RsR4zwI9lUVX-tqf8JXQ&
+grant_type=refresh_token
+    	 */
         byte[] body = null;
         
         if(user.getDeviceType() == 1)
@@ -999,7 +1070,7 @@ grant_type=authorization_code
         URL url;
         JSONObject json = null;
 		try {
-			url = new URL(GoogleTokenEnpoint);
+			url = new URL(GoogleRefreshTokenEndpoint);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 	        conn.setDoOutput(true);
 	        conn.setFixedLengthStreamingMode(body.length);
@@ -1010,7 +1081,8 @@ grant_type=authorization_code
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
 		} catch (IOException e) {
-			throw new RuntimeException("IOException: " + e.getLocalizedMessage());
+			// TODO make this error handling more comprehensive, if refreshtoken is invalid we need to be able to handle it
+			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", deviceType:" + user.getDeviceType() + ", " + webString);
 		}catch(JSONException jse){
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
 		}
@@ -1020,10 +1092,73 @@ grant_type=authorization_code
         	throw new RuntimeException("the GoogleRefreshTokenResponse is in error, message: " + grtr.getErrorMessage() + ", body: " + new String(body));
         // TODO put token in database for caching?
         
-        return grtr;
+        return grtr; 
 	}
 	
-	@Override
+	private static void sendErrorToMe(String errorString){
+		String[] to = new String[1];
+		to[0] = "cameronmccord2@gmail.com";
+		JDBCSalesmanBuddyDAO.sendFromGMail("log@salesmanbuddy.com", to, "error", errorString);
+	}
+
+	private static void sendFromGMail(String from, String[] to, String subject, String body) {
+//      Properties props = System.getProperties();
+      Properties props = new Properties();
+      String host = "smtp.gmail.com";
+//      props.put("mail.smtp.starttls.enable", "true");
+//      props.put("mail.smtp.host", host);
+//      props.put("mail.smtp.user", USER_NAME);
+//      props.put("mail.smtp.password", PASSWORD);
+//      props.put("mail.smtp.port", "465");
+//      props.put("mail.smtp.auth", "true");
+//      props.put("mail.smtp.debug", "true");
+
+//      Session session = Session.getDefaultInstance(props);
+      Session session = Session.getInstance(props);
+      MimeMessage message = new MimeMessage(session);
+      
+      try {
+          message.setFrom(new InternetAddress(from));
+          
+//          InternetAddress[] toAddress = new InternetAddress[to.length];
+          
+          // To get the array of addresses
+          for( int i = 0; i < to.length; i++ ) {
+          	message.addRecipient(Message.RecipientType.TO, new InternetAddress(to[i]));
+//              toAddress[i] = new InternetAddress(to[i]);
+          }
+
+//          for( int i = 0; i < toAddress.length; i++) {
+//              message.addRecipient(Message.RecipientType.TO, toAddress[i]);
+//          }
+          
+          message.setSubject(subject);
+          message.setText(body);
+//          message.setText("<html></html>", "utf-8", "html");
+//          message.setContent("<html></html>", "text/html; charset=utf-8");
+          
+          Transport transport = session.getTransport("smtps");
+          System.out.println("connecting");
+          transport.connect(host, EMAIL_USER_NAME, EMAIL_PASSWORD);
+          transport.sendMessage(message, message.getAllRecipients());
+          transport.close();
+      }
+      catch (NoSuchProviderException e) {
+    	  e.printStackTrace();
+    	  throw new RuntimeException(e.getLocalizedMessage());
+		}
+      catch (AddressException e) {
+          e.printStackTrace();
+          throw new RuntimeException(e.getLocalizedMessage());
+      }
+      catch (MessagingException e) {
+          e.printStackTrace();
+          throw new RuntimeException(e.getLocalizedMessage());
+      }
+      System.out.println("sent");
+  }
+	
+	
 	public UsersName getUsersName(String googleUserId) {
 		GoogleUserInfo gui = this.getGoogleUserInfoWithId(googleUserId);
 		if(gui.isInError())
@@ -1034,19 +1169,18 @@ grant_type=authorization_code
 		return name;
 	}
 	
-	@Override
+	
 	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId){
 		GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId);
 		return this.getGoogleUserInfo(grtr.getTokenType(), grtr.getAccessToken());
 	}
 	
-	@Override
+	
 	public GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken) {
 		URL url;
 		byte[] body = null;
         JSONObject json = null;
         String whatItHas = "";
-
 		try {
 			url = new URL(GoogleUserEndpoint);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -1055,7 +1189,8 @@ grant_type=authorization_code
 	        
 	        conn.setRequestProperty("Authorization", tokenType + " " + accessToken);
 	        whatItHas = conn.getRequestProperty("Authorization");
-	        body = IOUtils.toByteArray(conn.getInputStream());// dying here
+	        
+	        body = IOUtils.toByteArray(conn.getInputStream());
 	        json = new JSONObject(new String(body));
 	        
 		} catch (MalformedURLException e) {
@@ -1101,7 +1236,7 @@ grant_type=authorization_code
 //	trainer stuff
 
 
-	@Override
+	
 	public ArrayList<Captions> putCaptions(List<Captions> captions) {
 		if(captions.size() == 0)
 			return new ArrayList<Captions>();
@@ -1154,7 +1289,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public ArrayList<Captions> getAllCaptionsForMediaIdLanguageId(int mediaId, int languageId) {
 		Integer latestVersion = this.getLatestCaptionVersionForMediaIdLanguageId(mediaId, languageId);
 		
@@ -1173,7 +1308,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public Media putMedia(Media media) {
 		if(media.getId() == 0)
 			return this.putNewMedia(media);
@@ -1253,7 +1388,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public Media getMediaById(int id) {
 		String sql = "SELECT * FROM media WHERE id = ?";
 		ArrayList<Media> results = new ArrayList<Media>();
@@ -1270,7 +1405,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public ArrayList<Media> getAllMedia() {
 		String sql = "SELECT * FROM media";
 		ArrayList<Media> results = new ArrayList<Media>();
@@ -1284,7 +1419,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public ArrayList<Languages> putLanguages(List<Languages> languages) {
 		for(Languages l : languages){
 			this.putLanguage(l);
@@ -1314,7 +1449,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public List<Popups> getAllPopups() {
 		String sql = "SELECT * FROM popups ORDER BY startTime";
 		ArrayList<Popups> results = new ArrayList<Popups>();
@@ -1328,7 +1463,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public List<Popups> getAllPopupsForLanguageId(int languageId) {
 		String sql = "SELECT * FROM popups WHERE languageId = ? ORDER BY startTime";
 		ArrayList<Popups> results = new ArrayList<Popups>();
@@ -1344,7 +1479,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public List<Popups> getAllPopupsForMediaId(int mediaId) {
 		String sql = "SELECT * FROM popups WHERE mediaId = ? ORDER BY startTime";
 		ArrayList<Popups> results = new ArrayList<Popups>();
@@ -1360,7 +1495,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public List<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
 		String sql = "SELECT * FROM popups WHERE languageId = ? AND mediaId = ? ORDER BY startTime";
 		ArrayList<Popups> results = new ArrayList<Popups>();
@@ -1376,7 +1511,7 @@ grant_type=authorization_code
 		return results;
 	}
 
-	@Override
+	
 	public Popups newPopup(Popups popup) {
 		String sql = "INSERT INTO popups (displayName, popupText, mediaId, languageId, startTime, endTime, filename) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
@@ -1398,7 +1533,7 @@ grant_type=authorization_code
 		return this.getPopupById(i);
 	}
 	
-	@Override
+	
 	public List<Popups> putPopups(List<Popups> popups) {
 		ArrayList<Popups> newList = new ArrayList<Popups>();
 		for(Popups popup : popups){
@@ -1426,7 +1561,7 @@ grant_type=authorization_code
 		throw new RuntimeException("couldnt get popup by id: " + popupId);
 	}
 
-	@Override
+	
 	public Popups updatePopup(Popups popup) {
 		String sql = "UPDATE popups SET displayName = ?, popupText = ?, startTime = ?, endTime = ?, filename = ? WHERE id = ?";
 		int i = 0;
@@ -1447,7 +1582,7 @@ grant_type=authorization_code
 		return this.getPopupById(popup.getId());
 	}
 	
-	@Override
+	
 	public Popups updatePopupWithUploadedFile(String newFilename, Integer bucketId, String extension, int popupId){
 		String sql = "UPDATE popups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
@@ -1467,7 +1602,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public int deletePopup(int popupId) {
 		String sql = "DELETE FROM popups WHERE id = ?";
 		int i = 0;
@@ -1481,7 +1616,7 @@ grant_type=authorization_code
 		return i;
 	}
 	
-	@Override
+	
 	public int deleteCaption(int captionId) {
 		String sql = "DELETE FROM captions WHERE id = ?";
 		int i = 0;
@@ -1498,7 +1633,7 @@ grant_type=authorization_code
 	
 	// Caption editor bucket stuff start
 	
-	@Override
+	
 	public String saveStringAsFileForCaptionEditor(String data, String extension) {// working 10/3/13
 		File f = null;
 		Writer writer = null;
@@ -1521,7 +1656,7 @@ grant_type=authorization_code
 		return filename;
 	}
 	
-	@Override
+	
 	public BucketsCE getCaptionEditorBucket(){
 		String sql = "SELECT * FROM bucketsCE";
 		ArrayList<BucketsCE> results = new ArrayList<BucketsCE>();
@@ -1581,7 +1716,7 @@ grant_type=authorization_code
 		return newBucket.getName();
 	}
 	
-	@Override
+	
 	public String saveFileToS3ForCaptionEditor(File file, String extension, int mediaId, int popupId){
 		if(file == null)
 			throw new RuntimeException("file trying to save to s3 is null");
@@ -1640,7 +1775,7 @@ grant_type=authorization_code
 	}
 
 
-	@Override
+	
 	public File getFileForMediaId(int mediaId) {
 		Media media = this.getMediaById(mediaId);
 		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());

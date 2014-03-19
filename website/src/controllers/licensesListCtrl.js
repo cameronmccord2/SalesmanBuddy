@@ -1,4 +1,9 @@
-function licensesListCtrl($scope){
+function licensesListCtrl($scope, licensesFactory){
 
-	$scope.message = "Salesman Buddy coming soon!";
+	$scope.loaded = false;
+
+	licensesFactory.getAllLicensesForDealership().then(function(licenses){
+		$scope.loaded = true;
+		$scope.licenses = licenses;
+	})
 }

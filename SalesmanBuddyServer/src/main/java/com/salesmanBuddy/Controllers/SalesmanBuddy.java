@@ -5,12 +5,8 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
-import java.net.URL;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -29,14 +25,14 @@ import javax.ws.rs.core.GenericEntity;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
+import javax.ws.rs.core.UriBuilder;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.IOUtils;
-import org.codehaus.jettison.json.JSONException;
-import org.codehaus.jettison.json.JSONObject;
+import org.springframework.web.client.RestTemplate;
 
+import com.salesmanBuddy.GOAuthResponse;
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
-import com.salesmanBuddy.dao.SalesmanBuddyDAO;
 import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
@@ -83,7 +79,7 @@ public class SalesmanBuddy {
      */
 	
 	
-	SalesmanBuddyDAO dao = new JDBCSalesmanBuddyDAO();
+	JDBCSalesmanBuddyDAO dao = new JDBCSalesmanBuddyDAO();
 	
     @GET
     @Produces(MediaType.TEXT_PLAIN)
@@ -94,13 +90,58 @@ public class SalesmanBuddy {
     @Path("codeForToken")// works 10/13
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
-    public Response getAllStates(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("code") String code){
-//    	String googleUserId = request.getUserPrincipal().getName();
-    	if(code.length() == 0)
-    		throw new RuntimeException("didnt recieve a code as a query param");
+    public Response getAllStates(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("code") String code, @DefaultValue("") @QueryParam("state") String state, @DefaultValue("") @QueryParam("redirect_uri") String redirect_uri, @DefaultValue("-1") @QueryParam("deviceType") Integer deviceType){
     	
-    	GenericEntity<List<GoogleRefreshTokenResponse>> entity = new GenericEntity<List<GoogleRefreshTokenResponse>>(dao.codeForToken(code)){};
-    	return Response.ok(entity).build();
+    	if(code.length() == 0)
+    		throw new RuntimeException("You must specify a code to be refreshed");
+    	if(state.length() == 0)
+    		throw new RuntimeException("You must specify a state, can be anything");
+    	if(redirect_uri.length() == 0)
+    		throw new RuntimeException("You must specify a redirect_uri, your browser will be redirected here after authenticating");
+    	if(deviceType == -1)
+    		throw new RuntimeException("You must specify a device type. Possible values are: 1:ios, 2:web, 3:android");
+    	
+    	GoogleRefreshTokenResponse grtr = dao.codeForToken(code, redirect_uri, state);
+    	
+    	StringBuilder sb = new StringBuilder();
+    	sb.append(redirect_uri);
+    	if(grtr.isInError()){
+    		sb.append("?state=error&message=");
+    		sb.append(grtr.getErrorMessage());
+    	}else{
+	    	sb.append("?access_token=");
+	    	sb.append(grtr.getAccessToken());
+	    	sb.append("&expires_in=");
+	    	sb.append(grtr.getExpiresIn());
+	    	sb.append("&state=");
+	    	sb.append(state);
+    	}
+    	if(grtr.getRefreshToken() != null)
+    		sb.append("&other=aRefreshTokenWasFound");
+    	
+    	
+    	RestTemplate restTemplate = new RestTemplate();
+		GOAuthResponse gresponse = restTemplate.getForObject("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + grtr.getAccessToken(), GOAuthResponse.class);
+		String googleUserId = gresponse.getUser_id();
+    	
+    	Users user = dao.getUserByGoogleId(googleUserId);
+    	if(user == null){// new user
+			user = new Users();
+			user.setDeviceType(deviceType);
+			user.setGoogleUserId(googleUserId);
+			user.setRefreshToken(grtr.getRefreshToken());
+			user = dao.getUserById(dao.createUser(user));
+			
+    	}else{// user exists in our system already
+    		if(grtr.getRefreshToken() != null && grtr.getRefreshToken().length() > 0){// update refresh token if possible
+        		user.setRefreshToken(grtr.getRefreshToken());
+        		user.setDeviceType(deviceType);
+        		dao.updateRefreshTokenForUser(user);
+//        		throw new RuntimeException("recieved refreshs token" + grtr.getRefreshToken());//1/lEJ05j_oR6eguCOQYHbym5XPiEqE6BuaIE3gZ5NJvgM
+        	}
+    	}
+    	
+    	return Response.temporaryRedirect(UriBuilder.fromUri(sb.toString()).build()).build();
     }
     
     
@@ -116,12 +157,12 @@ public class SalesmanBuddy {
     		user = dao.getUserById(dao.createUser(userFromClient));
     	}
     	
-    	if(!user.getRefreshToken().equals(userFromClient.getRefreshToken())){
+    	if(user.getRefreshToken().length() > 0 && !user.getRefreshToken().equals(userFromClient.getRefreshToken())){
     		userFromClient.setId(user.getId());
 			dao.updateRefreshTokenForUser(userFromClient);
 			user.setRefreshToken(userFromClient.getRefreshToken());
+//	    	user.setRefreshToken("");// clear this out when in production type environments
 		}
-//    	user.setRefreshToken("");// clear this out when in production type environments
     	GenericEntity<Users> entity = new GenericEntity<Users>(user){};
     	return Response.ok(entity).build();
     }
@@ -352,20 +393,10 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getMeFromGoogle(@Context HttpServletRequest request){
-//    	String googleUserId = request.getUserPrincipal().getName();
     	String accessToken = (String)request.getAttribute("accessToken");
-//    	throw new RuntimeException(accessToken);
-////    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(googleUserId);
-//    	
-////    	UsersName name = dao.getUsersName(googleUserId);
-//    	GoogleUserInfo gui = dao.getGoogleUserInfo(googleUserId);
-////    	throw new RuntimeException(name.toString());
-//    	
     	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer", accessToken);
-//    	throw new RuntimeException(gui.toString());
         GenericEntity<GoogleUserInfo> entity = new GenericEntity<GoogleUserInfo>(gui){};
-//        throw new RuntimeException("Bearer " + accessToken);
-        return Response.ok(entity).build();
+        return Response.ok().entity(entity).build();// there is an error here
     }
     
     @Path("users/{googleUserId}")

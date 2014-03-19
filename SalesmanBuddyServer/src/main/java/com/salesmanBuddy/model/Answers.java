@@ -25,13 +25,7 @@ public class Answers {
      * @see java.lang.Object#toString()
      */
     
-    public String toString(){
-    	StringBuilder sb = new StringBuilder("");
-    	sb.append("id:");
-    	sb.append(this.id);
-    	sb.append(", licenseId:");
-    	return sb.toString();
-    }
+   
     
     public static ArrayList<Answers> parseResultSet(ResultSet resultSet){
     	ArrayList<Answers> responses = new ArrayList<Answers>();
@@ -115,6 +109,29 @@ public class Answers {
 
 	public void setAnswerType(Integer answerType) {
 		this.answerType = answerType;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("Answers [id=");
+		builder.append(id);
+		builder.append(", answerBool=");
+		builder.append(answerBool);
+		builder.append(", answerType=");
+		builder.append(answerType);
+		builder.append(", answerText=");
+		builder.append(answerText);
+		builder.append(", licenseId=");
+		builder.append(licenseId);
+		builder.append(", created=");
+		builder.append(created);
+		builder.append(", questionId=");
+		builder.append(questionId);
+		builder.append(", imageDetails=");
+		builder.append(imageDetails);
+		builder.append("]");
+		return builder.toString();
 	}
 }
 

@@ -1,6 +1,8 @@
 package com.salesmanBuddy.dao;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -96,7 +98,7 @@ public interface SalesmanBuddyDAO {
 	
 	GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken);
 	
-	List<GoogleRefreshTokenResponse> codeForToken(String code);
+	GoogleRefreshTokenResponse codeForToken(String code, String redirect_uri, String state);
 	
 	
 //	trainer stuff

@@ -1,7 +1,7 @@
 var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationService']);
 
-app.value("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
-// app.value("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
+// app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
+app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.value("usersPath", "users");
 app.value("dealershipsPath", "dealerships");
 app.value("statesPath", "states");
@@ -11,33 +11,39 @@ app.value("saveDataPath", "savedata");
 app.value("userExistsPath", "userExists");
 app.value("licenseImagePath", "licenseimage");
 
-app.config(['$routeProvider', function($routeProvider, $locationProvider) {
+app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', function($routeProvider, $locationProvider, AuthServiceProvider) {
   $routeProvider.
-	when('/comingSoon', { templateUrl: 'templates/comingSoon.html', controller: comingSoonCtrl }).
-	when('/home', { templateUrl: 'templates/home.html', controller: homeCtrl }).
-	when('/help', { templateUrl: 'templates/help.html', controller: helpCtrl }).
-	when('/loggedOut', { templateUrl: 'templates/loggedOut.html', controller: loggedOutCtrl }).
-	when('/contactUs', { templateUrl: 'templates/contactUs.html', controller: contactUsCtrl }).
-	when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl }).
-	when('/licensesList', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl }).
-	when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl }).
-	when('/newUser/:dealershipCode', { templateUrl: 'templates/newUser.html', controller: newUserCtrl }).
-    otherwise({ redirectTo: '/comingSoon' });
+	when('/comingSoon', { templateUrl: 'templates/comingSoon.html', controller: comingSoonCtrl, resolve: AuthServiceProvider.waitForLogin}).
+	when('/home', { templateUrl: 'templates/home.html', controller: homeCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/faq', { templateUrl: 'templates/help.html', controller: helpCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/loggedOut', { templateUrl: 'templates/loggedOut.html', controller: loggedOutCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/contactUs', { templateUrl: 'templates/contactUs.html', controller: contactUsCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/licensesList', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/newUser/:dealershipCode', { templateUrl: 'templates/newUser.html', controller: newUserCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/pricing', {templateUrl: 'templates/pricing.html', resolve: AuthServiceProvider.waitForLogin}).
+	when('/how', {templateUrl: 'templates/how.html', resolve: AuthServiceProvider.waitForLogin}).
+	when('/loggingIn/:whereTo', {templateUrl:'templates/loggingIn.html', controller: loggingInCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	otherwise({ redirectTo: '/comingSoon' });
 }]);
 
-app.config(['AuthServiceProvider', function(AuthServiceProvider){
+app.config(['AuthServiceProvider', 'baseUrl', function(AuthServiceProvider, baseUrl){
+		AuthServiceProvider.setServerUrl(baseUrl + 'codeForToken');
 		AuthServiceProvider.setClientID('38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com');
 		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me');
 		AuthServiceProvider.pushScope('email');
 		AuthServiceProvider.pushScope('profile');
-		AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
+		// AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
 
 		// this only supports matching the first part of the path without any /
 		AuthServiceProvider.pushNonAuthenticatedPath("comingSoon");
 		AuthServiceProvider.pushNonAuthenticatedPath("home");
-		AuthServiceProvider.pushNonAuthenticatedPath("help");
+		AuthServiceProvider.pushNonAuthenticatedPath("faq");
 		AuthServiceProvider.pushNonAuthenticatedPath("contactUs");
 		AuthServiceProvider.pushNonAuthenticatedPath("loggedOut");
+		AuthServiceProvider.pushNonAuthenticatedPath("pricing");
+		AuthServiceProvider.pushNonAuthenticatedPath("how");
 }]);
 
 
@@ -72,6 +78,96 @@ app.factory('genericFactory', function($http, $q){
 	return factory;
 });
 
+// app.factory('genericFactory', ['$http', '$q', 'User', 'mtc.api.config', function($http, $q, User, apiconfig){
+// 	var factory = {};
+// 	factory.request = function(verb, url, errorMessage, object, options){
+// 		var defer = $q.defer();
+// 		verb = verb.toLowerCase();
+
+// 		if(verb == 'get' || verb == 'delete' || verb == 'head' || verb == 'jsonp'){
+// 			$http[verb](url, options).success(function(data){
+// 				defer.resolve(data);
+// 			}).error(function(data, status, headers, config){
+// 				console.log(errorMessage || "", data, status, headers, config);
+// 				defer.reject(data);
+// 			});
+// 			return defer.promise;
+
+// 		}else if(verb == 'put' || verb == 'post'){
+			
+// 			$http[verb](url, object, options).success(function(data){
+// 				defer.resolve(data);
+// 			}).error(function(data, status, headers, config){
+// 				console.log(errorMessage || "", data, status, headers, config);
+// 				defer.reject(data);
+// 			});
+// 			return defer.promise;
+// 		}
+// 		else
+// 			console.log("you need to specify a valid restful verb");
+// 	}
+
+// 	factory.getIndicesOf = function(searchStr, str, caseSensitive) {
+// 	    var startIndex = 0, searchStrLen = searchStr.length;
+// 	    var index, indices = [];
+// 	    if (!caseSensitive) {
+// 	        str = str.toLowerCase();
+// 	        searchStr = searchStr.toLowerCase();
+// 	    }
+// 	    while ((index = str.indexOf(searchStr, startIndex)) > -1) {
+// 	        indices.push(index);
+// 	        startIndex = index + searchStrLen;
+// 	    }
+// 	    return indices;
+// 	}
+
+// 	factory.allPromisesRequest = function(promises, verb, url, errorMessage, object, options){
+// 		var defer = $q.defer();
+
+// 		$q.all(promises).then(function(resolutions) {
+
+// 			var variables = url.match(/:[^/]*;/g);// :api;/users/:user;/:users; - would find 3 variables to replace: api, user, users
+// 			for (var i = variables.length - 1; i >= 0; i--) {
+
+// 				var resolutionVariable = variables[i].split(":")[1].split(";")[0];// strip off : and ;
+// 				var replaceString = variables[i];
+// 				var indicies = factory.getIndicesOf(replaceString, url, true);
+
+// 				for (var j = indicies.length - 1; j >= 0; j--) {// number of replacements need to do
+// 					url = url.replace(replaceString, resolutions[resolutionVariable]);
+// 				};
+// 			};
+			
+// 			factory.request(verb, url, errorMessage).then(function(data){
+// 				defer.resolve(data);
+// 			}, function(data){
+// 				defer.reject(data);// the error has already been logged to the console so no need to do it here too, just pass on the reject if they want it
+// 			});
+// 		}, function(data){
+// 			console.log("the $q.all(promises) responded with a reject, somewhere your promises rejected somehow, you specified error message: " + errorMessage);
+// 			defer.reject(data);
+// 		});
+// 		return defer.promise;
+// 	}
+
+// 	factory.getUserId = function(){
+// 		var defer = $q.defer();
+// 		User.initUser().then(function(){
+// 			defer.resolve(User.getUser().user.id);
+// 		}, function(){
+// 			defer.reject('init user failed');
+// 		});
+// 		return defer.promise;
+// 	}
+
+// 	factory.apiPromiseForKey = function(key){
+// 		return {
+// 			'api':apiconfig.getPrefix(key)
+// 		};
+// 	}
+// 	return factory;
+// }]);
+
 app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $q, $window){
 	var factory = {};
 
@@ -83,7 +179,7 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 		var user = {
 			deviceType:2,//1:ios, 2:web, 3:android, this is used to know what client the refresh token is associated with
 			// type:1, hard coded in the server to give them 1, that can be changed in the all users view in the admin
-			refreshToken: $window.sessionStorage.refreshToken
+			refreshToken: $window.sessionStorage.refreshToken || ""
 		};
 		if(user.refreshToken && user.refreshToken.length > 0){
 			$http.put(baseUrl + usersPath + '/userExists', user, {cache:true}).success(function(data){
@@ -100,12 +196,12 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 	}
 
 	factory.getAllUsers = function(){
-		factory.userExists();
+		// factory.userExists();
 		return genericFactory.request('get', baseUrl + usersPath, "error getAllUsers");
 	}
 
 	factory.updateUserToType = function(googleUserId, type){
-		factory.userExists();
+		// factory.userExists();
 		var options = {
 			params:{
 				type:type
@@ -115,7 +211,7 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 	}
 
 	factory.updateUserToDealershipCode = function(googleUserId, dealershipCode){
-		factory.userExists();
+		// factory.userExists();
 		var options = {
 			params:{
 				dealershipcode:dealershipCode
@@ -125,9 +221,9 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 	}
 
 	factory.getGoogleUserObject = function(){
-		factory.userExists();
-		return genericFactory.request('get', baseUrl + usersPath + "/me", "error getGoogleUserObject");
-		// return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject');
+		// factory.userExists();
+		// return genericFactory.request('get', baseUrl + usersPath + "/me", "error getGoogleUserObject", {cache:true});
+		return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject', {cache:true});
 	}
 
 	factory.getNameForUser = function(googleUserId){
@@ -141,17 +237,17 @@ app.factory('dealershipsFactory',function(baseUrl, dealershipsPath, genericFacto
 	var factory = {};
 
 	factory.getAllDealerships = function(){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('get', baseUrl + dealershipsPath, "error getAllDealerships");
 	}
 
 	factory.newDealership = function(dealership){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('put', baseUrl + dealershipsPath, "error newDealership", dealership);
 	}
 
 	factory.updateDealership = function(dealership){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('post', baseUrl + dealershipsPath, "error updateDealership", dealership);
 	}
 
@@ -162,7 +258,7 @@ app.factory('statesFactory',function(baseUrl, statesPath, genericFactory, usersF
 	var factory = {};
 
 	factory.getAllStates = function(){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('get', baseUrl + statesPath, "error getAllStates");
 	}
 
@@ -173,12 +269,12 @@ app.factory('licensesFactory',function(baseUrl, licensesPath, genericFactory, us
 	var factory = {};
 
 	factory.getAllLicensesForUser = function(){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('get', baseUrl + licensesPath, "error getAllLicensesForUser");
 	}
 
 	factory.getAllLicensesForDealership = function(){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		var options = {
 			params:{
 				dealership:true
@@ -206,7 +302,7 @@ app.factory('questionsFactory',function(baseUrl, questionsPath, genericFactory, 
 	var factory = {};
 
 	factory.getAllQuestions = function(){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		return genericFactory.request('get', baseUrl + questionsPath, "error getAllQuestions");
 	}
 
@@ -225,7 +321,7 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 	var factory = {};
 
 	factory.getLicenseImageForAnswerId = function(answerId){
-		usersFactory.userExists();
+		// usersFactory.userExists();
 		var options = {
 			params:{
 				answerid:answerId
@@ -244,13 +340,43 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //******************************************
 // Rootscope Setup
 //********************************************
-app.run(function ($rootScope, $http, User, AuthService) {
-    $http.defaults.headers.common.authprovider = "google";
+app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q) {
+	$http.defaults.headers.common.authprovider = "google";
 
-    $rootScope.isUserLoggedIn = AuthService.isUserLoggedIn;
-    $rootScope.needsToBeLoggedIn;
+	$rootScope.needsToBeLoggedIn;
+	$rootScope.userIsLoggedIn = false;
+	$rootScope.user = null;
 
-    $rootScope.logout = User.logout;
+	$rootScope.logout = User.logout;
+
+	$rootScope.goToPage = function(page){
+		$location.path("/" + page);
+	}
+
+	if(AuthService.isTokenValid()){
+		User.initUser().then(function(data){
+			console.log(data)
+		})
+		// usersFactory.getGoogleUserObject().then(function(user){
+		// 	$rootScope.user = user;
+		// });
+	}
+
+	$rootScope.isPath = function(path){
+		return $rootScope.isSelected(path).length;
+	}
+
+	$rootScope.isSelected = function(path, div){
+		var currentPath = $location.path().substr(1, 1+path.length);
+		if(div){
+			if(currentPath == path)
+				return 'navDivSelected';
+		}else{
+			if(currentPath == path)
+				return 'navTextSelected';
+		}
+		return '';
+	}
 });
 
 

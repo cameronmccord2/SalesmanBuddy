@@ -16,9 +16,23 @@ public class GoogleUserInfo {
 	private String link;
 	private String picture;
 	private String gender;
+	private String locale;
 	
 	private boolean inError;
 	private String errorMessage;
+	
+//	{
+//		 "id": "106488367357914471898",
+//		 "email": "cameronmccord2@gmail.com",
+//		 "verified_email": true,
+//		 "name": "Cameron McCord",
+//		 "given_name": "Cameron",
+//		 "family_name": "McCord",
+//		 "link": "https://plus.google.com/106488367357914471898",
+//		 "picture": "https://lh3.googleusercontent.com/-jUTjY6YngV0/AAAAAAAAAAI/AAAAAAAAAD8/csTPwvpAaMc/photo.jpg",
+//		 "gender": "male",
+//		 "locale": "en"
+//		}
 
 	public GoogleUserInfo(JSONObject json) {
 		if(json.optString("error").length() != 0){
@@ -38,6 +52,7 @@ public class GoogleUserInfo {
 			this.link = json.optString("link");
 			this.picture = json.optString("picture");
 			this.gender = json.optString("gender");
+			this.locale = json.optString("locale");
 		}
 	}
 	@Override
@@ -61,6 +76,8 @@ public class GoogleUserInfo {
 		builder.append(picture);
 		builder.append(", gender=");
 		builder.append(gender);
+		builder.append(", locale=");
+		builder.append(locale);
 		builder.append(", inError=");
 		builder.append(inError);
 		builder.append(", errorMessage=");
@@ -133,5 +150,11 @@ public class GoogleUserInfo {
 	}
 	public void setErrorMessage(String errorMessage) {
 		this.errorMessage = errorMessage;
+	}
+	public String getLocale() {
+		return locale;
+	}
+	public void setLocale(String locale) {
+		this.locale = locale;
 	}
 }

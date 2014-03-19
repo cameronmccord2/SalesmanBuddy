@@ -81,15 +81,39 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.byuEnforcedEachTime = false;
 	oauth.redirect_uri = "";
 	oauth.unauthenticatedPaths = [];
+	var inTheMiddleOfAuthorization = function(){
+		console.log("runing")
+		var path = String(window.location);
+		var regex = regex = /([^&=]+)=([^&]*)/g;
+		while (m = regex.exec(path.split("?")[1])) {
+			var stringToCheck = decodeURIComponent(m[1]);
+			if(stringToCheck == 'code' || stringToCheck == 'access_token')
+				return true;
+		}
+		return false;
+	}
 	return {
 		setClientID: function(id) {
 			oauth.client_id = id;
+		},
+		setServerUrl: function(url){
+			oauth.authServerUrl = url;
 		},
 		pushScope: function(scope) {
 			oauth.scope.push(scope);
 		},
 		pushNonAuthenticatedPath: function(path) {
 			oauth.unauthenticatedPaths.push(path)
+		},
+		
+		waitForLogin:{
+			resolveThing: function($q, $timeout){
+				console.log("herer")
+				var defer = $q.defer();
+				if(!inTheMiddleOfAuthorization())
+					defer.resolve();
+				return defer.promise;
+			}
 		},
 		setRedirectURI: function(path) {
 			oauth.redirect_uri = path;
@@ -106,11 +130,14 @@ auth.provider('AuthService', function($httpProvider){
 		setState: function(state) {
 			oauth.state = state;
 		},
+
 		$get: function($window, $location, $q) {
 			var token = null;
-			var user = {},
-			configObject = {
-				checkToken: function() {
+			var code = null;
+			var user = {};
+
+			var configObject = {
+				isTokenValid: function() {
 					if ((parseInt($window.sessionStorage.expiresAt) > new Date().getTime()) && $window.sessionStorage.accessToken) {
 						token = $window.sessionStorage.accessToken;
 						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
@@ -118,13 +145,11 @@ auth.provider('AuthService', function($httpProvider){
 					}
 					return false;
 				},
-				isUserLoggedIn: function(){
-					if($window.sessionStorage.accessToken)
-						return true;
-					return false;
-				},
 				needsToBeLoggedIn: function(){
 					var firstPartOfCurrentPath = $location.path().split("/")[1];
+					if(firstPartOfCurrentPath == undefined)// for when the path hasnt gotten anything in it yet
+						return false;
+
 					if(oauth.unauthenticatedPaths.indexOf(firstPartOfCurrentPath) == -1)// not found, require authentication
 						return true;
 					return false;
@@ -135,11 +160,19 @@ auth.provider('AuthService', function($httpProvider){
 					$window.sessionStorage.accessToken = token;
 					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (t.expires_in - 300) * 1000).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
-
-					if(t.refresh_token && t.refresh_token.length > 0)// only save off the refresh token if it isnt blank
-						$window.sessionStorage.refreshToken = t.refresh_token;
-					else
-						console.log("refresh token didnt exist", t);
+				},
+				inTheMiddleOfAuthorization: function(){
+					var path = String(window.location);
+					var regex = regex = /([^&=]+)=([^&]*)/g;
+					while (m = regex.exec(path.split("?")[1])) {
+						var stringToCheck = decodeURIComponent(m[1]);
+						if(stringToCheck == 'code' || stringToCheck == 'access_token')
+							return true;
+					}
+					return false;
+				},
+				setCode: function(c){
+					code = c;
 				},
 				getToken: function() {
 					return token;
@@ -153,7 +186,97 @@ auth.provider('AuthService', function($httpProvider){
 				setRedirectURI: function(uri) {
 					oauth.redirect_uri = uri;
 				},
+
+				// retrieveToken: function() {
+ 
+				// 	// Try to get the token from 3 different places
+				// 	// First: Check route params and see if we have it there
+				// 	// Second: Check sessionStorage for token
+				// 	// Third: Redirect to signin and get token
+				// 	// Look on route params
+				// 	var params = {}, queryString = '', path = String(window.location), regex = /([^&=]+)=([^&]*)/g, m;
+				// 	// remove the # added to the front of the URL
+				// 	var pathChunks = path.split("#");
+ 
+				// 	if(pathChunks.length > 1) {
+ 
+				// 		if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
+				// 			pathChunks[1] = pathChunks[1].substring(1);
+ 
+				// 		queryString = pathChunks[1];
+							   
+ 
+				// 		while (m = regex.exec(queryString)) {
+				// 			params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);// save out each query param
+				// 		}
+			   
+	 
+				// 		if(params && params.access_token && params.expires_in && params.state) {
+				// 			// Got token from a redirect query string
+				// 			this.setToken(params);
+				// 			if(params.state && params.state !== "initial")
+				// 				setTimeout(function LEAVEANGULAR() {
+				// 					window.location.href = pathChunks[0] + "#" + params.state;
+				// 				}, 0);
+				// 		}
+				// 	}
+ 
+				// 	// Look in sessionStorage, verify token in there is good
+				// 	if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
+				// 		token = $window.sessionStorage.accessToken;
+				// 		$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+				// 	}
+				// 	// If checkToken is still false, and there is nothing in sessionStorage
+				// 	// redirect to sign in
+				// 	if (!this.checkToken()) {
+				// 		var url = this.buildUrl();
+				// 		$window.open(url, '_self');
+				// 	}
+ 
+				// 	return this.getToken();
+				// },
+				// buildUrl: function() {
+				// 	function spaceDelimitScope(scopes) {
+				// 		var string = '';
+				// 		for (var i = scopes.length - 1; i >= 0; i--) {
+				// 			var scope = scopes[i];
+				// 			string += scope;
+				// 			if (i != 0) { // Last one, no space
+				// 				string += ' ';
+				// 			}
+				// 		};
+				// 		return string;
+				// 	}
+ 
+				// 	var locationSplit = window.location.href.split("#");
+				// 	var redirect = locationSplit[0];
+
+				// 	if(!oauth.state)
+				// 		oauth.state = encodeURIComponent(locationSplit.length > 1 ? locationSplit[1] : oauth.state);
+ 
+				// 	// If user set the redirect URI manually, ignore the implicit angular path for redirect
+				// 	if (oauth.redirect_uri === "")
+				// 		oauth.redirect_uri = redirect;
+				// 	var url = oauth.url;
+				// 	url += '?client_id=' + oauth.client_id;
+				// 	url += '&response_type=' + oauth.response_type;
+				// 	url += '&redirect_uri=' + oauth.redirect_uri;
+				// 	url += '&scope=' + spaceDelimitScope(oauth.scope);
+				// 	url += '&state=' + oauth.state;
+				// 	if (oauth.byuRequired || oauth.byuEncouraged || oauth.byuEnforced) {
+								  
+				// 		url += '&request_auths=';
+				// 		if (oauth.byuRequired)
+				// 			url += 'byurequired';
+				// 		if (oauth.byuEncouraged)
+				// 			url += 'byu';
+				// 		if (oauth.byuEnforced)
+				// 			url += 'byulogin';
+				// 	}
+				// 	return url;
+				// },
 				retrieveToken: function() {
+					//http://localhost:8080/salesmanBuddyAdmin/?state=initial&code=4/cbQCkbZQQIEf5XdYVhTTG7GUcSa6.kvELHd3p2poTmmS0T3UFEsNcBBR8iQI#/comingSoon
  
 					// Try to get the token from 3 different places
 					// First: Check route params and see if we have it there
@@ -161,32 +284,54 @@ auth.provider('AuthService', function($httpProvider){
 					// Third: Redirect to signin and get token
 					// Look on route params
 					var params = {}, queryString = '', path = String(window.location), regex = /([^&=]+)=([^&]*)/g, m;
-					// remove the # added to the front of the URL
-					var pathChunks = path.split("#");
- 
+					// split into redirecturi and params
+					var pathChunks = path.split("?");
+
 					if(pathChunks.length > 1) {
  
-						if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
+						// if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
+						if(pathChunks[1].charAt(0) == "#")// if hash was found, this shouldnt be undefined, getting rid of angular hash?
 							pathChunks[1] = pathChunks[1].substring(1);
  
 						queryString = pathChunks[1];
-				               
+							   
  
 						while (m = regex.exec(queryString)) {
-							params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);// save out each query param
+							//					key							value
+							params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]).split('#')[0];// save out each query param
 						}
-               
-	 
-						if(params && params.access_token && params.expires_in && params.state) {
+
+						if(params && params.code && params.state) {
 							// Got token from a redirect query string
-							this.setToken(params);
-							if(params.state && params.state !== "initial")
+							this.setCode(params.code);
+
+							// if(params.state && params.state !== "initial")
+								setTimeout(function LEAVEANGULAR() {// go to my server
+									var url = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/" + 'codeForToken';
+									url += "?code=" + params.code + '&deviceType=2&state=' + params.state + '&redirect_uri=' + pathChunks[0].split('#')[0];
+									$window.open(url, '_self');
+								}, 0);
+						}else
+							console.log("didnt find code")
+
+						if(params && params.access_token && params.expires_in && params.state) {// response from my server
+							// Got token from a redirect query string
+							this.setToken(params);// save it into session storage
+
+							if(params.state){
 								setTimeout(function LEAVEANGULAR() {
 									window.location.href = pathChunks[0] + "#" + params.state;
 								}, 0);
+							}else
+								alert("couldnt find state: " + params);
+						}
+
+						if(params && params.message && params.state && params.state == "error"){
+							alert(params.message);
+							return;
 						}
 					}
- 
+
 					// Look in sessionStorage, verify token in there is good
 					if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
 						token = $window.sessionStorage.accessToken;
@@ -194,7 +339,7 @@ auth.provider('AuthService', function($httpProvider){
 					}
 					// If checkToken is still false, and there is nothing in sessionStorage
 					// redirect to sign in
-					if (!this.checkToken()) {
+					if (!this.isTokenValid()) {
 						var url = this.buildUrl();
 						$window.open(url, '_self');
 					}
@@ -225,127 +370,15 @@ auth.provider('AuthService', function($httpProvider){
 						oauth.redirect_uri = redirect;
 					var url = oauth.url;
 					url += '?client_id=' + oauth.client_id;
-					url += '&response_type=' + oauth.response_type;
-					url += '&redirect_uri=' + oauth.redirect_uri;
+					url += '&response_type=' + 'code';
+					// url += '&redirect_uri=' + oauth.redirect_uri;
+					// url += '&redirect_uri=' + location.host + "/salesmanBuddyAdmin";
+					url += '&redirect_uri=' + locationSplit[0].split('?')[0];// everything before #
 					url += '&scope=' + spaceDelimitScope(oauth.scope);
-					url += '&state=' + oauth.state;
-					if (oauth.byuRequired || oauth.byuEncouraged || oauth.byuEnforced) {
-					              
-						url += '&request_auths=';
-						if (oauth.byuRequired)
-							url += 'byurequired';
-						if (oauth.byuEncouraged)
-							url += 'byu';
-						if (oauth.byuEnforced)
-							url += 'byulogin';
-					}
+					url += '&state=' + oauth.state;// everything after #
+					url += '&access_type=offline';
 					return url;
 				},
-	// 			retrieveToken: function() {
- 
-	// 				// Try to get the token from 3 different places
-	// 				// First: Check route params and see if we have it there
-	// 				// Second: Check sessionStorage for token
-	// 				// Third: Redirect to signin and get token
-	// 				// Look on route params
-	// 				var params = {}, queryString = '', path = String(window.location), regex = /([^&=]+)=([^&]*)/g, m;
-	// 				// remove the # added to the front of the URL
-	// 				var pathChunks = path.split("?");// changed from mtc's hash
-	// // 				console.log(pathChunks)
- // // alert("stop1")
-	// 				if(pathChunks.length > 1) {
- 
- // 						// if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
-	// 					if(pathChunks[1].charAt(0) === "#")// if hash was found, this shouldnt be undefined
-	// 						pathChunks[1] = pathChunks[1].substring(1);
- 
-	// 					queryString = pathChunks[1];
-							   
- 
-	// 					while (m = regex.exec(queryString)) {
-	// 						params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);// save out each query param
-	// 					}
-
-	// 					// console.log(params)
-
-	// 					// if(params && params.code){
-	// 					// 	var request = new XMLHttpRequest();
-	// 					// 	request.open('GET', oauth.codeUrl, false);  // `false` makes the request synchronous
-	// 					// 	request.send(null);
-
-	// 					// 	if (request.status === 200) {
-	// 					// 		console.log(request.responseText);
-	// 					// 	}
-	// 					// }
-			
-	 
-	// 					if(params && params.access_token && params.expires_in && params.state) {
-	// 						// Got token from a redirect query string
-	// 						this.setToken(params);
-	// 						if(params.state && params.state !== "initial")
-	// 							setTimeout(function LEAVEANGULAR() {
-	// 								window.location.href = pathChunks[0] + "#" + params.state;
-	// 							}, 0);
-	// 					}
-	// 				}
- // // alert("stop2")
-	// 				// Look in sessionStorage, verify token in there is good
-	// 				if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
-	// 					token = $window.sessionStorage.accessToken;
-	// 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
-	// 				}
-	// 				// If checkToken is still false, and there is nothing in sessionStorage
-	// 				// redirect to sign in
-	// 				if (!this.checkToken()) {
-	// 					var url = this.buildUrl();
-	// 					$window.open(url, '_self');
-	// 				}
- 
-	// 				return this.getToken();
-	// 			},
-	// 			buildUrl: function() {
-	// 				function spaceDelimitScope(scopes) {
-	// 					var string = '';
-	// 					for (var i = scopes.length - 1; i >= 0; i--) {
-	// 						var scope = scopes[i];
-	// 						string += scope;
-	// 						if (i != 0) { // Last one, no space
-	// 							string += ' ';
-	// 						}
-	// 					};
-	// 					return string;
-	// 				}
- 
-	// 				var locationSplit = window.location.href.split("#");
-	// 				var redirect = locationSplit[0];
-
-	// 				if(!oauth.state)
-	// 					oauth.state = encodeURIComponent(locationSplit.length > 1 ? locationSplit[1] : oauth.state);
- 
-	// 				// If user set the redirect URI manually, ignore the implicit angular path for redirect
-	// 				if (oauth.redirect_uri === "")
-	// 					oauth.redirect_uri = redirect;
-	// 				var url = oauth.url;
-	// 				url += '?client_id=' + oauth.client_id;
-	// 				url += '&response_type=' + oauth.response_type;
-	// 				url += '&redirect_uri=' + oauth.redirect_uri;
-	// 				url += '&scope=' + spaceDelimitScope(oauth.scope);
-	// 				url += '&state=' + oauth.state;
-	// 				url += '&access_type=offline';
-					
-	// 				return url;
-
-
-	// 				/*
-	// https://accounts.google.com/o/oauth2/auth?
- // scope=email%20profile&
- // state=%2Fprofile&
- // redirect_uri=https%3A%2F%2Foauth2-login-demo.appspot.com%2Fcode&
- // response_type=code&
- // client_id=812741506391.apps.googleusercontent.com&
- // access_type=offline
-	// 				*/
-	// 			},
 				// UTILITY FUNCTIONS FOR GETTING USER LOGGED IN, LOGGING OUT, ETC
 				// DEPRECATED
 				logout: function() {
@@ -363,6 +396,7 @@ auth.provider('AuthService', function($httpProvider){
 auth.factory('User', function(AuthService, $http, $q, $window, $location){
 	var user = null; // DEPRECATED
 	var newUser = null;
+	var confirmUserDefer = null;
 	var config = {
 		// Ensure user is available
 		initUser: function() {
@@ -379,7 +413,8 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 				// 	user.id = AuthService.getToken();
 				// })
 				// .error(function() { d.reject() } ).then(function(){ // ---- END DEPRECATED
-					$http.get("https://www.googleapis.com/plus/v1/people/me").success(function(data){
+					console.log("getting user")
+					$http.get("https://www.googleapis.com/plus/v1/people/me", {headers:{'Accept':"*/*"}}).success(function(data){
 						console.log(data)
 						user = data;
 						d.resolve(user);
@@ -515,11 +550,11 @@ auth.config(['$httpProvider', function($httpProvider){
 						// before sending it out, and let it fly
 						// Don't stop from retrieving partials, or other assets with relative URLs
 						// TODO: Figure out better way to determine if URLs are relative or not
-						if (AuthService.checkToken() || config.url.indexOf("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=") != -1) {
+						if (AuthService.isTokenValid() || config.url.indexOf("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=") != -1) {
 							return config;
 						}
 						else {
-							if (!AuthService.checkToken()) {
+							if (!AuthService.isTokenValid()) {
 								return Async.getTokenAsync(config);
 							}
 						}
@@ -532,14 +567,13 @@ auth.config(['$httpProvider', function($httpProvider){
  
  
 // On app Run, listen for route changes and check token
-auth.run(function($rootScope, AuthService, $http, Async, $window){
+auth.run(function($rootScope, AuthService, $http, Async, $window, User){
 	$http.defaults.headers.common.authprovider = "google";
 	
 	$rootScope.$on("$routeChangeStart",function(event, next, current){
-		if(!AuthService.isUserLoggedIn() && !AuthService.needsToBeLoggedIn()){// TODO check to see if the user is already logged in
-			console.log("dont need to be logged in for the current page");
-			return;
-		}else if (!AuthService.checkToken()) {// If its bad, go get it asynchronously
+		if(AuthService.inTheMiddleOfAuthorization()){
+			AuthService.retrieveToken();
+		}else if (AuthService.needsToBeLoggedIn() && !AuthService.isTokenValid()) {// If its bad, go get it asynchronously
 			if (location.host.indexOf("mtc.byu.edu") != -1 && $window.sessionStorage.accessToken) {
 				Async.getTokenAsync().then(function(){
 					$http.defaults.headers.common.Authorization = "Bearer " + AuthService.getToken();
@@ -550,6 +584,30 @@ auth.run(function($rootScope, AuthService, $http, Async, $window){
  
 				AuthService.retrieveToken();
 			}
-		}
+		}else
+			console.log("asdfasdf")
 	});
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

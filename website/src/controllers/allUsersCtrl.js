@@ -1,6 +1,6 @@
 function allUsersCtrl($scope, usersFactory){
 
-	$scope.loading = true;
+	$scope.view = "loading";
 	$scope.cache = {};
 
 	$scope.changeUserToType = function(index, type){
@@ -22,12 +22,13 @@ function allUsersCtrl($scope, usersFactory){
 
 	usersFactory.getAllUsers().then(function(users){
 		$scope.users = users;
-		$scope.loading = false;
+		$scope.view = "main";
 		
 		for (var i = $scope.users.length - 1; i >= 0; i--) {
 			$scope.getNameForUser($scope.users[i]);
 		};
 	}, function(data){
+		$scope.view = "noRights";
 		console.log(data)
 	});
 

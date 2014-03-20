@@ -2,6 +2,7 @@ var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationServic
 
 // app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
 app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
+app.value("userInfoEndpoint", "users/me");
 app.value("usersPath", "users");
 app.value("dealershipsPath", "dealerships");
 app.value("statesPath", "states");
@@ -24,7 +25,7 @@ app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', functi
 	when('/newUser/:dealershipCode', { templateUrl: 'templates/newUser.html', controller: newUserCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/pricing', {templateUrl: 'templates/pricing.html', resolve: AuthServiceProvider.waitForLogin}).
 	when('/how', {templateUrl: 'templates/how.html', resolve: AuthServiceProvider.waitForLogin}).
-	when('/loggingIn/:whereTo', {templateUrl:'templates/loggingIn.html', controller: loggingInCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/loggingIn/:whereTo', {templateUrl:'templates/loggingIn.html', controller: loggingInCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	otherwise({ redirectTo: '/comingSoon' });
 }]);
 
@@ -45,6 +46,12 @@ app.config(['AuthServiceProvider', 'baseUrl', function(AuthServiceProvider, base
 		AuthServiceProvider.pushNonAuthenticatedPath("pricing");
 		AuthServiceProvider.pushNonAuthenticatedPath("how");
 }]);
+
+app.config(function($sceProvider) {
+	// Completely disable SCE.  For demonstration purposes only!
+	// Do not use in new projects.
+	$sceProvider.enabled(false);
+});
 
 
 app.factory('genericFactory', function($http, $q){
@@ -340,7 +347,8 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //******************************************
 // Rootscope Setup
 //********************************************
-app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q) {
+app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl) {
+	User.setUserInfoEndpoint(baseUrl + userInfoEndpoint);
 	$http.defaults.headers.common.authprovider = "google";
 
 	$rootScope.needsToBeLoggedIn;
@@ -355,11 +363,25 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 
 	if(AuthService.isTokenValid()){
 		User.initUser().then(function(data){
+			$rootScope.user = data;
 			console.log(data)
-		})
+		});
 		// usersFactory.getGoogleUserObject().then(function(user){
 		// 	$rootScope.user = user;
 		// });
+	}
+
+	$rootScope.doesUserHaveAccessTo = function(what){
+		if($rootScope.user){
+			var type = $rootScope.user.sb.type;
+			if(what == 'licensesList' && type > 1)
+				return true;
+			if(what == 'allUsers' && type > 2)
+				return true;
+			if(what == 'dealershipManager' && type > 2)
+				return true;
+		}
+		return false;
 	}
 
 	$rootScope.isPath = function(path){

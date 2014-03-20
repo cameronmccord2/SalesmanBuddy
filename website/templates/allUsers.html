@@ -1,16 +1,14 @@
-<div id="allUsers" class="content">
-	<div ng-show="loading">
-		<!-- <img class="loadingGif" src="assets/ajax-loader.gif"> -->loading gif
-		<div style="margin-left:500px; padding-top:40px;"></div>
-	</div>
-	<div ng-hide="loading" class="tableHead">
+<div ng-include="'templates/noRights.html'"></div>
+<div ng-include="'templates/loading.html'"></div>
+<div id="allUsers" class="content" ng-show="view == 'main'">
+	<div class="tableHead">
 		<div class="titleRowElement" ng-repeat="column in getColumnsForColumnType('main')">
 			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
 				{{column.name}}
 			</div>
 		</div>
 	</div>
-	<div ng-hide="loading" class="tableBody">
+	<div class="tableBody">
 		<div class="row" ng-repeat="user in users | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(user)">
 			<div class="rowElement" ng-repeat="column in getColumnsForColumnType('main')" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
 				<div class="rowText" ng-show="column.type == ''">{{user[column.realColumnName]}}</div>

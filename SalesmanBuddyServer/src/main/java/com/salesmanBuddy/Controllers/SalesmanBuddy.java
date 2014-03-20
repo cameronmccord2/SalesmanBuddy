@@ -37,6 +37,7 @@ import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
+import com.salesmanBuddy.model.ErrorMessage;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
 import com.salesmanBuddy.model.GoogleUserInfo;
@@ -180,8 +181,13 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllDealerships(@Context HttpServletRequest request){
-    	GenericEntity<List<Dealerships>> entity = new GenericEntity<List<Dealerships>>(dao.getAllDealerships()){};
-    	return Response.ok(entity).build();
+    	String googleUserId = request.getUserPrincipal().getName();
+    	int userType = dao.getUserByGoogleId(googleUserId).getType();
+    	if(userType > 2){
+	    	GenericEntity<List<Dealerships>> entity = new GenericEntity<List<Dealerships>>(dao.getAllDealerships()){};
+	    	return Response.ok(entity).build();
+    	}
+    	return Response.status(401).entity(new ErrorMessage("You dont have rights to this, need a userType > 2, you have " + userType)).build();
     }
     
     @Path("dealerships")// Updated 10/23
@@ -392,11 +398,16 @@ public class SalesmanBuddy {
     @Path("users/me")
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getMeFromGoogle(@Context HttpServletRequest request){
-    	String accessToken = (String)request.getAttribute("accessToken");
-    	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer", accessToken);
-        GenericEntity<GoogleUserInfo> entity = new GenericEntity<GoogleUserInfo>(gui){};
-        return Response.ok().entity(entity).build();// there is an error here
+    public Response getUser(@Context HttpServletRequest request){
+    	String googleUserId = request.getUserPrincipal().getName();
+    	Users user = dao.getUserByGoogleId(googleUserId);
+    	user.setRefreshToken(null);
+    	return Response.ok().entity(user).build();
+//    	String accessToken = (String)request.getAttribute("accessToken");
+//    	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer", accessToken);
+//        GenericEntity<GoogleUserInfo> entity = new GenericEntity<GoogleUserInfo>(gui){};
+//        throw new RuntimeException(gui.toString());
+//        return Response.ok().entity(gui).build();// there is an error here
     }
     
     @Path("users/{googleUserId}")

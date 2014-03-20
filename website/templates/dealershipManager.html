@@ -1,16 +1,14 @@
-<div id="dealershipManager" class="content">
-	<div ng-show="loading">
-		<!-- <img class="loadingGif" src="assets/ajax-loader.gif"> -->loading gif
-		<div style="margin-left:500px; padding-top:40px;"></div>
-	</div>
-	<div ng-hide="loading" class="tableHead">
+<div ng-include="'templates/noRights.html'"></div>
+<div ng-include="'templates/loading.html'"></div>
+<div id="dealershipManager" class="content" ng-show="view == 'main'">
+	<div class="tableHead">
 		<div class="titleRowElement" ng-repeat="column in getColumnsForColumnType('main')">
 			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
 				{{column.name}}
 			</div>
 		</div>
 	</div>
-	<div ng-hide="loading" class="tableBody">
+	<div class="tableBody">
 		<div class="row" ng-repeat="dealership in dealerships | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(dealership)">
 			<div class="rowElement" ng-repeat="column in getColumnsForColumnType('main')" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
 				<div class="rowText" ng-show="column.type == '' && !column.editable">{{dealership[column.realColumnName]}}</div>
@@ -32,7 +30,7 @@
 			</div>
 		</div>
 	</div>
-	<div ng-hide="loading" class="newDealershipRow">
+	<div class="newDealershipRow">
 		New Dealership:
 		<div ng-repeat="column in newDealershipColumns">
 			<input type="text" ng-model="newDealership[column.realColumnName]" ng-style="getInputStyleForColumn(column)" placeholder="{{column.name}}" ng-show="column.type == ''">

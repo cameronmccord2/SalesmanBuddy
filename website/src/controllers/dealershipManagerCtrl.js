@@ -1,6 +1,6 @@
 function dealershipManagerCtrl($scope, dealershipsFactory, statesFactory){
 
-	$scope.loading = true;
+	$scope.view = 'loading';
 	$scope.cache = {};
 	$scope.states = [];
 	$scope.newDealership = {};
@@ -35,8 +35,9 @@ function dealershipManagerCtrl($scope, dealershipsFactory, statesFactory){
 			dealerships[i].newUserLink = 'http://salesmanbuddy.com/#/newUser/' + dealerships[i].dealershipCode;
 		};
 		$scope.dealerships = dealerships;
-		$scope.loading = false;
+		$scope.view = 'main';
 	}, function(data){
+		$scope.view = 'noRights';
 		console.log("error: ", data);
 	});
 

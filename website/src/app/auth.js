@@ -395,9 +395,15 @@ auth.provider('AuthService', function($httpProvider){
 // Configure User Service
 auth.factory('User', function(AuthService, $http, $q, $window, $location){
 	var user = null; // DEPRECATED
+	var googleUser = null;
+	var myUser = null;
 	var newUser = null;
 	var confirmUserDefer = null;
+	var userInfoEndpoint = "";
 	var config = {
+		setUserInfoEndpoint: function(endpoint){
+			userInfoEndpoint = endpoint;
+		},
 		// Ensure user is available
 		initUser: function() {
 			// Return a promise that will guarantee user object is set
@@ -414,10 +420,17 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 				// })
 				// .error(function() { d.reject() } ).then(function(){ // ---- END DEPRECATED
 					console.log("getting user")
-					$http.get("https://www.googleapis.com/plus/v1/people/me", {headers:{'Accept':"*/*"}}).success(function(data){
-						console.log(data)
-						user = data;
-						d.resolve(user);
+					$http.get("https://www.googleapis.com/oauth2/v3/userinfo").success(function(data){
+
+						googleUser = data;
+						$http.get(userInfoEndpoint).success(function(data){
+							myUser = data;
+
+							user = { google:googleUser, sb:myUser };
+							d.resolve(user);
+						}).error(function(){
+							d.reject();
+						});
 					}).error(function(){
 						d.reject();
 					});
@@ -451,7 +464,7 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 			// Clear session storage
 			$window.sessionStorage.accessToken = '';
 			$window.sessionStorage.expiresAt = '';
-			$location.path('/loggedOut');
+			$location.path('/home');
 			// $window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
 		},
 		getUserLocations: function() {
@@ -530,7 +543,7 @@ auth.config(['$httpProvider', function($httpProvider){
 	// Set up OAUTH headers
 	$httpProvider.defaults.useXDomain = true;
 	$httpProvider.defaults.headers.common['Accept'] = 'application/json, text/plain, text/html';
-	delete $httpProvider.defaults.headers.common["X-Requested-With"];
+	// delete $httpProvider.defaults.headers.common["X-Requested-With"];
 	// Intercept API reqeuests and check token
 	// Only do this if we are on a valid mtc domain
 	if (location.host.indexOf("mtc.byu.edu") != -1) {

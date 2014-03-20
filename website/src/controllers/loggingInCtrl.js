@@ -1,3 +1,0 @@
-function loggingInCtrl($scope, $routeParams){
-
-}

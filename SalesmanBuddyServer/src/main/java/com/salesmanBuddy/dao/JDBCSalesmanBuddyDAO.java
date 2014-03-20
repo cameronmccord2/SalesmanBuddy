@@ -46,6 +46,7 @@ import javax.xml.bind.DatatypeConverter;
 
 
 
+
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -77,6 +78,7 @@ import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.MaxValue;
 import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Popups;
+import com.salesmanBuddy.model.SBEmail;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
@@ -397,10 +399,17 @@ public class JDBCSalesmanBuddyDAO {
 				throw new RuntimeException("Failed to insert answer into database, " + qaa.getAnswer().toString());
 		}
 		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
+		this.sendScannedLicenseEmail(licenseId);
 		return this.getLicenseListElementForLicenseId(licenseId);
 	}
 
 	
+	private void sendScannedLicenseEmail(int licenseId) {
+		// TODO Auto-generated method stub
+		
+	}
+
+
 	public DeleteLicenseResponse deleteLicense(int licenseId) {
 		int i = this.updateShowInUserListForLicenseId(licenseId, 0);
 		DeleteLicenseResponse dlr = new DeleteLicenseResponse();
@@ -987,6 +996,7 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException(e.getLocalizedMessage());
 		}
 		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
+		JDBCSalesmanBuddyDAO.sendErrorToMe("Got refresh token again for this: " + grtr.toString());
 		return grtr;
 	}
 	
@@ -1082,6 +1092,7 @@ grant_type=refresh_token
 			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
 		} catch (IOException e) {
 			// TODO make this error handling more comprehensive, if refreshtoken is invalid we need to be able to handle it
+			JDBCSalesmanBuddyDAO.sendErrorToMe("couldnt exchange refresh token for googleUserId: " + googleUserId + ", error: " + e.getLocalizedMessage());
 			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", deviceType:" + user.getDeviceType() + ", " + webString);
 		}catch(JSONException jse){
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
@@ -1096,67 +1107,12 @@ grant_type=refresh_token
 	}
 	
 	private static void sendErrorToMe(String errorString){
-		String[] to = new String[1];
-		to[0] = "cameronmccord2@gmail.com";
-		JDBCSalesmanBuddyDAO.sendFromGMail("log@salesmanbuddy.com", to, "error", errorString);
+		ArrayList<String> to = new ArrayList<String>();
+		to.add("cameronmccord2@gmail.com");
+		EmailSender.sendEmail(SBEmail.newPlainTextEmail("logging@salesmanbuddy.com", to, "error", errorString, true));
 	}
 
-	private static void sendFromGMail(String from, String[] to, String subject, String body) {
-//      Properties props = System.getProperties();
-      Properties props = new Properties();
-      String host = "smtp.gmail.com";
-//      props.put("mail.smtp.starttls.enable", "true");
-//      props.put("mail.smtp.host", host);
-//      props.put("mail.smtp.user", USER_NAME);
-//      props.put("mail.smtp.password", PASSWORD);
-//      props.put("mail.smtp.port", "465");
-//      props.put("mail.smtp.auth", "true");
-//      props.put("mail.smtp.debug", "true");
-
-//      Session session = Session.getDefaultInstance(props);
-      Session session = Session.getInstance(props);
-      MimeMessage message = new MimeMessage(session);
-      
-      try {
-          message.setFrom(new InternetAddress(from));
-          
-//          InternetAddress[] toAddress = new InternetAddress[to.length];
-          
-          // To get the array of addresses
-          for( int i = 0; i < to.length; i++ ) {
-          	message.addRecipient(Message.RecipientType.TO, new InternetAddress(to[i]));
-//              toAddress[i] = new InternetAddress(to[i]);
-          }
-
-//          for( int i = 0; i < toAddress.length; i++) {
-//              message.addRecipient(Message.RecipientType.TO, toAddress[i]);
-//          }
-          
-          message.setSubject(subject);
-          message.setText(body);
-//          message.setText("<html></html>", "utf-8", "html");
-//          message.setContent("<html></html>", "text/html; charset=utf-8");
-          
-          Transport transport = session.getTransport("smtps");
-          System.out.println("connecting");
-          transport.connect(host, EMAIL_USER_NAME, EMAIL_PASSWORD);
-          transport.sendMessage(message, message.getAllRecipients());
-          transport.close();
-      }
-      catch (NoSuchProviderException e) {
-    	  e.printStackTrace();
-    	  throw new RuntimeException(e.getLocalizedMessage());
-		}
-      catch (AddressException e) {
-          e.printStackTrace();
-          throw new RuntimeException(e.getLocalizedMessage());
-      }
-      catch (MessagingException e) {
-          e.printStackTrace();
-          throw new RuntimeException(e.getLocalizedMessage());
-      }
-      System.out.println("sent");
-  }
+	
 	
 	
 	public UsersName getUsersName(String googleUserId) {

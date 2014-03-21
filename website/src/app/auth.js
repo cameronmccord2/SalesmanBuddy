@@ -72,6 +72,7 @@ auth.provider('AuthService', function($httpProvider){
 	// Oauth Configuration object
 	var oauth = {};
 	oauth.url = "https://accounts.google.com/o/oauth2/auth";
+	oauth.refreshTokenUrl = null;
 	oauth.state = "";
 	oauth.response_type = 'token';
 	oauth.scope = []; // We Required Auth scope for User Object
@@ -82,7 +83,7 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.redirect_uri = "";
 	oauth.unauthenticatedPaths = [];
 	var inTheMiddleOfAuthorization = function(){
-		console.log("runing")
+		// console.log("runing")
 		var path = String(window.location);
 		var regex = regex = /([^&=]+)=([^&]*)/g;
 		while (m = regex.exec(path.split("?")[1])) {
@@ -93,6 +94,9 @@ auth.provider('AuthService', function($httpProvider){
 		return false;
 	}
 	return {
+		setRefreshUrl: function(url){
+			oauth.refreshTokenUrl = url;
+		},
 		setClientID: function(id) {
 			oauth.client_id = id;
 		},
@@ -108,7 +112,7 @@ auth.provider('AuthService', function($httpProvider){
 		
 		waitForLogin:{
 			resolveThing: function($q, $timeout){
-				console.log("herer")
+				// console.log("herer")
 				var defer = $q.defer();
 				if(!inTheMiddleOfAuthorization())
 					defer.resolve();
@@ -138,6 +142,7 @@ auth.provider('AuthService', function($httpProvider){
 
 			var configObject = {
 				isTokenValid: function() {
+					// console.log(new Date(parseInt($window.sessionStorage.expiresAt)), $window.sessionStorage.accessToken)
 					if ((parseInt($window.sessionStorage.expiresAt) > new Date().getTime()) && $window.sessionStorage.accessToken) {
 						token = $window.sessionStorage.accessToken;
 						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
@@ -157,8 +162,11 @@ auth.provider('AuthService', function($httpProvider){
 				setToken : function(t) {
 					// Save token
 					token = t.access_token;
+					$window.sessionStorage.sbUserId = t.user_id;
 					$window.sessionStorage.accessToken = token;
-					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (t.expires_in - 300) * 1000).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
+					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (parseInt(t.expires_in) * 1000) - (1000 * 60 * 5)).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
+					// console.log(t.expires_in)
+					// alert(new Date(parseInt($window.sessionStorage.expiresAt)));
 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
 				},
 				inTheMiddleOfAuthorization: function(){
@@ -314,7 +322,7 @@ auth.provider('AuthService', function($httpProvider){
 						}else
 							console.log("didnt find code")
 
-						if(params && params.access_token && params.expires_in && params.state) {// response from my server
+						if(params && params.access_token && params.expires_in && params.state && params.user_id) {// response from my server
 							// Got token from a redirect query string
 							this.setToken(params);// save it into session storage
 
@@ -379,6 +387,12 @@ auth.provider('AuthService', function($httpProvider){
 					url += '&access_type=offline';
 					return url;
 				},
+				buildRefreshTokenUrl: function(){
+					var userId = $window.sessionStorage.sbUserId;
+					if(userId == null || userId.length < 1)
+						alert("there is a problem, the userid doesnt exist");
+					return oauth.refreshTokenUrl + "?userId=" + userId;
+				},
 				// UTILITY FUNCTIONS FOR GETTING USER LOGGED IN, LOGGING OUT, ETC
 				// DEPRECATED
 				logout: function() {
@@ -419,7 +433,7 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 				// 	user.id = AuthService.getToken();
 				// })
 				// .error(function() { d.reject() } ).then(function(){ // ---- END DEPRECATED
-					console.log("getting user")
+					// console.log("getting user")
 					$http.get("https://www.googleapis.com/oauth2/v3/userinfo").success(function(data){
 
 						googleUser = data;
@@ -508,8 +522,16 @@ auth.factory('Async', function($q, AuthService, $rootScope, $window){
 			xmlhttp.onreadystatechange = function() {
 				if (xmlhttp.readyState == 4 && (xmlhttp.status == 200 || xmlhttp.status == 302))
 				{
-					var obj = eval('(' + xmlhttp.response + ')');
-					AuthService.setToken(obj);
+					// console.log(xmlhttp.response)
+					// params.access_token && params.expires_in && params.state && params.user_id
+
+					// var obj = eval('(' + xmlhttp.response + ')');
+					var obj = JSON.parse(xmlhttp.response);
+					var tokenResponse = {
+						access_token: obj.accessToken,
+						expires_in: obj.expiresIn
+					};
+					AuthService.setToken(tokenResponse);
 					// Modify this header
 					config.headers.Authorization = "Bearer " + AuthService.getToken();
 					deferred.resolve(config);
@@ -522,14 +544,14 @@ auth.factory('Async', function($q, AuthService, $rootScope, $window){
 					// // For now redirect to login
 					AUTH.async = false;
 					// alert("There was an error refreshing your token.  Most likely you have been inactive for over 2 hours.  You are being redirected to the authentication page");
-					// $window.open(AuthService.buildUrl(), "_self");
-					// $rootScope.$apply();
+					$window.open(AuthService.buildUrl(), "_self");
+					$rootScope.$apply();
 				}
 			}
 			xmlhttp.withCredentials = true;
 			if (!AUTH.async) {
 				AUTH.async = true;
-				xmlhttp.open("GET",AuthService.buildUrl(),true);
+				xmlhttp.open("GET", AuthService.buildRefreshTokenUrl(), true);
 				xmlhttp.setRequestHeader("Accept", "application/json");
 				xmlhttp.send();
 			}
@@ -546,7 +568,7 @@ auth.config(['$httpProvider', function($httpProvider){
 	// delete $httpProvider.defaults.headers.common["X-Requested-With"];
 	// Intercept API reqeuests and check token
 	// Only do this if we are on a valid mtc domain
-	if (location.host.indexOf("mtc.byu.edu") != -1) {
+	// if (location.host.indexOf("mtc.byu.edu") != -1) {
 		$httpProvider.interceptors.push(function(Async, AuthService) {
 			return {
 				'request': function (config) {
@@ -555,19 +577,26 @@ auth.config(['$httpProvider', function($httpProvider){
 					// are getting our new token
 					// The only request that "bypasses" our interceptor is when we go to authenticate or request static content
 					// Bad code, TODO: Figure out how to bypass APIs that don't require auth
-					if ((config.url.indexOf('https://') == -1 && config.url.indexOf('http://') == -1) || (config && config.url == AuthService.getOAuthURL()) || (config && config.url.indexOf('://api.mtc.byu.edu/mtc/') > 0))
+					// console.log('hereasdf', config)
+					if ((config.url.indexOf('https://') == -1 && config.url.indexOf('http://') == -1) || (config && config.url == AuthService.getOAuthURL()) || (config && config.url.indexOf('://api.mtc.byu.edu/mtc/') > 0)){
+						// console.log("inside of here")
 						return config;
+					}
 					else {
+						// console.log("actually went here")
 						// Check Token.  If all is well, proceed
 						// Otherwise, suspend the request, get a new token, modify the request header
 						// before sending it out, and let it fly
 						// Don't stop from retrieving partials, or other assets with relative URLs
 						// TODO: Figure out better way to determine if URLs are relative or not
-						if (AuthService.isTokenValid() || config.url.indexOf("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=") != -1) {
+						if (AuthService.isTokenValid() || config.url.indexOf("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=") != -1) {// something needs to be fixed here
+							// console.log("and then here", AuthService.isTokenValid())
 							return config;
 						}
 						else {
+							// console.log("bad token, getting a new one");
 							if (!AuthService.isTokenValid()) {
+								// console.log("it for sure isnt valid")
 								return Async.getTokenAsync(config);
 							}
 						}
@@ -575,7 +604,7 @@ auth.config(['$httpProvider', function($httpProvider){
 				}
 			}
 		});
-	}
+	// }
 }]);
  
  
@@ -584,21 +613,23 @@ auth.run(function($rootScope, AuthService, $http, Async, $window, User){
 	$http.defaults.headers.common.authprovider = "google";
 	
 	$rootScope.$on("$routeChangeStart",function(event, next, current){
+		// console.log("start", AuthService.needsToBeLoggedIn(), !AuthService.isTokenValid())
 		if(AuthService.inTheMiddleOfAuthorization()){
+			// console.log("there")
 			AuthService.retrieveToken();
 		}else if (AuthService.needsToBeLoggedIn() && !AuthService.isTokenValid()) {// If its bad, go get it asynchronously
-			if (location.host.indexOf("mtc.byu.edu") != -1 && $window.sessionStorage.accessToken) {
-				Async.getTokenAsync().then(function(){
-					$http.defaults.headers.common.Authorization = "Bearer " + AuthService.getToken();
-				});
-			}
-			else {
+			// console.log("here")
+			// if (location.host.indexOf("mtc.byu.edu") != -1 && $window.sessionStorage.accessToken) {
+			// 	Async.getTokenAsync().then(function(){
+			// 		$http.defaults.headers.common.Authorization = "Bearer " + AuthService.getToken();
+			// 	});
+			// }
+			// else {
 				// Get it refresh style
  
 				AuthService.retrieveToken();
-			}
-		}else
-			console.log("asdfasdf")
+			// }
+		}
 	});
 });
 

@@ -30,6 +30,7 @@ app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', functi
 }]);
 
 app.config(['AuthServiceProvider', 'baseUrl', function(AuthServiceProvider, baseUrl){
+		AuthServiceProvider.setRefreshUrl(baseUrl + 'refreshToken');
 		AuthServiceProvider.setServerUrl(baseUrl + 'codeForToken');
 		AuthServiceProvider.setClientID('38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com');
 		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me');
@@ -347,7 +348,7 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //******************************************
 // Rootscope Setup
 //********************************************
-app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl) {
+app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl, dealershipsFactory) {
 	User.setUserInfoEndpoint(baseUrl + userInfoEndpoint);
 	$http.defaults.headers.common.authprovider = "google";
 
@@ -355,7 +356,10 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 	$rootScope.userIsLoggedIn = false;
 	$rootScope.user = null;
 
-	$rootScope.logout = User.logout;
+	$rootScope.logout = function(){
+		$rootScope.user = null;
+		User.logout();
+	}
 
 	$rootScope.goToPage = function(page){
 		$location.path("/" + page);
@@ -369,6 +373,12 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 		// usersFactory.getGoogleUserObject().then(function(user){
 		// 	$rootScope.user = user;
 		// });
+	}
+
+	$rootScope.testRequest = function(){
+		dealershipsFactory.getAllDealerships().then(function(data){
+			console.log(data);
+		});
 	}
 
 	$rootScope.doesUserHaveAccessTo = function(what){

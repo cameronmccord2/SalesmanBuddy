@@ -1,7 +1,5 @@
 package com.salesmanBuddy.model;
 
-import java.util.Calendar;
-
 import org.codehaus.jettison.json.JSONObject;
 
 public class GoogleRefreshTokenResponse {
@@ -25,10 +23,11 @@ public class GoogleRefreshTokenResponse {
 	        if (this.accessToken == null)
 	            throw new RuntimeException("Refresh token yielded no access token");
 
-	        int expiresInSeconds = json.optInt("expires_in");
-	        Calendar calendar = Calendar.getInstance(); // gets a calendar using the default time zone and locale.
-	        calendar.add(Calendar.SECOND, expiresInSeconds);
-	        this.expiresIn = calendar.getTimeInMillis();
+//	        int expiresInSeconds = json.optInt("expires_in");
+//	        Calendar calendar = Calendar.getInstance(); // gets a calendar using the default time zone and locale.
+//	        calendar.add(Calendar.SECOND, expiresInSeconds);
+//	        this.expiresIn = calendar.getTimeInMillis();
+	        this.expiresIn = json.optLong("expires_in");
 	        
 	        this.tokenType = json.optString("token_type");
 	        

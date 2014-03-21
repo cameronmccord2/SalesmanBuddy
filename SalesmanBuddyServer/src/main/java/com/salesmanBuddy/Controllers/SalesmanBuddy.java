@@ -40,7 +40,6 @@ import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.ErrorMessage;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
-import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
@@ -48,6 +47,7 @@ import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
+import com.salesmanBuddy.model.UserTree;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.UsersName;
 
@@ -142,9 +142,51 @@ public class SalesmanBuddy {
         	}
     	}
     	
+    	sb.append("&user_id=");
+    	sb.append(user.getId());
+    	
     	return Response.temporaryRedirect(UriBuilder.fromUri(sb.toString()).build()).build();
     }
     
+    @Path("refreshToken")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response refreshToken(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("userId") int userId){
+    	if(userId < 1)
+    		return Response.status(400).entity(new ErrorMessage("you must specify a valid user id")).build();
+    	Users user = dao.getUserById(userId);
+    	if(user == null)
+    		return Response.status(400).entity(new ErrorMessage("you must specify a valid user id")).build();
+    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(user.getGoogleUserId(), user);
+    	if(grtr.isInError())
+    		return Response.status(500).entity(new ErrorMessage(grtr.getErrorMessage())).build();
+    	grtr.setRefreshToken("");// clear this out so the client cant see it
+    	return Response.ok().entity(grtr).build();
+    }
+    
+    @Path("reports")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response runReports(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("type") String type){
+    	if(type.length() == 0)
+    		return Response.status(400).entity(new ErrorMessage("You must specify a type of report")).build();
+//    	throw new RuntimeException("here");
+    	Integer reportType = 0;
+    	if(type.equalsIgnoreCase("weekly"))
+    		reportType = JDBCSalesmanBuddyDAO.WEEKLY_TYPE;
+    	if(type.equalsIgnoreCase("monthly"))
+    		reportType = JDBCSalesmanBuddyDAO.MONTHLY_TYPE;
+    	if(type.equalsIgnoreCase("daily"))
+    		reportType = JDBCSalesmanBuddyDAO.DAILY_TYPE;
+    	if(type.equalsIgnoreCase("monthSoFar"))
+    		reportType = JDBCSalesmanBuddyDAO.SO_FAR_MONTH_TYPE;// not implemented this feature past here
+    	if(reportType == 0)
+    		return Response.status(400).entity(new ErrorMessage("You must specify a valid type of report: weekly, monthly, daily")).build();
+    	
+    	dao.runReportsForType(reportType);
+//    	throw new RuntimeException("here");
+    	return Response.ok().entity(new ErrorMessage("Ran the report")).build();
+    }
     
     @Path("userExists")// Updated 10/23
     @PUT
@@ -335,6 +377,86 @@ public class SalesmanBuddy {
     	GenericEntity<LicensesListElement> entity = new GenericEntity<LicensesListElement>(dao.updateLicense(licenseFromClient, googleUserId)){};
     	return Response.ok(entity).build();
     }
+    
+    //asdfasdfasdf
+    
+    @Path("userTree")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getUserTree(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("googleUserId") String requestedGoogleUserId, 
+    																 @DefaultValue("") @QueryParam("googleSupervisorId") String googleSupervisorId, 
+    																 @DefaultValue("0") @QueryParam("sbUserId") Integer sbUserId, 
+    																 @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId, 
+    																 @DefaultValue("false") @QueryParam("all") boolean all){
+    	if(requestedGoogleUserId.length() > 0)
+    		return Response.ok(dao.getAllUserTreeForGoogleUserId(requestedGoogleUserId)).build();
+    	if(googleSupervisorId.length() > 0)
+    		return Response.ok(dao.getAllUserTreeForGoogleSupervisorId(googleSupervisorId)).build();
+    	if(sbUserId != 0)
+    		return Response.ok(dao.getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(dao.getUserById(sbUserId).getGoogleUserId())).build();
+    	if(dealershipId != 0)
+    		return Response.ok(dao.getAllUserTreeForDealershipId(dealershipId)).build();
+    	if(all){
+    		String googleUserId = request.getUserPrincipal().getName();
+    		Users user = dao.getUserByGoogleId(googleUserId);
+    		if(user.getType() > 2){
+    			return Response.ok(dao.getAllUserTree()).build();
+    		}else
+    			return Response.status(401).entity(new ErrorMessage("You are not authorized to get all userTree")).build();
+    	}
+    	return Response.status(400).entity(new ErrorMessage("You must specify one of the options, do an options request to see them")).build();
+    }
+    
+    @Path("userTree")
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putUserTree(@Context HttpServletRequest request, UserTree userTree){
+//    	String googleUserId = request.getUserPrincipal().getName();
+    	// TODO add created by to the userTree
+    	return Response.ok(dao.newUserTreeNode(userTree.getUserId(), userTree.getSupervisorId())).build();
+    }
+    
+    @Path("userTree")
+    @DELETE
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response deleteUserTree(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("id") Integer userTreeId, 
+    																	@DefaultValue("") @QueryParam("userGoogleUserId") String userGoogleUserId, 
+    																	@DefaultValue("") @QueryParam("supervisorGoogleUserId") String supervisorGoogleUserId,
+    																	@DefaultValue("") @QueryParam("allGoogleUserId") String allGoogleUserId,
+    																	@DefaultValue("0") @QueryParam("allDealershipId") Integer dealershipId,
+    																	@DefaultValue("false") @QueryParam("all") boolean all){
+    	
+    	if(userTreeId > 0)
+    		return Response.ok(dao.deleteUserTreeNodeById(userTreeId)).build();
+    	if(userGoogleUserId.length() > 0)
+    		return Response.ok(dao.deleteUserTreeNodesForUserId(userGoogleUserId)).build();
+    	if(supervisorGoogleUserId.length() > 0)
+    		return Response.ok(dao.deleteUserTreeNodesForSupervisorId(supervisorGoogleUserId)).build();
+    	if(allGoogleUserId.length() > 0)
+    		return Response.ok(dao.deleteUserTreeNodesForGoogleUserIdAllNodes(allGoogleUserId)).build();
+    	if(dealershipId > 0)
+    		return Response.ok(dao.deleteUserTreeNodesForDealershipId(dealershipId)).build();
+    	if(all){
+    		String googleUserId = request.getUserPrincipal().getName();
+    		Users user = dao.getUserByGoogleId(googleUserId);
+    		if(user.getType() > 2)
+    			return Response.ok(dao.deleteAllUserTreeNodes()).build();
+    		else
+    			return Response.status(401).entity(new ErrorMessage("You are not authorized to delete all userTree")).build();
+    	}
+    	return Response.status(400).entity(new ErrorMessage("You must specify one of the options, do an options request to see them")).build();
+    }
+    
+    @Path("userTree")
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updateLicense(@Context HttpServletRequest request, UserTree userTree){
+    	return Response.ok(dao.updateUserTreeNode(userTree.getUserId(), userTree.getSupervisorId(), userTree.getId())).build();
+    }
+    
+    //asdfasdfasdf
     
     
     

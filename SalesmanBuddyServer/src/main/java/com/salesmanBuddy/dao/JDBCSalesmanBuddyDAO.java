@@ -21,35 +21,17 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
 
-import javax.mail.Message;
-import javax.mail.MessagingException;
-import javax.mail.NoSuchProviderException;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import javax.naming.Context;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 import javax.xml.bind.DatatypeConverter;
 
-
-
-
-
-
-
-
-
-
-
-
-
 import org.apache.commons.io.IOUtils;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.regions.Region;
@@ -67,6 +49,7 @@ import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.DeleteLicenseResponse;
+import com.salesmanBuddy.model.ErrorMessage;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
 import com.salesmanBuddy.model.GoogleUserInfo;
@@ -80,6 +63,7 @@ import com.salesmanBuddy.model.Media;
 import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.SBEmail;
 import com.salesmanBuddy.model.States;
+import com.salesmanBuddy.model.UserTree;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
 import com.salesmanBuddy.model.Questions;
@@ -98,17 +82,21 @@ public class JDBCSalesmanBuddyDAO {
 	static final private int isBool = 3;
 	static final private int isDropdown = 4;
 	
-	private static String GoogleClientIdWeb = "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com";
-	private static String GoogleClientSecretWeb = "NRheOilfAEKqTatHltqNhV2y";
-	private static String GoogleClientIdAndroid = "";
-	private static String GoogleClientSecretAndroid = "";
-	private static String GoogleClientIdiOS = "38235450166-dgbh1m7aaab7kopia2upsdj314odp8fc.apps.googleusercontent.com";
-	private static String GoogleClientSecretiOS = "zC738ZbMHopT2C1cyKiKDBQ6";
-	private static String GoogleTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
-	private static String GoogleUserEndpoint = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
-	private static String GoogleRefreshTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
-	private static String EMAIL_USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
-    private static String EMAIL_PASSWORD = "27&M2rk4$k"; // GMail password
+	private static final String GoogleClientIdWeb = "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com";
+	private static final String GoogleClientSecretWeb = "NRheOilfAEKqTatHltqNhV2y";
+	private static final String GoogleClientIdAndroid = "";
+	private static final String GoogleClientSecretAndroid = "";
+	private static final String GoogleClientIdiOS = "38235450166-dgbh1m7aaab7kopia2upsdj314odp8fc.apps.googleusercontent.com";
+	private static final String GoogleClientSecretiOS = "zC738ZbMHopT2C1cyKiKDBQ6";
+	private static final String GoogleTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
+	private static final String GoogleUserEndpoint = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
+	private static final String GoogleRefreshTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
+	private static final String EMAIL_USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
+    private static final String EMAIL_PASSWORD = "27&M2rk4$k"; // GMail password
+    private static final String THIS_SERVER_URL = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/";
+    private static final String REPORTS_ENDPOINT = "reports";
+    private static final Integer HOUR_TO_RUN_REPORTS = new DateTime().getHourOfDay();
+    private static final String SUPPORT_EMAIL = "support@salesmanbuddy.com";
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -117,9 +105,13 @@ public class JDBCSalesmanBuddyDAO {
 			Context initContext = new InitialContext();
 			Context envContext = (Context)initContext.lookup("java:/comp/env");
 			dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
+			// TODO init the email thing here so all config is up above
 		}catch(NamingException ne){
 			throw new RuntimeException(ne);
 		}
+		EmailSender.initEmailSender(EMAIL_USER_NAME, EMAIL_PASSWORD);
+		SBScheduler.startSchedulerWithTimeOfDay(HOUR_TO_RUN_REPORTS, new DateTime().getMinuteOfDay() + 1, 0, THIS_SERVER_URL + REPORTS_ENDPOINT);
+//		JDBCSalesmanBuddyDAO.sendErrorToMe("Initialized stuff, The current joda time is: " + new DateTime().toString() + ", utc: " + new DateTime(DateTimeZone.UTC).toString());
 	}
 
 	
@@ -399,16 +391,9 @@ public class JDBCSalesmanBuddyDAO {
 				throw new RuntimeException("Failed to insert answer into database, " + qaa.getAnswer().toString());
 		}
 		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
-		this.sendScannedLicenseEmail(licenseId);
+		this.sendEmailsAboutTestDriveForGoogleUserId(googleUserId);
 		return this.getLicenseListElementForLicenseId(licenseId);
 	}
-
-	
-	private void sendScannedLicenseEmail(int licenseId) {
-		// TODO Auto-generated method stub
-		
-	}
-
 
 	public DeleteLicenseResponse deleteLicense(int licenseId) {
 		int i = this.updateShowInUserListForLicenseId(licenseId, 0);
@@ -1044,8 +1029,9 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	
-	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId) {
-		Users user = this.getUserByGoogleId(googleUserId);
+	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId, Users user) {
+		if(user == null)
+			user = this.getUserByGoogleId(googleUserId);
     	String iosString = "client_secret=" + GoogleClientSecretiOS
     			+ "&grant_type=refresh_token"
     			+ "&refresh_token=" + user.getRefreshToken()
@@ -1127,7 +1113,7 @@ grant_type=refresh_token
 	
 	
 	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId){
-		GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId);
+		GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId, null);
 		return this.getGoogleUserInfo(grtr.getTokenType(), grtr.getAccessToken());
 	}
 	
@@ -1158,6 +1144,538 @@ grant_type=refresh_token
 		}
 		GoogleUserInfo gui = new GoogleUserInfo(json);
 		return gui;
+	}
+	
+	
+	// Email sending stuff
+	
+	public final static Integer ON_TEST_DRIVE_EMAIL_TYPE = 1;
+	public final static Integer DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 2;
+	public final static Integer DAILY_SALESMAN_SUMMARY_EMAIL_TYPE = 3;
+	public final static Integer DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 4;
+	public final static Integer WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 5;
+	public final static Integer WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE = 6;
+	public final static Integer WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 7;
+//	public final static Integer BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 8;
+//	public final static Integer BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 9;
+//	public final static Integer BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 10;
+	public final static Integer MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 11;
+	public final static Integer MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 12;
+	public final static Integer MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 13;
+	
+	public static final Integer DAILY_TYPE = 1;// night
+	public static final Integer WEEKLY_TYPE = 2;// monday
+//	public static final Integer BI_MONTHLY_TYPE = 3;// 1, 15
+	public static final Integer MONTHLY_TYPE = 4;// 1
+	public static final Integer SO_FAR_MONTH_TYPE = 5;
+	
+	public static final Integer DEALERSHIP_TYPE = 1;
+	public static final Integer SALESMAN_TYPE = 2;
+	public static final Integer TEST_DRIVE_TYPE = 3;
+	
+	
+	public final static Integer USER_TREE_TYPE = 1;
+	public final static Integer SUPERVISOR_TREE_TYPE = 2;
+	
+	// about who - to who - how often(daily, weekly, bi-monthly, monthly) - about what(dealership, salesman, test drives)
+	
+	public void sendSummaryEmailsForType(Integer type, Integer dealershipId){
+		if(type == DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+			this.sendDailyDealershipEmail(dealershipId);
+		else if(type == DAILY_SALESMAN_SUMMARY_EMAIL_TYPE)
+			this.sendDailySalesmanEmail(dealershipId);
+		else if(type == DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+			this.sendDailyDealershipEmail(dealershipId);
+		else if(type == WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+			this.sendWeeklyTestDriveEmail(dealershipId);
+		else if(type == WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+			this.sendWeeklySalesmanEmail(dealershipId);
+		else if(type == WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+			this.sendWeeklyDealershipEmail(dealershipId);
+//		else if(type == BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+//			this.sendBiMonthlyTestDriveEmail(dealershipId);
+//		else if(type == BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+//			this.sendBiMonthlySalesmanEmail(dealershipId);
+//		else if(type == BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+//			this.sendBiMonthlyDealershipEmail(dealershipId);
+		else if(type == MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+			this.sendMonthlyTestDriveEmail(dealershipId);
+		else if(type == MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+			this.sendMonthlySalesmanEmail(dealershipId);
+		else if(type == MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+			this.sendMonthlyDealershipEmail(dealershipId);
+		else
+			throw new RuntimeException("Invalid type found for sendSummaryEmailsForType: " + type + ", dealershipId: " + dealershipId);
+	}
+	
+	public void sendSummaryEmailsForOftenAboutDealershipId(Integer oftenType, Integer aboutType, Integer dealershipId){// called by the scheduler
+		if(aboutType == DEALERSHIP_TYPE)
+			this.sendDealershipSummaryEmail(oftenType, dealershipId);
+		else if(aboutType == SALESMAN_TYPE)
+			this.sendSalesmanSummaryEmail(oftenType, dealershipId);
+		else if(aboutType == TEST_DRIVE_TYPE)
+			this.sendTestDriveSummaryEmail(oftenType, dealershipId);
+		else
+			throw new RuntimeException("invalid aboutType found: " + aboutType);
+	}
+	
+	public void sendDealershipSummaryEmail(Integer type, Integer dealershipId){
+		if(type == DAILY_TYPE){
+			this.sendDailyDealershipEmail(dealershipId);
+		}else if(type == WEEKLY_TYPE){
+			this.sendWeeklyDealershipEmail(dealershipId);
+//		}else if(type == BI_MONTHLY_TYPE){
+//			this.sendBiMonthlyDealershipEmail(dealershipId);
+		}else if(type == MONTHLY_TYPE){
+			this.sendMonthlyDealershipEmail(dealershipId);
+		}else
+			throw new RuntimeException("send dealership summary email type not found: " + type);
+	}
+	
+	public void sendSalesmanSummaryEmail(Integer type, Integer dealershipId){
+		if(type == DAILY_TYPE){
+			this.sendDailySalesmanEmail(dealershipId);
+		}else if(type == WEEKLY_TYPE){
+			this.sendWeeklySalesmanEmail(dealershipId);
+//		}else if(type == BI_MONTHLY_TYPE){
+//			this.sendBiMonthlySalesmanEmail(dealershipId);
+		}else if(type == MONTHLY_TYPE){
+			this.sendMonthlySalesmanEmail(dealershipId);
+		}else
+			throw new RuntimeException("send dealership summary email type not found: " + type);
+	}
+	
+	public void sendTestDriveSummaryEmail(Integer type, Integer dealershipId){
+		if(type == DAILY_TYPE){
+			this.sendDailyTestDriveEmail(dealershipId);
+		}else if(type == WEEKLY_TYPE){
+			this.sendWeeklyTestDriveEmail(dealershipId);
+//		}else if(type == BI_MONTHLY_TYPE){
+//			this.sendBiMonthlyTestDriveEmail(dealershipId);
+		}else if(type == MONTHLY_TYPE){
+			this.sendMonthlyTestDriveEmail(dealershipId);
+		}else
+			throw new RuntimeException("send dealership summary email type not found: " + type);
+	}
+	
+	public void runReportsForType(Integer type){
+//		JDBCSalesmanBuddyDAO.sendErrorToMe("Got a reports hit at " + new DateTime().toString());
+		if(type == DAILY_TYPE){
+			this.runDailyReports();
+		}else if(type == WEEKLY_TYPE){
+			this.runWeeklyReports();
+//		}else if(type == BI_MONTHLY_TYPE){
+			// dont care right now
+		}else if(type == MONTHLY_TYPE){
+			this.runMonthlyReports();
+		}else
+			throw new RuntimeException("run reports type not found: " + type);
+	}
+	
+	private void runDailyReports() {
+		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		for(Dealerships d : dealerships){
+			this.sendDailyDealershipEmail(d.getId());
+			this.sendDailySalesmanEmail(d.getId());
+			this.sendDailyTestDriveEmail(d.getId());
+		}
+	}
+
+	private void runWeeklyReports() {
+		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		for(Dealerships d : dealerships){
+			this.sendWeeklyDealershipEmail(d.getId());
+			this.sendWeeklySalesmanEmail(d.getId());
+			this.sendWeeklyTestDriveEmail(d.getId());
+		}
+	}
+
+	private void runMonthlyReports() {
+		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		for(Dealerships d : dealerships){
+			this.sendMonthlyDealershipEmail(d.getId());
+			this.sendMonthlySalesmanEmail(d.getId());
+			this.sendMonthlyTestDriveEmail(d.getId());
+		}
+	}
+
+	private void sendDailyDealershipEmail(Integer dealershipId){
+		DateTime to = new DateTime(DateTimeZone.UTC);
+		DateTime from = to.minusDays(1).minusMinutes(1);
+		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
+		String licensesMessage = this.createLicensesSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
+		String salesmenMessage = this.createSalesmenSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
+		String finalMessage = this.createFinalMessageForDealership(licensesMessage, salesmenMessage, dealershipId, from, to);
+		JDBCSalesmanBuddyDAO.sendErrorToMe(finalMessage);
+	}
+
+	private String createFinalMessageForDealership(String licensesMessage, String salesmenMessage, Integer dealershipId, DateTime from, DateTime to) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("Here is the summary email for ");
+		sb.append(this.getDealershipById(dealershipId).getName());
+		sb.append(" between ");
+		sb.append(from.toString());
+		sb.append(" and ");
+		sb.append(to.toString());
+		sb.append(".\n\nTest drives taken during this period:\n");
+		sb.append(licensesMessage);
+		sb.append("\n\nSalesmen Summary:\n");
+		sb.append(salesmenMessage);
+		sb.append("\n\nThank you for using Salesman Buddy. If you have any questions, contact us at ");
+		sb.append(SUPPORT_EMAIL);
+		return sb.toString();
+	}
+
+
+	private String createSalesmenSummaryForLicenses(ArrayList<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
+		StringBuilder sb = new StringBuilder();
+		sb.append("salesman summary goes here");
+		return sb.toString();
+	}
+
+
+	private String createLicensesSummaryForLicenses(ArrayList<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
+		StringBuilder sb = new StringBuilder();
+		if(licenses.size() > 0){
+			for(Licenses l : licenses){
+				sb.append(l.getReportString());
+			}
+		}else{
+			sb.append("Your dealership had no test drives recorded during this time period");
+		}
+		return sb.toString();
+	}
+
+
+	private ArrayList<Licenses> getLicensesForDateRangeDealershipId(DateTime from, DateTime to, Integer dealershipId) {
+		String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?;";
+		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, dealershipId);
+			statement.setString(2, from.toString());
+			statement.setString(3, to.toString());
+			ResultSet resultSet = statement.executeQuery();
+			results = Licenses.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+
+
+	private void sendWeeklyDealershipEmail(Integer dealershipId){
+		
+	}
+
+	private void sendMonthlyDealershipEmail(Integer dealershipId){
+		
+	}
+	
+	private void sendDailyTestDriveEmail(Integer dealershipId){
+		// gather test drives for today
+	}
+
+	private void sendWeeklyTestDriveEmail(Integer dealershipId){
+		// gather test drives for this past week
+	}
+
+	private void sendMonthlyTestDriveEmail(Integer dealershipId){
+		
+	}
+	
+	private void sendDailySalesmanEmail(Integer dealershipId){
+		
+	}
+
+	private void sendWeeklySalesmanEmail(Integer dealershipId){
+		
+	}
+
+	private void sendMonthlySalesmanEmail(Integer dealershipId){
+		
+	}
+	
+	public void sendEmailsAboutTestDriveForGoogleUserId(String googleUserId){
+		ArrayList<UserTree> userTrees = this.getAllUserTreesForGoogleUserIdType(googleUserId, ON_TEST_DRIVE_EMAIL_TYPE);
+		ArrayList<String> supervisorEmails = this.getSupervisorEmailsFromUserTrees(userTrees);
+		this.sendTestDriveEmailsToList(supervisorEmails, "from", "subject", "message");
+	}
+	
+	private void sendTestDriveEmailsToList(ArrayList<String> to, String from, String subject, String message) {
+		// assemble the email message
+		String body = message;// TODO update this to be a nice message
+		SBEmail email = SBEmail.newPlainTextEmail(from, to, subject, body, true);
+		EmailSender.sendEmail(email);
+	}
+
+	private ArrayList<String> getSupervisorEmailsFromUserTrees(ArrayList<UserTree> userTrees) {
+		ArrayList<String> ids = this.getUserTreeGoogleIdsForType(userTrees, SUPERVISOR_TREE_TYPE);
+		return this.getEmailsForGoogleIds(ids);
+	}
+
+	private ArrayList<String> getUserTreeGoogleIdsForType(ArrayList<UserTree> userTrees, Integer type) {
+		ArrayList<String> ids = new ArrayList<String>();
+		for(UserTree u : userTrees){
+			if(type == JDBCSalesmanBuddyDAO.SUPERVISOR_TREE_TYPE)
+				ids.add(u.getSupervisorId());
+			else
+				ids.add(u.getUserId());
+		}
+		return ids;
+	}
+
+
+	// User Tree stuff
+	
+	public int newUserTreeNode(String googleUserId, String supervisorId){
+		String sql = "INSERT INTO userTree (userId, supervisorId) VALUES(?, ?)";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+			statement.setString(1, googleUserId);
+			statement.setString(2, supervisorId);
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("insert userTree failed, i == 0, " + googleUserId + ", supervisorId: " + supervisorId);
+		return i;
+	}
+	
+	public UserTree getUserTreeById(Integer id){
+		String sql = "SELECT * FROM userTree WHERE id = ?";
+		UserTree result = null;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, id);
+			ResultSet resultSet = statement.executeQuery();
+			result = UserTree.parseOneResultFromSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return result;
+	}
+	
+	public ArrayList<UserTree> getAllUserTreeForGoogleUserId(String googleUserId){
+		String sql = "SELECT * FROM userTree WHERE userId = ?";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<UserTree> getAllUserTreesForGoogleUserIdType(String googleUserId, Integer type){
+		String sql = "SELECT * FROM userTree WHERE userId = ? AND type = ?";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			statement.setInt(2, type);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<UserTree> getAllUserTreeForGoogleSupervisorId(String googleSupervisorId){
+		String sql = "SELECT * FROM userTree WHERE supervisorId = ?";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleSupervisorId);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<UserTree> getAllUserTree() {
+		String sql = "SELECT * FROM userTree ORDER BY userId";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<UserTree> getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(String googleUserId) {
+		String sql = "SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			statement.setString(2, googleUserId);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<UserTree> getAllUserTreeForDealershipId(Integer dealershipId) {
+		String sql = "SELECT * FROM userTree ut, (SELECT googleUserId FROM users WHERE dealershipId = ?) ids WHERE ut.supervisorId in ids OR ut.userId in ids";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, dealershipId);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	public ArrayList<String> getEmailsForGoogleIds(ArrayList<String> googleIds){
+		Integer unverifiedEmails = 0;
+		HashSet<String> recipients = new HashSet<String>();
+		for(String id : googleIds){
+			GoogleUserInfo gui = this.getGoogleUserInfoWithId(id);
+			if(gui.isInError()){
+				// TODO, figure out an error for this
+				JDBCSalesmanBuddyDAO.sendErrorToMe("gui was in error for getAllRecipientsForUserIdLicenseScan, googleUserId: " + id + ", message:" + gui.getErrorMessage());
+			}else{
+				if(gui.isVerifiedEmail()){
+					recipients.add(gui.getEmail());
+				}else{
+					unverifiedEmails++;
+				}
+			}
+		}
+		if(unverifiedEmails != 0)
+			JDBCSalesmanBuddyDAO.sendErrorToMe("found " + unverifiedEmails + " unverified emails");
+		return new ArrayList<String>(recipients);
+	}
+	
+	public ArrayList<String> getAllRecipientEmailsForGoogleUserIdType(String googleUserId, Integer type){
+		ArrayList<UserTree> nodes = this.getAllUserTreeForGoogleUserId(googleUserId);
+		Integer unverifiedEmails = 0;
+		HashSet<String> recipients = new HashSet<String>();
+		for(UserTree n : nodes){
+			GoogleUserInfo gui = this.getGoogleUserInfoWithId(n.getSupervisorId());
+			if(gui.isInError()){
+				// TODO, figure out an error for this
+				JDBCSalesmanBuddyDAO.sendErrorToMe("gui was in error for getAllRecipientsForUserIdLicenseScan, googleUserId: " + googleUserId + ", message:" + gui.getErrorMessage());
+			}else{
+				if(gui.isVerifiedEmail()){
+					recipients.add(gui.getEmail());
+				}else{
+					unverifiedEmails++;
+				}
+			}
+		}
+		if(unverifiedEmails != 0)
+			JDBCSalesmanBuddyDAO.sendErrorToMe("found " + unverifiedEmails + " unverified emails");
+		return new ArrayList<String>(recipients);
+	}
+	
+	public int updateUserTreeNode(String googleUserId, String googleSupervisorId, Integer id){
+		String sql = "UPDATE userTree SET userId = ?, supervisorId = ? WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			statement.setString(2, googleSupervisorId);
+			statement.setInt(3, id);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to update userTree, id: " + id);
+		return i;
+	}
+	
+	public int deleteUserTreeNodeById(Integer id){
+		String sql = "DELETE FROM userTree WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, id);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete userTree, id: " + id);
+		return i;
+	}
+	
+	public int deleteUserTreeNodesForGoogleUserIdAllNodes(String googleUserId){
+		String sql = "DELETE FROM userTree WHERE supervisorId = ? OR userId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			statement.setString(2, googleUserId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete all userTree for googleUserId: " + googleUserId);
+		return i;
+	}
+	
+	public int deleteUserTreeNodesForUserId(String googleUserId){
+		String sql = "DELETE FROM userTree WHERE userId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete user's userTree for googleUserId: " + googleUserId);
+		return i;
+	}
+	
+	public int deleteUserTreeNodesForSupervisorId(String googleUserId){
+		String sql = "DELETE FROM userTree WHERE supervisorId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, googleUserId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete supervisor's userTree for googleUserId: " + googleUserId);
+		return i;
+	}
+	
+	public ErrorMessage deleteUserTreeNodesForDealershipId(Integer dealershipId) {
+		String sql = "DELETE FROM userTree ut, (SELECT googleUserId FROM users WHERE dealershipId = ?) ids WHERE ut.supervisorId in ids OR ut.userId in ids";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, dealershipId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete all userTree nodes for dealerhsipId: " + dealershipId);
+		return new ErrorMessage("Not an error, successfully deleted " + i + " userTree nodes for dealerhsipId: " + dealershipId);
+	}
+
+	public ErrorMessage deleteAllUserTreeNodes() {
+		String sql = "DELETE FROM userTree";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to delete all userTree nodes");
+		return new ErrorMessage("this isnt an error, successfully deleted all userTree nodes");
 	}
 	
 	
@@ -1736,6 +2254,21 @@ grant_type=refresh_token
 		Media media = this.getMediaById(mediaId);
 		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());
 	}
+
+
+	
+
+
+	
+
+
+	
+
+
+	
+
+
+	
 }
 
 

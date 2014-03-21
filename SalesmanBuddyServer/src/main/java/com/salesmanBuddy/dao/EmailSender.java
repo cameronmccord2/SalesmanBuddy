@@ -22,9 +22,9 @@ public class EmailSender {
 	private static EmailSender instance= null;
 	private static Object mutex= new Object();
 	private LinkedBlockingQueue<SBEmail> emailQueue;
-	private static String USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
-	private static String PASSWORD = "27&M2rk4$k"; // GMail password
-	private static long EMAIL_DELAY = 10000;// 10 seconds
+	private String USER_NAME = "";  // GMail user name (just the part before "@gmail.com")
+	private String PASSWORD = ""; // GMail password
+	private static final long EMAIL_DELAY = 10000;// 10 seconds
 //	private int count = 0;
 	private EmailSender(){
 		this.emailQueue = new LinkedBlockingQueue<SBEmail>();
@@ -46,7 +46,23 @@ public class EmailSender {
 		return instance;
 	}
 	
+	private void setUsername(String username){
+		this.USER_NAME = username;
+	}
+	
+	private void setPassword(String password) {
+		this.PASSWORD = password;
+	}
+	
+	public synchronized static void initEmailSender(String username, String password){
+		EmailSender.getInstance().setUsername(username);
+		EmailSender.getInstance().setPassword(password);
+	}
+	
 	public synchronized static void sendEmail(SBEmail email){
+		if(EmailSender.getInstance().USER_NAME.length() == 0 || EmailSender.getInstance().PASSWORD.length() == 0)
+			throw new RuntimeException("the username or password hasnt been setup yet for emailing");
+		
 		if(!EmailSender.getInstance().emailQueue.contains(email))// keeps duplicates from being added to the queue
 			EmailSender.getInstance().emailQueue.add(email);
 	}

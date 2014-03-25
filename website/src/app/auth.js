@@ -459,6 +459,11 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 		getUser: function() {
 			return user;
 		},
+		refreshUser:function(){
+			AUTH.needsReset = true;
+			needsReset = true;
+			return initUser();
+		},
 		user: function() {
 			return newUser;
 		},
@@ -480,20 +485,6 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 			$window.sessionStorage.expiresAt = '';
 			$location.path('/home');
 			// $window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
-		},
-		getUserLocations: function() {
-			if (user) {
-				var locations = [];
-				for (var i = user.user.roles.length - 1; i >= 0; i--) {
-					var role = user.user.roles[i];
-					if (role.indexOf("mtc-locations-") == 0) { // Role is prefixed with this
-						locations.push(role.substring("mtc-locations-".length));
-					}
-				};
-				return locations;
-			}
-			console.error("User is undefined, init user first");
-			throw "User undefined Error";
 		}
 	};
 	return config;

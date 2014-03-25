@@ -1,10 +1,39 @@
-function newUserCtrl($scope, $routeParams, usersFactory){
+function newUserCtrl($scope, $routeParams, $location, usersFactory, User, dealershipsFactory, errorFactory, statesFactory){
 
-	if($routeParams.dealershipCode.length < 10)
+	$scope.errorMessage = "";
+	$scope.view = "loading";
+	$scope.newUserType = $routeParams.userType;
+	$scope.dealershipCode = $routeParams.dealershipCode;
+
+	if($routeParams.dealershipCode.length < 10){
 		console.log("invalid dealershipCode: " + $routeParams.dealershipCode);
+		$scope.errorMessage = "You have a bad dealership code";
+		$scope.view = "error";
+	}
 
-	usersFactory.getGoogleUserObject().then(function(userInfo){
-		console.log(userInfo);
+	dealershipsFactory.getDealershipForCode($routeParams.dealershipCode).then(function(dealership){
+		$scope.dealership = dealership;
+		$scope.view = "main";
+		statesFactory.getStateForId($scope.dealership.stateId).then(function(state){
+			$scope.dealership.state = state.name;
+		});
 	});
+
+	$scope.confirmDealership = function(){
+		$scope.view = "loading";
+		$scope.loadingMessage = "Please wait while we update your user account.";
+		User.initUser().then(function(){
+			console.log(User.getUser());
+			usersFactory.updateUserToDealershipCode(User.getUser().sb.googleUserId, $routeParams.dealershipCode).then(function(data){
+				$scope.view = "finished";
+			});
+		});
+	}
 	
+	$scope.denyDealership = function(){
+		var userMessage = prompt("We are sorry about this inconvenience, an error report will be sent to Salesman Buddy support. If you want to include your contact info we can contact you directly to resolve the problem if needs be.", "");
+		errorFactory.sendErrorToSalesmanBuddy("They denied the dealership, id: " + $scope.dealership.id + ", code: " + $routeParams.dealershipCode + "\n\nUser Message: " + (userMessage || "No message")).then(function(data){
+			$location.path("/home");
+		});
+	}
 }

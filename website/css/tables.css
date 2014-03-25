@@ -1,0 +1,83 @@
+.content{
+
+}
+
+.tableHead {
+	float: left;
+	height: 45px;
+	width: 1180px;
+	cursor: pointer;
+}
+
+.tableBody{
+	float:left;
+	min-height: 100px;
+}
+
+.newDealershipRow{
+	float:left;
+}
+
+.subTitleRow{
+
+}
+
+.subTitleRowElement{
+
+}
+
+.notesRow{
+	width: 100%;
+	min-height: 40px;
+	float: left;
+	background-color: #E7E7E7;
+}
+.titleRowElement {
+	float: left;
+	font-weight: bold;
+	height: 100%;
+	border-bottom: solid 1px black;
+	padding-top: 10px;
+	font-size: 12px;
+}
+
+.innerRow {
+	float: left;
+	width: 95%;
+	cursor: pointer;
+	margin-left: 5%;
+	min-height: 30px;
+}
+
+.odd {
+	background-color: #F5F5F5;
+}
+
+.appNameSelect{
+
+}
+
+.row{
+	float: left;
+	min-height: 30px;
+	width: 100%;
+	cursor: pointer;
+}
+
+.rowElement{
+	float: left;
+	min-height: 30px;
+}
+
+.rowText{
+	margin-top: 5px;
+	margin-bottom: 0px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	width: inherit;
+	font-size: 12px;
+}
+
+.tableText{
+	font-weight: bold;
+}

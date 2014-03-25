@@ -2,15 +2,20 @@ var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationServic
 
 // app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
 app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
-app.value("userInfoEndpoint", "users/me");
-app.value("usersPath", "users");
-app.value("dealershipsPath", "dealerships");
-app.value("statesPath", "states");
-app.value("licensesPath", "licenses");
-app.value("questionsPath", "questions");
-app.value("saveDataPath", "savedata");
-app.value("userExistsPath", "userExists");
-app.value("licenseImagePath", "licenseimage");
+app.constant("clientId", "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com");
+app.constant("userInfoEndpoint", "users/me");
+app.constant("usersPath", "users");
+app.constant("dealershipsPath", "dealerships");
+app.constant("statesPath", "states");
+app.constant("licensesPath", "licenses");
+app.constant("questionsPath", "questions");
+app.constant("saveDataPath", "savedata");
+app.constant("userExistsPath", "userExists");
+app.constant("licenseImagePath", "licenseimage");
+app.constant("userTreePath", "userTree");
+app.constant("errorPath", "error");
+app.constant("accessRights", {salesman:1, manager:2, sbUser:3});// page:required type level
+
 
 app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', function($routeProvider, $locationProvider, AuthServiceProvider) {
   $routeProvider.
@@ -22,17 +27,17 @@ app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', functi
 	when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/licensesList', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
-	when('/newUser/:dealershipCode', { templateUrl: 'templates/newUser.html', controller: newUserCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/newUser/:dealershipCode/:userType', { templateUrl: 'templates/newUser.html', controller: newUserCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/pricing', {templateUrl: 'templates/pricing.html', resolve: AuthServiceProvider.waitForLogin}).
 	when('/how', {templateUrl: 'templates/how.html', resolve: AuthServiceProvider.waitForLogin}).
-	// when('/loggingIn/:whereTo', {templateUrl:'templates/loggingIn.html', controller: loggingInCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/reportsManager', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	otherwise({ redirectTo: '/comingSoon' });
 }]);
 
-app.config(['AuthServiceProvider', 'baseUrl', function(AuthServiceProvider, baseUrl){
+app.config(['AuthServiceProvider', 'baseUrl', 'clientId', function(AuthServiceProvider, baseUrl, clientId){
 		AuthServiceProvider.setRefreshUrl(baseUrl + 'refreshToken');
 		AuthServiceProvider.setServerUrl(baseUrl + 'codeForToken');
-		AuthServiceProvider.setClientID('38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com');
+		AuthServiceProvider.setClientID(clientId);
 		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me');
 		AuthServiceProvider.pushScope('email');
 		AuthServiceProvider.pushScope('profile');
@@ -225,17 +230,28 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 				dealershipcode:dealershipCode
 			}
 		};
-		return genericFactory.request('post', baseUrl + usersPath + "/" + googleUserId, "error updateUserToDealershipCode", undefined, options);
+		// updates the specified googleUserId or "" meaning themselves
+		return genericFactory.request('post', baseUrl + usersPath + "/" + (googleUserId || ""), "error updateUserToDealershipCode", undefined, options);
 	}
 
 	factory.getGoogleUserObject = function(){
 		// factory.userExists();
 		// return genericFactory.request('get', baseUrl + usersPath + "/me", "error getGoogleUserObject", {cache:true});
-		return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject', {cache:true});
+		return genericFactory.request('get', 'https://www.googleapis.com/oauth2/v1/userinfo?alt=json', 'error getUserObject', undefined, {cache:true});
 	}
 
 	factory.getNameForUser = function(googleUserId){
-		return genericFactory.request('get', baseUrl + usersPath + "/" + googleUserId + "/google/name", undefined, {cache:true})
+		return genericFactory.request('get', baseUrl + usersPath + "/" + googleUserId + "/google/name", "errorgetNameForUser: " + googleUserId, undefined, {cache:true})
+	}
+
+	factory.getUsersForDealershipId = function(dealershipId){
+		var options = {
+			params:{
+				dealershipId:dealershipId
+			},
+			cache:true
+		};
+		return genericFactory.request('get', baseUrl + usersPath, "error getUsersForDealershipId: " + dealershipId, undefined, options);
 	}
 
 	return factory;
@@ -245,18 +261,109 @@ app.factory('dealershipsFactory',function(baseUrl, dealershipsPath, genericFacto
 	var factory = {};
 
 	factory.getAllDealerships = function(){
-		// usersFactory.userExists();
 		return genericFactory.request('get', baseUrl + dealershipsPath, "error getAllDealerships");
 	}
 
 	factory.newDealership = function(dealership){
-		// usersFactory.userExists();
 		return genericFactory.request('put', baseUrl + dealershipsPath, "error newDealership", dealership);
 	}
 
 	factory.updateDealership = function(dealership){
-		// usersFactory.userExists();
 		return genericFactory.request('post', baseUrl + dealershipsPath, "error updateDealership", dealership);
+	}
+
+	factory.getDealershipForId = function(id){
+		return genericFactory.request('get', baseUrl + dealershipsPath + "/" + id, "error getDealershipForId: " + id, undefined, {cache:true});
+	}
+
+	factory.getDealershipForCode = function(dealershipCode){
+		var options = {
+			params:{
+				dealershipCode:dealershipCode
+			}
+		};
+		return genericFactory.request('get', baseUrl + dealershipsPath, 'error getDealershipForCode: ' + dealershipCode, undefined, options);
+	}
+
+	return factory;
+});
+
+app.factory('errorFactory',function(baseUrl, errorPath, genericFactory, User, $location, $q){
+	var factory = {};
+
+	var sendError = function(message){
+		return genericFactory.request("put", baseUrl + errorPath, 'error sendError' + message, message);
+	}
+
+	factory.sendErrorToSalesmanBuddy = function(message){
+		var defer = $q.defer();
+		message += "\n\nLocation Data: " + $location.path();
+		User.initUser().then(function(data){
+			sendError(message + "\n\nUser Data: " + angular.toJson(User.getUser())).then(function(data){
+				defer.resolve(data);
+			});
+		}, function(data){
+			sendError(message + "\n\nNo User Data").then(function(data){
+				defer.resolve(data);
+			});
+		});
+		return defer.promise;
+	}
+
+	return factory;
+});
+
+app.factory('userTreeFactory',function(baseUrl, userTreePath, genericFactory){
+	var factory = {};
+
+	factory.getAllUserTrees = function(){
+		return genericFactory.request('get', baseUrl + userTreePath, "error getAllUserTrees");
+	}
+
+	factory.getUserTreesForGoogleUserId = function(googleUserId){
+		var options = {
+			params:{
+				googleUserId:googleUserId
+			}
+		};
+		return genericFactory.request('get', baseUrl + userTreePath, "error getUserTreesForGoogleUserId", undefined, options);
+	}
+
+	factory.getUserTreesForGoogleSupervisorId = function(googleSupervisorId){
+		var options = {
+			params:{
+				googleSupervisorId:googleSupervisorId
+			}
+		};
+		return genericFactory.request('get', baseUrl + userTreePath, "error getUserTreesForGoogleSupervisorId", undefined, options);
+	}
+
+	factory.getUserTreesForSBUserId = function(sbUserId){
+		var options = {
+			params:{
+				sbUserId:sbUserId
+			}
+		};
+		return genericFactory.request('get', baseUrl + userTreePath, "error getUserTreesForSBUserId", undefined, options);
+	}
+
+	factory.getUserTreesForDealershipId = function(dealershipId){
+		var options = {
+			params:{
+				dealershipId:dealershipId
+			}
+		};
+		return genericFactory.request('get', baseUrl + userTreePath, "error getUserTreesForDealershipId", undefined, options);
+	}
+
+
+
+	factory.newUserTree = function(userTree){
+		return genericFactory.request('put', baseUrl + userTreePath, "error newUserTree", undefined, userTree);
+	}
+
+	factory.updateUserTree = function(userTree){
+		return genericFactory.request('post', baseUrl + userTreePath, "error updateUserTree", undefined, userTree);
 	}
 
 	return factory;
@@ -266,8 +373,11 @@ app.factory('statesFactory',function(baseUrl, statesPath, genericFactory, usersF
 	var factory = {};
 
 	factory.getAllStates = function(){
-		// usersFactory.userExists();
-		return genericFactory.request('get', baseUrl + statesPath, "error getAllStates");
+		return genericFactory.request('get', baseUrl + statesPath, "error getAllStates", undefined, {cache:true});
+	}
+
+	factory.getStateForId = function(id){
+		return genericFactory.request('get', baseUrl + statesPath + '/' + id, "error getStateById: " + id, undefined, {cache:true})
 	}
 
 	return factory;
@@ -276,18 +386,27 @@ app.factory('statesFactory',function(baseUrl, statesPath, genericFactory, usersF
 app.factory('licensesFactory',function(baseUrl, licensesPath, genericFactory, usersFactory){
 	var factory = {};
 
-	factory.getAllLicensesForUser = function(){
-		// usersFactory.userExists();
-		return genericFactory.request('get', baseUrl + licensesPath, "error getAllLicensesForUser");
+	factory.getAllLicensesForUser = function(googleUserId){
+		var options = null;
+		if(googleUserId){
+			options = {
+				params:{
+					googleUserId:googleUserId
+				}
+			};
+		}
+		return genericFactory.request('get', baseUrl + licensesPath, "error getAllLicensesForUser", undefined, options);
 	}
 
-	factory.getAllLicensesForDealership = function(){
-		// usersFactory.userExists();
-		var options = {
-			params:{
-				dealership:true
-			}
-		};
+	factory.getAllLicensesForDealership = function(dealershipId){
+		var options = null;
+		if(dealershipId){
+			options = {
+				params:{
+					dealershipId:dealershipId
+				}
+			};
+		}
 		return genericFactory.request('get', baseUrl + licensesPath, "error getAllLicensesForDealership", undefined, options);
 	}
 
@@ -348,7 +467,7 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //******************************************
 // Rootscope Setup
 //********************************************
-app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl, dealershipsFactory) {
+app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl, dealershipsFactory, accessRights) {
 	User.setUserInfoEndpoint(baseUrl + userInfoEndpoint);
 	$http.defaults.headers.common.authprovider = "google";
 
@@ -381,15 +500,13 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 		});
 	}
 
-	$rootScope.doesUserHaveAccessTo = function(what){
+	$rootScope.doesUserHaveAccessTo = function(what, exactly){
 		if($rootScope.user){
 			var type = $rootScope.user.sb.type;
-			if(what == 'licensesList' && type > 1)
-				return true;
-			if(what == 'allUsers' && type > 2)
-				return true;
-			if(what == 'dealershipManager' && type > 2)
-				return true;
+			if(exactly)
+				return (type == accessRights[what]);
+			else
+				return (type >= accessRights[what])
 		}
 		return false;
 	}

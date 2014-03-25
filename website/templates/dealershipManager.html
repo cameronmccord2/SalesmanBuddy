@@ -18,7 +18,8 @@
 			</div>
 			<div ng-show="dealership.showDetails" class="notesRow">
 				<!-- <div class="subTitleRow"> -->
-				<input ng-model="dealership.newUserLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new user link.">
+				New User: <input ng-model="dealership.newUserLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new user link.">
+				New Manager: <input ng-model="dealership.newManagerLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new manager link.">
 				<textarea ng-model="dealership.notes" ng-click="$event.stopPropagation();" style="width:90%; margin:10px 0px 5px 20px;" placeholder="Notes" maxLength="4000"></textarea>
 					<!-- <div class="subTitleRowElement" ng-repeat="column in getColumnsForColumnType('details')" ng-show="column.desiredWidth != 0">
 						<div class="assessmentTitleRowText" ng-style="{width:''+getAdjustedColumnWidth(column.desiredWidthInPixels, getColumnsForColumnType('assessment'), 1080)+'px'}">{{column.name}}</div>

@@ -1,4 +1,4 @@
-function allUsersCtrl($scope, usersFactory){
+function allUsersCtrl($scope, usersFactory, dealershipsFactory){
 
 	$scope.view = "loading";
 	$scope.cache = {};
@@ -11,10 +11,11 @@ function allUsersCtrl($scope, usersFactory){
 	}
 
 	$scope.columns = [
-		{name:'Id', realColumnName:'id', desiredWidth:100, columnType:'main', type:''},
-		{name:'Dealership Id', realColumnName:'dealershipId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Id', realColumnName:'id', desiredWidth:10, columnType:'main', type:''},
+		// {name:'Dealership Id', realColumnName:'dealershipId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Dealership', realColumnName:'dealershipName', desiredWidth:100, columnType:'main', type:''},
 		{name:'Device Type', realColumnName:'deviceType', desiredWidth:100, columnType:'main', type:''},
-		{name:'Type', realColumnName:'type', desiredWidth:100, columnType:'main', type:'select', options:[1, 2, 3, 4, 5], ngChange:$scope.changeUserToType},
+		{name:'Type', realColumnName:'type', desiredWidth:40, columnType:'main', type:'select', options:[1, 2, 3, 4, 5], ngChange:$scope.changeUserToType},
 		{name:'Created', realColumnName:'created', desiredWidth:100, columnType:'main', type:'date'},
 		{name:'Google User Id', realColumnName:'googleUserId', desiredWidth:100, columnType:'main', type:''},
 		{name:'Name', realColumnName:'name', desiredWidth:100, columnType:'main', type:''}
@@ -26,11 +27,20 @@ function allUsersCtrl($scope, usersFactory){
 		
 		for (var i = $scope.users.length - 1; i >= 0; i--) {
 			$scope.getNameForUser($scope.users[i]);
+			$scope.getDealershipNameForUser($scope.users[i]);
 		};
 	}, function(data){
 		$scope.view = "noRights";
 		console.log(data)
 	});
+
+	$scope.getDealershipNameForUser = function(user){
+		dealershipsFactory.getDealershipForId(user.dealershipId).then(function(dealership){
+			user.dealershipName = dealership.name;
+		}, function(){
+			user.dealershipName = 'None';
+		});
+	}
 
 	$scope.getNameForUser = function(user){
 		usersFactory.getNameForUser(user.googleUserId).then(function(data){

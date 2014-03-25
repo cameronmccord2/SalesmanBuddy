@@ -16,8 +16,6 @@ function dealershipManagerCtrl($scope, dealershipsFactory, statesFactory){
 		{type:'saveChanges', desiredWidth:50, columnType:'main'}
 	];
 
-	
-
 	$scope.types = [1, 2, 3, 4];
 
 	statesFactory.getAllStates().then(function(states){
@@ -32,7 +30,9 @@ function dealershipManagerCtrl($scope, dealershipsFactory, statesFactory){
 
 	dealershipsFactory.getAllDealerships().then(function(dealerships){
 		for (var i = dealerships.length - 1; i >= 0; i--) {
-			dealerships[i].newUserLink = 'http://salesmanbuddy.com/#/newUser/' + dealerships[i].dealershipCode;
+			var link = 'http://salesmanbuddy.com/#/newUser/' + dealerships[i].dealershipCode;
+			dealerships[i].newUserLink = link + '/salesman';
+			dealerships[i].newManagerLink = link + '/manager';
 		};
 		$scope.dealerships = dealerships;
 		$scope.view = 'main';

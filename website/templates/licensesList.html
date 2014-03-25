@@ -1,6 +1,16 @@
-<div ng-show="loaded">
-	<div ng-repeat="scan in scans">
-
+<div ng-include="'templates/noRights.html'"></div>
+<div ng-include="'templates/loading.html'"></div>
+<div ng-include="'templates/error.html'"></div>
+<div id="licensesList" ng-show="view == 'main'">
+	<div ng-show="doesUserHaveAccessTo('sbUser')">
+		Dealerships: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-model="selected.dealership" ng-change="selectedDealership(selected.dealership)"></select><br>
+		All Users: <select ng-options="user as user.name for user in allUsers" ng-model="selected.allUser" ng-change="selectedUser(selected.allUser)"></select>
+	</div>
+	<div ng-show="doesUserHaveAccessTo('manager')">
+		Dealership Users: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selected.dealershipUser" ng-change="selectedUser(selected.dealershipUser)"></select>
+	</div>
+	<div ng-repeat="license in licenses">
+		{{license}}
 	</div>
 	<div ng-show="licenses.length == 0">You have no licenses at this time</div>
 </div>

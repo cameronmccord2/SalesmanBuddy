@@ -1,4 +1,5 @@
-<div ng-show="view == 'loading'">
-	<!-- <img class="loadingGif" src="assets/ajax-loader.gif"> -->loading gif
-	<div style="margin-left:500px; padding-top:40px;"></div>
+<div id="loading" style="" ng-show="view == 'loading'">
+		<img class="loadingGif" src="assets/loadingBig.gif">
+		<div style="margin-left:500px; padding-top:40px;"></div>
+		<div>{{loadingMessage || 'Loading'}}</div>
 </div>

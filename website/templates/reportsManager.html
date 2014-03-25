@@ -1,0 +1,46 @@
+<div id="reportsManager">
+	<div class="anyDealership" ng-show="dealerships.length">
+		<select ng-options="dealership as dealership.name for dealership in dealerships" ng-change="selectedDealership()" ng-model="selects.chosenDealership"></select>
+	</div>
+	<div>Dealership-Wide Reports</div>
+	<div class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in summaryColumns">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, summaryColumns, 1160)">
+				{{column.name}}
+			</div>
+		</div>
+	</div>
+	<div class="tableBody">
+		<div class="row" ng-repeat="userTree in userTrees | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-show="isSummaryUserTree(userTree)">
+			<div class="rowElement" ng-repeat="column in summaryColumns" ng-style="getAdjustedColumnWidth(column.desiredWidth, summaryColumns, 1160)">
+				<div class="rowText" ng-show="column.type == ''">{{userTree[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'date'">{{userTree[column.realColumnName] | date}}</div>
+				<div class="rowText" ng-show="column.type == 'bool'">{{userTree[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'select'">
+					<select class="changeType" ng-model="userTree[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, userTree[column.realColumnName])"></select>
+				</div>
+			</div>
+		</div>
+	</div>
+	<br><br><br>
+	<div>Specific Salesmen Reports</div>
+	<div class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in aboutToColumns">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, aboutToColumns, 1160)">
+				{{column.name}}
+			</div>
+		</div>
+	</div>
+	<div class="tableBody">
+		<div class="row" ng-repeat="userTree in userTrees | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-show="isAboutToUserTree(userTree)">
+			<div class="rowElement" ng-repeat="column in aboutToColumns" ng-style="getAdjustedColumnWidth(column.desiredWidth, aboutToColumns, 1160)">
+				<div class="rowText" ng-show="column.type == ''">{{userTree[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'date'">{{userTree[column.realColumnName] | date}}</div>
+				<div class="rowText" ng-show="column.type == 'bool'">{{userTree[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'select'">
+					<select class="changeType" ng-model="userTree[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, userTree[column.realColumnName])"></select>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>

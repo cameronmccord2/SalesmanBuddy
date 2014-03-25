@@ -1,11 +1,16 @@
 package com.salesmanBuddy.dao;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.LinkedBlockingQueue;
 
+import javax.mail.AuthenticationFailedException;
 import javax.mail.Message;
 import javax.mail.MessagingException;
 import javax.mail.NoSuchProviderException;
@@ -14,6 +19,10 @@ import javax.mail.Transport;
 import javax.mail.internet.AddressException;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NamingException;
+import javax.sql.DataSource;
 
 import com.salesmanBuddy.model.SBEmail;
 
@@ -26,8 +35,19 @@ public class EmailSender {
 	private String PASSWORD = ""; // GMail password
 	private static final long EMAIL_DELAY = 10000;// 10 seconds
 //	private int count = 0;
+	protected DataSource dataSource;
+	
+	
 	private EmailSender(){
 		this.emailQueue = new LinkedBlockingQueue<SBEmail>();
+		
+		try{
+			Context initContext = new InitialContext();
+			Context envContext = (Context)initContext.lookup("java:/comp/env");
+			dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
+		}catch(NamingException ne){
+			throw new RuntimeException(ne);
+		}
 
 		new Timer().schedule(new TimerTask(){
 			public void run(){
@@ -63,8 +83,31 @@ public class EmailSender {
 		if(EmailSender.getInstance().USER_NAME.length() == 0 || EmailSender.getInstance().PASSWORD.length() == 0)
 			throw new RuntimeException("the username or password hasnt been setup yet for emailing");
 		
-		if(!EmailSender.getInstance().emailQueue.contains(email))// keeps duplicates from being added to the queue
+		if(!EmailSender.getInstance().emailQueue.contains(email)){// keeps duplicates from being added to the queue, during this period
+			email.setId(EmailSender.getInstance().saveEmailToDatabase(email));
 			EmailSender.getInstance().emailQueue.add(email);
+		}
+	}
+
+	private int saveEmailToDatabase(SBEmail email) {
+//		String sql = "INSERT INTO licenses (longitude, latitude, userId, stateId) VALUES (?, ?, ?, ?)";
+//		int id = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setFloat(1, license.getLongitude());
+//			statement.setFloat(2, license.getLatitude());
+//			statement.setInt(3, license.getUserId());
+//			statement.setInt(4, license.getStateId());
+//			statement.execute();
+//			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return id;
+		return 0;
+	}
+	
+	private void markMessageAsSentInDatabase(Integer id){
+		
 	}
 
 	private synchronized static void processEmails() {
@@ -114,6 +157,7 @@ public class EmailSender {
 						else
 							message.setText(e.getBodyHtml(), "utf-8", "html");
 						transport.sendMessage(message, message.getAllRecipients());
+						this.markMessageAsSentInDatabase(e.getId());
 					}
 				}else{
 					MimeMessage message = new MimeMessage(session);
@@ -127,9 +171,13 @@ public class EmailSender {
 					else
 						message.setText(e.getBodyHtml(), "utf-8", "html");
 					transport.sendMessage(message, message.getAllRecipients());
+					this.markMessageAsSentInDatabase(e.getId());
 				}
 			}
 			transport.close();
+		}
+		catch(AuthenticationFailedException e){
+			e.printStackTrace();
 		}
 		catch (NoSuchProviderException e) {
 			e.printStackTrace();
@@ -140,7 +188,7 @@ public class EmailSender {
 		catch (MessagingException me) {
 			me.printStackTrace();
 		}
-		System.out.println("sent");
+//		System.out.println("sent");
 	}
 
 }

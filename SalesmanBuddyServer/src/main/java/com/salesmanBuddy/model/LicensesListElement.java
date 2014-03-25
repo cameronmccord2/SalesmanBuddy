@@ -28,6 +28,22 @@ public class LicensesListElement{
     	}
     	return responses;
     }
+	
+	public static String getStockNumberForLicensesListElement(LicensesListElement lle) {
+//		return "IMPLEMENT_GETTING_STOCK_NUMBER";
+		for(QuestionsAndAnswers qaa : lle.getQaas()){
+			if(qaa.getQuestion().getQuestionTextEnglish().equalsIgnoreCase("Stock Number"))
+				return qaa.getAnswer().getAnswerText();
+		}
+		return "No stock number found";
+	}
+	
+	public String getReportString() {
+		StringBuilder sb = new StringBuilder();
+		sb.append(this.toString());
+		sb.append("\n");
+		return sb.toString();
+	}
 
 	public Integer getId() {
 		return id;
@@ -59,5 +75,20 @@ public class LicensesListElement{
 
 	public void setStateId(Integer stateId) {
 		this.stateId = stateId;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("LicensesListElement [id=");
+		builder.append(id);
+		builder.append(", created=");
+		builder.append(created);
+		builder.append(", stateId=");
+		builder.append(stateId);
+		builder.append(", qaas=");
+		builder.append(qaas);
+		builder.append("]");
+		return builder.toString();
 	}
 }

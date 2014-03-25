@@ -97,6 +97,7 @@ public class JDBCSalesmanBuddyDAO {
     private static final String REPORTS_ENDPOINT = "reports";
     private static final Integer HOUR_TO_RUN_REPORTS = new DateTime().getHourOfDay();
     private static final String SUPPORT_EMAIL = "support@salesmanbuddy.com";
+    private static final String TEST_DRIVE_NOW_EMAIL = "billing@salesmanbuddy.com";
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -105,12 +106,11 @@ public class JDBCSalesmanBuddyDAO {
 			Context initContext = new InitialContext();
 			Context envContext = (Context)initContext.lookup("java:/comp/env");
 			dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
-			// TODO init the email thing here so all config is up above
 		}catch(NamingException ne){
 			throw new RuntimeException(ne);
 		}
 		EmailSender.initEmailSender(EMAIL_USER_NAME, EMAIL_PASSWORD);
-		SBScheduler.startSchedulerWithTimeOfDay(HOUR_TO_RUN_REPORTS, new DateTime().getMinuteOfDay() + 1, 0, THIS_SERVER_URL + REPORTS_ENDPOINT);
+//		SBScheduler.startSchedulerWithTimeOfDay(HOUR_TO_RUN_REPORTS, new DateTime().getMinuteOfDay() + 1, 0, THIS_SERVER_URL + REPORTS_ENDPOINT);
 //		JDBCSalesmanBuddyDAO.sendErrorToMe("Initialized stuff, The current joda time is: " + new DateTime().toString() + ", utc: " + new DateTime(DateTimeZone.UTC).toString());
 	}
 
@@ -223,12 +223,10 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private String getStateNameForStateId(int stateId) {
-		ArrayList<States> states = this.getAllStates(1);
-		for(States state : states){
-			if(state.getId().intValue() == stateId)
-				return state.getName();
-		}
-		throw new RuntimeException("could not find state for id: " + stateId);
+		States state = this.getStateForId(stateId);
+		if(state == null)
+			throw new RuntimeException("could not find state for id: " + stateId);
+		return state.getName();
 	}
 
 	
@@ -250,6 +248,19 @@ public class JDBCSalesmanBuddyDAO {
 		}
 		return states;
 	}
+	
+	public States getStateForId(Integer stateId) {
+		String sql = "SELECT * FROM states WHERE id = ?";
+		States result = null;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, stateId);
+			ResultSet resultSet = statement.executeQuery();
+			result = States.parseOneRowResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return result;
+	}
 
 	
 	public ArrayList<Dealerships> getAllDealerships() {// working 10/3/13
@@ -262,6 +273,19 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException(sqle);
 		}
 		return results;
+	}
+	
+	public Dealerships getDealershipWithDealershipCode(String dealershipCode) {
+		String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
+		Dealerships result = null;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, dealershipCode);
+			ResultSet resultSet = statement.executeQuery();
+			result = Dealerships.parseOneRowResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return result;
 	}
 
 	
@@ -390,8 +414,8 @@ public class JDBCSalesmanBuddyDAO {
 			if(this.putAnswerInDatabase(qaa.getAnswer()) == 0)
 				throw new RuntimeException("Failed to insert answer into database, " + qaa.getAnswer().toString());
 		}
-		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
-		this.sendEmailsAboutTestDriveForGoogleUserId(googleUserId);
+//		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
+		this.sendEmailsAboutTestDriveForGoogleUserIdLicenseId(googleUserId, licenseId);
 		return this.getLicenseListElementForLicenseId(licenseId);
 	}
 
@@ -814,7 +838,18 @@ public class JDBCSalesmanBuddyDAO {
 		return results;
 	}
 
-
+	public ArrayList<Users> getUsersForDealershipId(Integer dealershipId) {
+		String sql = "SELECT * FROM users WHERE dealershipId = ?";
+		ArrayList<Users> results = new ArrayList<Users>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+			statement.setInt(1, dealershipId);
+			ResultSet resultSet = statement.executeQuery();
+			results = Users.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
 	
 	public Users updateUserToType(String googleUserId, int type) {
 		String sql = "UPDATE users SET type = ? WHERE googleUserId = ?";
@@ -838,11 +873,11 @@ public class JDBCSalesmanBuddyDAO {
 		String sql = "UPDATE users SET dealershipId = ? WHERE googleUserId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, dealershipCode);
-			statement.setInt(2, dealershipId);
+			statement.setInt(1, dealershipId);
+			statement.setString(2, googleUserId);
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+			throw new RuntimeException("dealershipId: " + dealershipId + ", " + sqle.getLocalizedMessage());
 		}
 		if(i == 0)
 			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
@@ -867,8 +902,7 @@ public class JDBCSalesmanBuddyDAO {
 
 
 	
-	public List<LicensesListElement> getAllLicensesForDealershipForUserId(String googleUserId) {
-		int dealershipId = this.getUserByGoogleId(googleUserId).getDealershipId();
+	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId) {
 		String sql = "SELECT * FROM users WHERE dealershipId = ?";
 		ArrayList<Users> results = new ArrayList<Users>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -888,7 +922,7 @@ public class JDBCSalesmanBuddyDAO {
 	
 	
 	
-	private Dealerships getDealershipById(Integer dealershipId) {
+	public Dealerships getDealershipById(Integer dealershipId) {
 		String sql = "SELECT * FROM dealerships WHERE id = ?";
 		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -1092,7 +1126,7 @@ grant_type=refresh_token
         return grtr; 
 	}
 	
-	private static void sendErrorToMe(String errorString){
+	public static void sendErrorToMe(String errorString){
 		ArrayList<String> to = new ArrayList<String>();
 		to.add("cameronmccord2@gmail.com");
 		EmailSender.sendEmail(SBEmail.newPlainTextEmail("logging@salesmanbuddy.com", to, "error", errorString, true));
@@ -1395,17 +1429,51 @@ grant_type=refresh_token
 		
 	}
 	
-	public void sendEmailsAboutTestDriveForGoogleUserId(String googleUserId){
+	public void sendEmailsAboutTestDriveForGoogleUserIdLicenseId(String googleUserId, Integer licenseId){
 		ArrayList<UserTree> userTrees = this.getAllUserTreesForGoogleUserIdType(googleUserId, ON_TEST_DRIVE_EMAIL_TYPE);
 		ArrayList<String> supervisorEmails = this.getSupervisorEmailsFromUserTrees(userTrees);
-		this.sendTestDriveEmailsToList(supervisorEmails, "from", "subject", "message");
+		String subject = this.createNowTestDriveSubjectForLicenseId(licenseId);
+		String message = this.createNowTestDriveMessageForLicenseId(licenseId);
+		SBEmail email = SBEmail.newPlainTextEmail(TEST_DRIVE_NOW_EMAIL, supervisorEmails, subject, message, true);
+		EmailSender.sendEmail(email);
 	}
 	
-	private void sendTestDriveEmailsToList(ArrayList<String> to, String from, String subject, String message) {
-		// assemble the email message
-		String body = message;// TODO update this to be a nice message
-		SBEmail email = SBEmail.newPlainTextEmail(from, to, subject, body, true);
-		EmailSender.sendEmail(email);
+	private String createNowTestDriveMessageForLicenseId(Integer licenseId) {
+		StringBuilder sb = new StringBuilder();
+		LicensesListElement lle = this.getLicenseListElementForLicenseId(licenseId);
+		Licenses license = this.getLicenseForLicenseId(licenseId);
+		Users user = this.getUserById(license.getUserId());
+		UsersName un = this.getUsersName(user.getGoogleUserId());
+		String stockNumber = LicensesListElement.getStockNumberForLicensesListElement(lle);
+		
+		sb.append("A test drive just occurred with ");
+		if(un.isInError())
+			sb.append("<Error getting name: ").append(un.getErrorMessage()).append(">");
+		else
+			sb.append(un.getName());
+		sb.append(" on vehicle ").append(stockNumber).append(".\n");
+		sb.append(this.getStatsAboutStockNumber(stockNumber, user.getDealershipId()));
+		sb.append(this.getStatsAboutUserId(user.getId()));
+		sb.append("\nIf you have any questions about Salesman Buddy, email us at ").append(SUPPORT_EMAIL).append(".");
+		return sb.toString();
+	}
+
+
+	private String getStatsAboutUserId(Integer userId) {
+		// TODO Finish this
+		return "<Put stats about this salesman here>\n";
+	}
+
+
+	private String getStatsAboutStockNumber(String stockNumber, Integer dealershipId) {
+		// TODO Finish this
+		return "<Put stats about this vehicle here>\n";
+	}
+
+
+	private String createNowTestDriveSubjectForLicenseId(Integer licenseId) {
+		// TODO make this better
+		return "Test drive subject for licenseId: " + licenseId;
 	}
 
 	private ArrayList<String> getSupervisorEmailsFromUserTrees(ArrayList<UserTree> userTrees) {
@@ -1416,7 +1484,7 @@ grant_type=refresh_token
 	private ArrayList<String> getUserTreeGoogleIdsForType(ArrayList<UserTree> userTrees, Integer type) {
 		ArrayList<String> ids = new ArrayList<String>();
 		for(UserTree u : userTrees){
-			if(type == JDBCSalesmanBuddyDAO.SUPERVISOR_TREE_TYPE)
+			if(type == JDBCSalesmanBuddyDAO.SUPERVISOR_TREE_TYPE) 
 				ids.add(u.getSupervisorId());
 			else
 				ids.add(u.getUserId());
@@ -1427,12 +1495,13 @@ grant_type=refresh_token
 
 	// User Tree stuff
 	
-	public int newUserTreeNode(String googleUserId, String supervisorId){
-		String sql = "INSERT INTO userTree (userId, supervisorId) VALUES(?, ?)";
+	public int newUserTreeNode(String googleUserId, String supervisorId, Integer type){
+		String sql = "INSERT INTO userTree (userId, supervisorId, type) VALUES(?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, supervisorId);
+			statement.setInt(3, type);
 			statement.execute();
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 		}catch(SQLException sqle){
@@ -1523,10 +1592,11 @@ grant_type=refresh_token
 	}
 	
 	public ArrayList<UserTree> getAllUserTreeForDealershipId(Integer dealershipId) {
-		String sql = "SELECT * FROM userTree ut, (SELECT googleUserId FROM users WHERE dealershipId = ?) ids WHERE ut.supervisorId in ids OR ut.userId in ids";
+		String sql = "SELECT * FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?);";
 		ArrayList<UserTree> results = new ArrayList<UserTree>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
+			statement.setInt(2, dealershipId);
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
 		}catch(SQLException sqle){
@@ -1578,13 +1648,14 @@ grant_type=refresh_token
 		return new ArrayList<String>(recipients);
 	}
 	
-	public int updateUserTreeNode(String googleUserId, String googleSupervisorId, Integer id){
-		String sql = "UPDATE userTree SET userId = ?, supervisorId = ? WHERE id = ?";
+	public int updateUserTreeNode(String googleUserId, String googleSupervisorId, Integer id, Integer type){
+		String sql = "UPDATE userTree SET userId = ?, supervisorId = ?, type = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, googleSupervisorId);
-			statement.setInt(3, id);
+			statement.setInt(3, type);
+			statement.setInt(4, id);
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -1652,10 +1723,11 @@ grant_type=refresh_token
 	}
 	
 	public ErrorMessage deleteUserTreeNodesForDealershipId(Integer dealershipId) {
-		String sql = "DELETE FROM userTree ut, (SELECT googleUserId FROM users WHERE dealershipId = ?) ids WHERE ut.supervisorId in ids OR ut.userId in ids";
+		String sql = "DELETE FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
+			statement.setInt(2, dealershipId);
 			i = statement.executeUpdate();
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2254,6 +2326,15 @@ grant_type=refresh_token
 		Media media = this.getMediaById(mediaId);
 		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());
 	}
+
+
+	
+
+
+	
+
+
+	
 
 
 	

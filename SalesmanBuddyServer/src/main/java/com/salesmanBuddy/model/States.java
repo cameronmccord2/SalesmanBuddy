@@ -9,21 +9,29 @@ public class States {
     protected String name;
     protected Integer status;
     
-    public static ArrayList<States> parseResultSet(ResultSet resultSet){
+    public static ArrayList<States> parseResultSet(ResultSet resultSet) throws SQLException{
     	ArrayList<States> responses = new ArrayList<States>();
-    	try{
-			while(resultSet.next()){
-				States response = new States();
-				response.setId(resultSet.getInt("id"));
-				response.setName(resultSet.getString("name"));
-				response.setStatus(resultSet.getInt("status"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
+		while(resultSet.next()){
+			States response = new States();
+			response.setId(resultSet.getInt("id"));
+			response.setName(resultSet.getString("name"));
+			response.setStatus(resultSet.getInt("status"));
+			responses.add(response);
+		}
     	return responses;
     }
+    
+    public static States parseOneRowResultSet(ResultSet resultSet) throws SQLException {
+		States response = null;
+		while(resultSet.next()){
+			response = new States();
+			response.setId(resultSet.getInt("id"));
+			response.setName(resultSet.getString("name"));
+			response.setStatus(resultSet.getInt("status"));
+			break;
+		}
+		return response;
+	}
     
 	public Integer getId() {
 		return id;
@@ -43,4 +51,6 @@ public class States {
 	public void setStatus(Integer status) {
 		this.status = status;
 	}
+
+	
 }

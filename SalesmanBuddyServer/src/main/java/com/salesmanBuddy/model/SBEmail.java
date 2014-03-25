@@ -10,6 +10,8 @@ public class SBEmail {
 	private String bodyHtml;
 	private boolean individualEmailsToRecipients;
 	
+	private Integer id;
+	
 	public static SBEmail newHtmlEmail(String from, ArrayList<String> to, String subject, String bodyHtml, boolean individualEmailsToRecipients){
 		SBEmail e = new SBEmail();
 		e.setBody("");
@@ -95,22 +97,26 @@ public class SBEmail {
 	}
 
 	@Override
-	public String toString() {
-		StringBuilder builder = new StringBuilder();
-		builder.append("SBEmail [from=");
-		builder.append(from);
-		builder.append(", to=");
-		builder.append(to);
-		builder.append(", subject=");
-		builder.append(subject);
-		builder.append(", body=");
-		builder.append(body);
-		builder.append(", bodyHtml=");
-		builder.append(bodyHtml);
-		builder.append(", individualEmailsToRecipients=");
-		builder.append(individualEmailsToRecipients);
-		builder.append("]");
-		return builder.toString();
+	public SBEmail clone() {
+		SBEmail e = new SBEmail();
+		e.setBody(new String(this.getBody()));
+		e.setBodyHtml(new String(this.getBodyHtml()));
+		e.setFrom(new String(this.getFrom()));
+		e.setIndividualEmailsToRecipients(this.isIndividualEmailsToRecipients());
+		e.setSubject(new String(this.getSubject()));
+		e.setTo(new ArrayList<String>());
+		for(String to : this.getTo()){
+			e.getTo().add(new String(to));
+		}
+		return e;
+	}
+
+	public Integer getId() {
+		return id;
+	}
+
+	public void setId(Integer id) {
+		this.id = id;
 	}
 
 	@Override
@@ -121,6 +127,7 @@ public class SBEmail {
 		result = prime * result
 				+ ((bodyHtml == null) ? 0 : bodyHtml.hashCode());
 		result = prime * result + ((from == null) ? 0 : from.hashCode());
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
 		result = prime * result + (individualEmailsToRecipients ? 1231 : 1237);
 		result = prime * result + ((subject == null) ? 0 : subject.hashCode());
 		result = prime * result + ((to == null) ? 0 : to.hashCode());
@@ -151,6 +158,11 @@ public class SBEmail {
 				return false;
 		} else if (!from.equals(other.from))
 			return false;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
 		if (individualEmailsToRecipients != other.individualEmailsToRecipients)
 			return false;
 		if (subject == null) {
@@ -167,19 +179,24 @@ public class SBEmail {
 	}
 
 	@Override
-	public SBEmail clone() {
-		// TODO Auto-generated method stub
-		SBEmail e = new SBEmail();
-		e.setBody(new String(this.getBody()));
-		e.setBodyHtml(new String(this.getBodyHtml()));
-		e.setFrom(new String(this.getFrom()));
-		e.setIndividualEmailsToRecipients(this.isIndividualEmailsToRecipients());
-		e.setSubject(new String(this.getSubject()));
-		e.setTo(new ArrayList<String>());
-		for(String to : this.getTo()){
-			e.getTo().add(new String(to));
-		}
-		return e;
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append("SBEmail [from=");
+		builder.append(from);
+		builder.append(", to=");
+		builder.append(to);
+		builder.append(", subject=");
+		builder.append(subject);
+		builder.append(", body=");
+		builder.append(body);
+		builder.append(", bodyHtml=");
+		builder.append(bodyHtml);
+		builder.append(", individualEmailsToRecipients=");
+		builder.append(individualEmailsToRecipients);
+		builder.append(", id=");
+		builder.append(id);
+		builder.append("]");
+		return builder.toString();
 	}
 
 }

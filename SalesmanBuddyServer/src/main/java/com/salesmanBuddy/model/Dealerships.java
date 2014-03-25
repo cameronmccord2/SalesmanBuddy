@@ -14,25 +14,37 @@ public class Dealerships {
     protected String dealershipCode;
     protected String notes;
     
-    public static ArrayList<Dealerships> parseResultSet(ResultSet resultSet){
+    public static ArrayList<Dealerships> parseResultSet(ResultSet resultSet) throws SQLException{
     	ArrayList<Dealerships> responses = new ArrayList<Dealerships>();
-    	try{
-			while(resultSet.next()){
-				Dealerships response = new Dealerships();
-				response.setId(resultSet.getInt("id"));
-				response.setName(resultSet.getString("name"));
-				response.setCity(resultSet.getString("city"));
-				response.setStateId(resultSet.getInt("stateId"));
-				response.setCreated(resultSet.getDate("created"));
-				response.setDealershipCode(resultSet.getString("dealershipCode"));
-				response.setNotes(resultSet.getString("notes"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
+		while(resultSet.next()){
+			Dealerships response = new Dealerships();
+			response.setId(resultSet.getInt("id"));
+			response.setName(resultSet.getString("name"));
+			response.setCity(resultSet.getString("city"));
+			response.setStateId(resultSet.getInt("stateId"));
+			response.setCreated(resultSet.getDate("created"));
+			response.setDealershipCode(resultSet.getString("dealershipCode"));
+			response.setNotes(resultSet.getString("notes"));
+			responses.add(response);
+		}
     	return responses;
     }
+    
+    public static Dealerships parseOneRowResultSet(ResultSet resultSet) throws SQLException {
+		Dealerships response = null;
+		while(resultSet.next()){
+			response = new Dealerships();
+			response.setId(resultSet.getInt("id"));
+			response.setName(resultSet.getString("name"));
+			response.setCity(resultSet.getString("city"));
+			response.setStateId(resultSet.getInt("stateId"));
+			response.setCreated(resultSet.getDate("created"));
+			response.setDealershipCode(resultSet.getString("dealershipCode"));
+			response.setNotes(resultSet.getString("notes"));
+			break;
+		}
+		return response;
+	}
     
 	public Integer getId() {
 		return id;

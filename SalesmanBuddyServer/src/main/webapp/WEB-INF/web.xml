@@ -92,4 +92,8 @@
 		<welcome-file>index.jsp</welcome-file>
 		<welcome-file>index.html</welcome-file>
 	</welcome-file-list> -->
+	
+	<listener>
+		<listener-class>com.salesmanBuddy.dao.SingletonManager</listener-class>
+	</listener>
 </web-app>

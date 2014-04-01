@@ -75,7 +75,8 @@ CREATE TABLE licenses (
 	longitude                  decimal(10, 6)                        NOT NULL, -- sub meter accuracy
 	latitude                   decimal(10, 6)                        NOT NULL,
 	userId                     int                                   NOT NULL FOREIGN KEY REFERENCES users(id),
-	stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id)
+	stateId                    int                                   NOT NULL FOREIGN KEY REFERENCES states(id),
+	status 					   int 		   default 1 				 NOT NULL--1:normal,2:hide in admin by default
 );
 
 CREATE TABLE questions (
@@ -119,7 +120,7 @@ CREATE TABLE dropdownOptions (
 CREATE TABLE userTree (
 	id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
 	userId 						NVARCHAR(25) 						  NOT NULL FOREIGN KEY REFERENCES users(googleUserId),
-	supervisorId 				NVARCHAR(25) 						  NOT NULL FOREIGN KEY REFERENCES users(googleUserId),
+	supervisorId 				NVARCHAR(25) 						  NULL,
 	created                     DATETIME2    default SYSUTCDATETIME() NOT NULL,
 	type 						int 		 default 0 				  NOT NULL
 );

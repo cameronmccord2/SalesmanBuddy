@@ -26,18 +26,20 @@ public class DailyIterator implements ScheduleIterator {
         calendar.set(Calendar.MINUTE, minute);
         calendar.set(Calendar.SECOND, second);
         calendar.set(Calendar.MILLISECOND, 0);
-        if (!calendar.getTime().before(date)) {
-        	System.out.println("Inside the if condition of the constructor"+calendar.getTime());
-        	System.out.println("Inside the if condition of the constructor date"+date );
-            calendar.add(Calendar.DATE, -7);
-            System.out.println("Inside the constructor "+calendar.getTime());
-        }
+        
+        if (calendar.getTime().before(date)) {// if time we set up is before now
+            calendar.add(Calendar.DATE, 1);
+            System.out.println("added a day to the date because the time has already passed today");
+        }else
+        	System.out.println("time " + calendar.getTime() + " is after now: " + date);
+        
+        System.out.println("Daily Iterator will run at: " + calendar.getTime());
     }
 
     public Date next() {
-    	System.out.println("Inside the next() "+calendar.getTime());
-        calendar.add(Calendar.DATE, 7);
-        System.out.println("Inside the nbext() but returns : "+calendar.getTime());
+//    	System.out.println("Inside the next() "+calendar.getTime());
+        calendar.add(Calendar.DATE, 1);
+//        System.out.println("Inside the nbext() but returns : "+calendar.getTime());
         return calendar.getTime();
     }
 

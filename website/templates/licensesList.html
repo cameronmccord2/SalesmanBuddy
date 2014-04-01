@@ -3,14 +3,48 @@
 <div ng-include="'templates/error.html'"></div>
 <div id="licensesList" ng-show="view == 'main'">
 	<div ng-show="doesUserHaveAccessTo('sbUser')">
-		Dealerships: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-model="selected.dealership" ng-change="selectedDealership(selected.dealership)"></select><br>
-		All Users: <select ng-options="user as user.name for user in allUsers" ng-model="selected.allUser" ng-change="selectedUser(selected.allUser)"></select>
+		All Users: <select ng-options="user as user.name for user in allUsers" ng-model="selected.allUser" ng-change="selectedUser(selected.allUser)"></select><br>
+		Dealerships: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-model="selected.dealership" ng-change="selectedDealership(selected.dealership)"></select>
 	</div>
 	<div ng-show="doesUserHaveAccessTo('manager')">
 		Dealership Users: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selected.dealershipUser" ng-change="selectedUser(selected.dealershipUser)"></select>
 	</div>
-	<div ng-repeat="license in licenses">
-		{{license}}
+	<button ng-click="hideCheckedLicenses = false" ng-show="hideCheckedLicenses">Show All</button>
+	<button ng-click="hideCheckedLicenses = true" ng-hide="hideCheckedLicenses">Show Active</button>
+	<input type="text" ng-model="search.$" placeholder="Search" ng-change="searchChanged()">
+	<!-- table -->
+	<div class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in columns">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, columns, 1160)" ng-click="setOrderBy(column)">
+				{{column.name}}
+			</div>
+		</div>
 	</div>
-	<div ng-show="licenses.length == 0">You have no licenses at this time</div>
+	<div class="tableBody">
+		<div class="row" ng-repeat="license in displayList | limitTo:500 | filter:search:strict | orderBy:order.column:order.direction" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(license)" ng-hide="hideThisLicense(license)">
+			<div class="rowElement" ng-repeat="column in columns" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, columns, 1160)">
+				<div class="rowText" ng-show="column.type == ''">{{license[column.realColumnName] || 'None'}}</div>
+				<div class="rowText" ng-show="column.type == 'date'">{{license[column.realColumnName] | date}}</div>
+				<div class="rowText" ng-show="column.type == 'bool'">{{license[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'select'">
+					<select class="changeUserType" ng-model="license[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, license[column.realColumnName])"></select>
+				</div>
+				<input ng-click="$event.stopPropagation()" class="rowText" style="width:150px" ng-show="column.type == '' && column.editable" ng-model="license[column.realColumnName]">
+			</div>
+			<!-- <div ng-show="license.showDetails" class="notesRow"> -->
+				<!-- <div class="subTitleRow"> -->
+				<!-- New User: <input ng-model="dealership.newUserLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new user link.">
+				New Manager: <input ng-model="dealership.newManagerLink" ng-click="$event.stopPropagation()" style="width:90%; margin:10px 0px 5px 20px;" placeholder="This should never be blank. It is the new manager link.">
+				<textarea ng-model="dealership.notes" ng-click="$event.stopPropagation();" style="width:90%; margin:10px 0px 5px 20px;" placeholder="Notes" maxLength="4000"></textarea> -->
+					<!-- <div class="subTitleRowElement" ng-repeat="column in getColumnsForColumnType('details')" ng-show="column.desiredWidth != 0">
+						<div class="assessmentTitleRowText" ng-style="{width:''+getAdjustedColumnWidth(column.desiredWidthInPixels, getColumnsForColumnType('assessment'), 1080)+'px'}">{{column.name}}</div>
+					</div> -->
+				<!-- </div> -->
+				<!-- <div class="stackTraceRow" ng-repeat="stackTrace in error.shownStackTraces" ng-class-odd="'odd'" ng-class-even="'even'">
+					{{stackTrace}}
+				</div> -->
+			<!-- </div> -->
+		</div>
+	</div>
+	<div ng-show="displayList.length == 0">You have no licenses at this time</div>
 </div>

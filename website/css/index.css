@@ -132,6 +132,8 @@
 .tableBody{
 	float:left;
 	min-height: 100px;
+	max-height: 400px;
+	overflow: auto;
 }
 
 .newDealershipRow{
@@ -182,6 +184,8 @@
 	min-height: 30px;
 	width: 100%;
 	cursor: pointer;
+	margin-left: 0px;
+	margin-right: 0px;
 }
 
 .rowElement{
@@ -201,6 +205,50 @@
 .tableText{
 	font-weight: bold;
 }
+
+
+
+
+
+
+.specificSalesmanReportsTable{
+	width:100%;
+	float: left;
+}
+.dealershipReportsTable{
+	float: left;
+	width:100%;
+}
+.removeButton{
+	float: left;
+}
+.newReport, .newReportLegend{
+	border:1px solid black;
+	width:49%;
+	float:left;
+	min-height:160px;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

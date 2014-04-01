@@ -29,12 +29,11 @@ public class Scheduler {
         timer.cancel();
     }
 
-    public void schedule(SchedulerTask schedulerTask,
-            ScheduleIterator iterator) {
+    public void schedule(SchedulerTask schedulerTask, ScheduleIterator iterator) {
 
         Date time = iterator.next();
         if (time == null) {
-            schedulerTask.cancel();
+            schedulerTask.cancel();// iterator not setup properly
         } else {
             synchronized(schedulerTask.lock) {
                 if (schedulerTask.state != SchedulerTask.VIRGIN) {
@@ -48,8 +47,7 @@ public class Scheduler {
         }
     }
 
-    private void reschedule(SchedulerTask schedulerTask,
-            ScheduleIterator iterator) {
+    private void reschedule(SchedulerTask schedulerTask, ScheduleIterator iterator) {
 
         Date time = iterator.next();
         if (time == null) {

@@ -35,6 +35,10 @@ function allUsersCtrl($scope, usersFactory, dealershipsFactory){
 	});
 
 	$scope.getDealershipNameForUser = function(user){
+		if(user.dealershipId == 0){
+			user.dealershipName = "None";
+			return;
+		}
 		dealershipsFactory.getDealershipForId(user.dealershipId).then(function(dealership){
 			user.dealershipName = dealership.name;
 		}, function(){

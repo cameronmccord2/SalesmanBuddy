@@ -5,8 +5,21 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 
+import org.codehaus.jackson.map.annotate.JsonSerialize;
+
+@JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
 public class UserTree {
 	
+	public static UserTree copy(UserTree ut) {
+		UserTree u = new UserTree();
+		u.id = ut.getId();
+		u.userId = new String(ut.getUserId());
+		u.supervisorId = new String(ut.getSupervisorId());
+		u.created = new Date(ut.getCreated().getTime());
+		u.type = ut.getType();
+		return u;
+	}
+
 	protected Integer id;
 	protected String userId;
 	protected String supervisorId;
@@ -16,12 +29,21 @@ public class UserTree {
 	public static ArrayList<UserTree> parseResultSet(ResultSet resultSet) throws SQLException{
     	ArrayList<UserTree> responses = new ArrayList<UserTree>();
 		while(resultSet.next()){
-			responses.add(UserTree.parseOneResultFromSet(resultSet));
+			responses.add(UserTree.parseARow(resultSet));
 		}
     	return responses;
     }
 	
 	public static UserTree parseOneResultFromSet(ResultSet resultSet) throws SQLException{
+		UserTree response = null;
+		while(resultSet.next()){
+			response = UserTree.parseARow(resultSet);
+			break;
+		}
+		return response;
+	}
+	
+	private static UserTree parseARow(ResultSet resultSet) throws SQLException{
 		UserTree response = new UserTree();
 		response.setId(resultSet.getInt("id"));
 		response.setUserId(resultSet.getString("userId"));

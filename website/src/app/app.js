@@ -1,5 +1,7 @@
 var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationService']);
 
+// TODO new user managers don't get assigned to type 2
+
 // app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
 app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.constant("clientId", "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com");
@@ -14,6 +16,7 @@ app.constant("userExistsPath", "userExists");
 app.constant("licenseImagePath", "licenseimage");
 app.constant("userTreePath", "userTree");
 app.constant("errorPath", "error");
+app.constant("reportsPath", "reports");
 app.constant("accessRights", {salesman:1, manager:2, sbUser:3});// page:required type level
 
 
@@ -41,7 +44,7 @@ app.config(['AuthServiceProvider', 'baseUrl', 'clientId', function(AuthServicePr
 		AuthServiceProvider.pushScope('https://www.googleapis.com/auth/plus.me');
 		AuthServiceProvider.pushScope('email');
 		AuthServiceProvider.pushScope('profile');
-		// AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
+		AuthServiceProvider.setRedirectURI('http://localhost:8080/salesmanBuddyAdmin');
 
 		// this only supports matching the first part of the path without any /
 		AuthServiceProvider.pushNonAuthenticatedPath("comingSoon");
@@ -313,7 +316,24 @@ app.factory('errorFactory',function(baseUrl, errorPath, genericFactory, User, $l
 	return factory;
 });
 
-app.factory('userTreeFactory',function(baseUrl, userTreePath, genericFactory){
+app.factory('reportsFactory',function(baseUrl, reportsPath, genericFactory){
+	var factory = {};
+
+	factory.requestReportNow = function(reportType, email, dealershipId){
+		var options = {
+			params:{
+				reportType:reportType,
+				email:email,
+				dealershipId:dealershipId
+			}
+		};
+		return genericFactory.request('put', baseUrl + reportsPath, "error sendReportNow", {}, options);
+	}
+
+	return factory;
+});
+
+app.factory('userTreeFactory',function(baseUrl, userTreePath, genericFactory, $q){
 	var factory = {};
 
 	factory.getAllUserTrees = function(){
@@ -356,14 +376,41 @@ app.factory('userTreeFactory',function(baseUrl, userTreePath, genericFactory){
 		return genericFactory.request('get', baseUrl + userTreePath, "error getUserTreesForDealershipId", undefined, options);
 	}
 
-
+	factory.deleteUserTreeById = function(id){
+		var options = {
+			params:{
+				id:id
+			}
+		};
+		return genericFactory.request('delete', baseUrl + userTreePath, 'error deleteUserTreeById: ' + id, undefined, options);
+	}
 
 	factory.newUserTree = function(userTree){
-		return genericFactory.request('put', baseUrl + userTreePath, "error newUserTree", undefined, userTree);
+		return genericFactory.request('put', baseUrl + userTreePath, "error newUserTree", userTree);
 	}
 
 	factory.updateUserTree = function(userTree){
-		return genericFactory.request('post', baseUrl + userTreePath, "error updateUserTree", undefined, userTree);
+		return genericFactory.request('post', baseUrl + userTreePath, "error updateUserTree", userTree);
+	}
+
+	factory.saveUserTree = function(userTree){
+		var defer = $q.defer();
+		userTree.type = userTree.typeObject.value;
+		userTree.userId = userTree.user.googleUserId;
+		if(userTree.supervisor)
+			userTree.supervisorId = userTree.supervisor.googleUserId;
+
+		if(userTree.id)
+			factory.updateUserTree(userTree).then(function(data){
+				defer.resolve(data);
+			});
+		else
+			factory.newUserTree(userTree).then(function(data){
+				userTree.created = data.created;
+				userTree.id = data.id;
+				defer.resolve(data);
+			});
+		return defer.promise;
 	}
 
 	return factory;
@@ -385,6 +432,15 @@ app.factory('statesFactory',function(baseUrl, statesPath, genericFactory, usersF
 
 app.factory('licensesFactory',function(baseUrl, licensesPath, genericFactory, usersFactory){
 	var factory = {};
+
+	factory.getAllLicenses = function(){
+		var options = {
+			params:{
+				all:true
+			}
+		};
+		return genericFactory.request('get', baseUrl + licensesPath, "error getting all licenses", undefined, options);
+	}
 
 	factory.getAllLicensesForUser = function(googleUserId){
 		var options = null;
@@ -420,6 +476,30 @@ app.factory('licensesFactory',function(baseUrl, licensesPath, genericFactory, us
 
 	factory.deleteLicense = function(licenseId){
 		// not implemented for admin
+	}
+
+	factory.getFirstNameFromLicense = function(license){
+		return factory.getAnswerTextForTag(license, 3);
+	}
+
+	factory.getLastNameFromLicense = function(license){
+		return factory.getAnswerTextForTag(license, 4);
+	}
+	
+	factory.getPhoneNumberFromLicense = function(license){
+		return factory.getAnswerTextForTag(license, 5);
+	}
+	
+	factory.getStockNumberFromLicense = function(license){
+		return factory.getAnswerTextForTag(license, 2);
+	}
+
+	factory.getAnswerTextForTag = function(license, tag){
+		for (var i = license.qaas.length - 1; i >= 0; i--) {
+			if(license.qaas[i].question.tag == tag)
+				return license.qaas[i].answer.answerText;
+		};
+		return "";
 	}
 
 	return factory;
@@ -485,9 +565,9 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 	}
 
 	if(AuthService.isTokenValid()){
-		User.initUser().then(function(data){
-			$rootScope.user = data;
-			console.log(data)
+		User.initUser().then(function(){
+			$rootScope.user = User.getUser();
+			console.log(User.getUser())
 		});
 		// usersFactory.getGoogleUserObject().then(function(user){
 		// 	$rootScope.user = user;
@@ -501,8 +581,8 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 	}
 
 	$rootScope.doesUserHaveAccessTo = function(what, exactly){
-		if($rootScope.user){
-			var type = $rootScope.user.sb.type;
+		if(User.getUser()){
+			var type = User.getUser().sb.type;
 			if(exactly)
 				return (type == accessRights[what]);
 			else

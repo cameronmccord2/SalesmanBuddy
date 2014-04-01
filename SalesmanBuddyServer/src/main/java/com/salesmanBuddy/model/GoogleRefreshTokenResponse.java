@@ -2,22 +2,22 @@ package com.salesmanBuddy.model;
 
 import org.codehaus.jettison.json.JSONObject;
 
+import com.salesmanBuddy.exceptions.GoogleRefreshTokenResponseException;
+
 public class GoogleRefreshTokenResponse {
 
 	protected String accessToken;
 	protected long expiresIn;
 	protected String tokenType;
-	protected boolean inError;
-	protected String errorMessage;
 	protected String refreshToken;
 	
-	public GoogleRefreshTokenResponse(JSONObject json) {
+	public GoogleRefreshTokenResponse(JSONObject json) throws GoogleRefreshTokenResponseException {
 		if(json.optString("error").length() != 0){
-			this.inError = true;
 			
+			String errorMessage = "No error message";
 			if(json.optString("error_description") != null)
-				this.errorMessage = json.toString();
-			
+				errorMessage = json.toString();
+			throw new GoogleRefreshTokenResponseException("the GoogleRefreshTokenResponse is in error, message: " + errorMessage + ", body: " + new String(json.toString()));
 		}else{
 			this.accessToken = json.optString("access_token");
 	        if (this.accessToken == null)
@@ -52,17 +52,11 @@ public class GoogleRefreshTokenResponse {
 	public void setTokenType(String tokenType) {
 		this.tokenType = tokenType;
 	}
-	public boolean isInError() {
-		return inError;
+	public String getRefreshToken() {
+		return refreshToken;
 	}
-	public void setInError(boolean inError) {
-		this.inError = inError;
-	}
-	public String getErrorMessage() {
-		return errorMessage;
-	}
-	public void setErrorMessage(String errorMessage) {
-		this.errorMessage = errorMessage;
+	public void setRefreshToken(String refreshToken) {
+		this.refreshToken = refreshToken;
 	}
 	@Override
 	public String toString() {
@@ -73,19 +67,50 @@ public class GoogleRefreshTokenResponse {
 		builder.append(expiresIn);
 		builder.append(", tokenType=");
 		builder.append(tokenType);
-		builder.append(", inError=");
-		builder.append(inError);
-		builder.append(", errorMessage=");
-		builder.append(errorMessage);
 		builder.append(", refreshToken=");
 		builder.append(refreshToken);
 		builder.append("]");
 		return builder.toString();
 	}
-	public String getRefreshToken() {
-		return refreshToken;
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((accessToken == null) ? 0 : accessToken.hashCode());
+		result = prime * result + (int) (expiresIn ^ (expiresIn >>> 32));
+		result = prime * result
+				+ ((refreshToken == null) ? 0 : refreshToken.hashCode());
+		result = prime * result
+				+ ((tokenType == null) ? 0 : tokenType.hashCode());
+		return result;
 	}
-	public void setRefreshToken(String refreshToken) {
-		this.refreshToken = refreshToken;
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		GoogleRefreshTokenResponse other = (GoogleRefreshTokenResponse) obj;
+		if (accessToken == null) {
+			if (other.accessToken != null)
+				return false;
+		} else if (!accessToken.equals(other.accessToken))
+			return false;
+		if (expiresIn != other.expiresIn)
+			return false;
+		if (refreshToken == null) {
+			if (other.refreshToken != null)
+				return false;
+		} else if (!refreshToken.equals(other.refreshToken))
+			return false;
+		if (tokenType == null) {
+			if (other.tokenType != null)
+				return false;
+		} else if (!tokenType.equals(other.tokenType))
+			return false;
+		return true;
 	}
 }

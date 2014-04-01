@@ -32,6 +32,8 @@ import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
 import com.amazonaws.regions.Region;
@@ -44,6 +46,11 @@ import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.S3Object;
+import com.salesmanBuddy.exceptions.GoogleRefreshTokenResponseException;
+import com.salesmanBuddy.exceptions.GoogleUserInfoException;
+import com.salesmanBuddy.exceptions.InvalidUserTreeType;
+import com.salesmanBuddy.exceptions.MalformedSBEmailException;
+import com.salesmanBuddy.exceptions.UserNameException;
 import com.salesmanBuddy.model.Buckets;
 import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
@@ -91,13 +98,10 @@ public class JDBCSalesmanBuddyDAO {
 	private static final String GoogleTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
 	private static final String GoogleUserEndpoint = "https://www.googleapis.com/oauth2/v1/userinfo?alt=json";
 	private static final String GoogleRefreshTokenEndpoint = "https://accounts.google.com/o/oauth2/token";
-	private static final String EMAIL_USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
-    private static final String EMAIL_PASSWORD = "27&M2rk4$k"; // GMail password
-    private static final String THIS_SERVER_URL = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/";
-    private static final String REPORTS_ENDPOINT = "reports";
-    private static final Integer HOUR_TO_RUN_REPORTS = new DateTime().getHourOfDay();
-    private static final String SUPPORT_EMAIL = "support@salesmanbuddy.com";
-    private static final String TEST_DRIVE_NOW_EMAIL = "billing@salesmanbuddy.com";
+	private static final String SUPPORT_EMAIL = "support@salesmanbuddy.com";
+	private static final String TEST_DRIVE_NOW_EMAIL = "reports@salesmanbuddy.com";
+	private static final String REPORTS_EMAIL = "reports@salesmanbuddy.com";
+	private static final String ERRORED_EMAIL = "errored@salesmanbuddy.com";
 	
 	private SecureRandom random = new SecureRandom();
 	
@@ -109,8 +113,6 @@ public class JDBCSalesmanBuddyDAO {
 		}catch(NamingException ne){
 			throw new RuntimeException(ne);
 		}
-		EmailSender.initEmailSender(EMAIL_USER_NAME, EMAIL_PASSWORD);
-//		SBScheduler.startSchedulerWithTimeOfDay(HOUR_TO_RUN_REPORTS, new DateTime().getMinuteOfDay() + 1, 0, THIS_SERVER_URL + REPORTS_ENDPOINT);
 //		JDBCSalesmanBuddyDAO.sendErrorToMe("Initialized stuff, The current joda time is: " + new DateTime().toString() + ", utc: " + new DateTime(DateTimeZone.UTC).toString());
 	}
 
@@ -141,24 +143,24 @@ public class JDBCSalesmanBuddyDAO {
 	
 	private String addFileToBucket(String bucketName, String fileName, File file){
 		AmazonS3 s3 = this.getAmazonS3();
-        s3.putObject(new PutObjectRequest(bucketName, fileName, file));
-        return fileName;
+		s3.putObject(new PutObjectRequest(bucketName, fileName, file));
+		return fileName;
 	}
 	
 	private File getFileFromBucket(String fileName, String bucketName){
 		System.out.println("Downloading an object");
 		AmazonS3 s3 = this.getAmazonS3();
-        S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
-        File tempFile = null;
-        try{
-        	tempFile = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
-            tempFile.deleteOnExit();
-        	FileOutputStream out = new FileOutputStream(tempFile);
-        	IOUtils.copy(object.getObjectContent(), out);
-        }catch(IOException e){
-        	throw new RuntimeException("error copying inputstream from s3 to temporary file");
-        }
-        return tempFile;
+		S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
+		File tempFile = null;
+		try{
+			tempFile = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
+			tempFile.deleteOnExit();
+			FileOutputStream out = new FileOutputStream(tempFile);
+			IOUtils.copy(object.getObjectContent(), out);
+		}catch(IOException e){
+			throw new RuntimeException("error copying inputstream from s3 to temporary file");
+		}
+		return tempFile;
 	}
 	
 	private String createS3Bucket(String bucketName){
@@ -309,6 +311,26 @@ public class JDBCSalesmanBuddyDAO {
 		return results;
 	}
 	
+	public List<LicensesListElement> getAllLicenses() {
+		String sql = "SELECT * FROM licenses ORDER BY created desc";
+		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
+		
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			ResultSet resultSet = statement.executeQuery();
+			results = LicensesListElement.parseResultSet(resultSet);
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		
+		ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+		for(int i = 0; i < results.size(); i++){
+			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
+		}
+		
+		return results;
+	}
+	
 	private LicensesListElement getLicenseListElementForLicenseId(int id) {
 		String sql = "SELECT * FROM licenses WHERE id = ?";
 		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
@@ -414,7 +436,7 @@ public class JDBCSalesmanBuddyDAO {
 			if(this.putAnswerInDatabase(qaa.getAnswer()) == 0)
 				throw new RuntimeException("Failed to insert answer into database, " + qaa.getAnswer().toString());
 		}
-//		JDBCSalesmanBuddyDAO.sendErrorToMe("saved license: " + this.getLicenseListElementForLicenseId(licenseId));
+
 		this.sendEmailsAboutTestDriveForGoogleUserIdLicenseId(googleUserId, licenseId);
 		return this.getLicenseListElementForLicenseId(licenseId);
 	}
@@ -732,8 +754,6 @@ public class JDBCSalesmanBuddyDAO {
 		return i;
 	}
 
-
-	
 	public Questions getQuestionById(Integer questionId) {
 		String sql = "SELECT * FROM questions WHERE id = ?";
 		ArrayList<Questions> results = new ArrayList<Questions>();
@@ -749,7 +769,6 @@ public class JDBCSalesmanBuddyDAO {
 		return null;
 	}
 	
-	
 	public ArrayList<Questions> getAllQuestions() {
 		String sql = "SELECT * FROM questions ORDER BY questionOrder";
 		ArrayList<Questions> results = new ArrayList<Questions>();
@@ -761,16 +780,12 @@ public class JDBCSalesmanBuddyDAO {
 		}
 		return results;
 	}
-
-
 	
 	public boolean userOwnsQuestionId(int questionId, String googleUserId) {
 		// TODO Auto-generated method stub
 		return true;
 	}
 
-
-	
 	public File getLicenseImageForAnswerId(int answerId) {
 		ImageDetails imageDetails = this.getImageDetailsForAnswerId(answerId);
 		return this.getLicenseImageForPhotoNameBucketId(imageDetails.getPhotoName(), imageDetails.getBucketId());
@@ -998,12 +1013,12 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	
-	public GoogleRefreshTokenResponse codeForToken(String code, String redirectUri, String state) {
+	public GoogleRefreshTokenResponse codeForToken(String code, String redirectUri, String state) throws GoogleRefreshTokenResponseException {
 		String webString = "code=" + code +
-                "&client_id=" + GoogleClientIdWeb +
-                "&client_secret=" + GoogleClientSecretWeb +
-                "&redirect_uri=" + redirectUri + 
-                "&grant_type=authorization_code";
+				"&client_id=" + GoogleClientIdWeb +
+				"&client_secret=" + GoogleClientSecretWeb +
+				"&redirect_uri=" + redirectUri + 
+				"&grant_type=authorization_code";
 
 		String responseBody = this.postRequest(webString, GoogleTokenEndpoint, "application/x-www-form-urlencoded");
 		
@@ -1015,39 +1030,39 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException(e.getLocalizedMessage());
 		}
 		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
-		JDBCSalesmanBuddyDAO.sendErrorToMe("Got refresh token again for this: " + grtr.toString());
+//		JDBCSalesmanBuddyDAO.sendErrorToMe("Got refresh token again for this: " + grtr.toString());
 		return grtr;
 	}
 	
 	private String postRequest(String postData, String baseUrl, String contentType){
-         
-        // Connect to google.com
-        URL url;
-        StringBuilder responseSB = new StringBuilder();
+		 
+		// Connect to google.com
+		URL url;
+		StringBuilder responseSB = new StringBuilder();
 		try {
 			url = new URL(baseUrl);
-	        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-	        connection.setDoOutput(true);
-	        connection.setRequestMethod("POST");
-	        connection.setRequestProperty("Content-Type", contentType);
-	        connection.setRequestProperty("Content-Length",  String.valueOf(postData.length()));
-	//        connection.setRequestProperty("Accept", "application/json");
-	         
-	        // Write data
-	        OutputStream os = connection.getOutputStream();
-	        os.write(postData.getBytes());
-	         
-	        // Read response
-	        
-	        BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-	          
-	        String line;
-	        while ( (line = br.readLine()) != null)
-	            responseSB.append(line);
-	                 
-	        // Close streams
-	        br.close();
-	        os.close();
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setDoOutput(true);
+			connection.setRequestMethod("POST");
+			connection.setRequestProperty("Content-Type", contentType);
+			connection.setRequestProperty("Content-Length",  String.valueOf(postData.length()));
+	//		connection.setRequestProperty("Accept", "application/json");
+			 
+			// Write data
+			OutputStream os = connection.getOutputStream();
+			os.write(postData.getBytes());
+			 
+			// Read response
+			
+			BufferedReader br = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+			  
+			String line;
+			while ( (line = br.readLine()) != null)
+				responseSB.append(line);
+					 
+			// Close streams
+			br.close();
+			os.close();
 		} catch (MalformedURLException e) {
 			e.printStackTrace();
 			throw new RuntimeException(e.getLocalizedMessage());
@@ -1058,56 +1073,56 @@ public class JDBCSalesmanBuddyDAO {
 			e.printStackTrace();
 			throw new RuntimeException(e.getLocalizedMessage());
 		}
-         
-        return responseSB.toString();
+		 
+		return responseSB.toString();
 	}
 	
 	
-	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId, Users user) {
+	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId, Users user) throws GoogleRefreshTokenResponseException {
 		if(user == null)
 			user = this.getUserByGoogleId(googleUserId);
-    	String iosString = "client_secret=" + GoogleClientSecretiOS
-    			+ "&grant_type=refresh_token"
-    			+ "&refresh_token=" + user.getRefreshToken()
-    			+ "&client_id=" + GoogleClientIdiOS;
-    	String webString = "refresh_token=" + user.getRefreshToken() +
-                "&client_id=" + GoogleClientIdWeb +
-                "&client_secret=" + GoogleClientSecretWeb +
-                "&grant_type=refresh_token";
-    	String androidString = "refresh_token=" + user.getRefreshToken() +
-                "&client_id=" + GoogleClientIdAndroid +
-                "&client_secret=" + GoogleClientSecretAndroid +
-                "&grant_type=refresh_token";
+		String iosString = "client_secret=" + GoogleClientSecretiOS
+				+ "&grant_type=refresh_token"
+				+ "&refresh_token=" + user.getRefreshToken()
+				+ "&client_id=" + GoogleClientIdiOS;
+		String webString = "refresh_token=" + user.getRefreshToken() +
+				"&client_id=" + GoogleClientIdWeb +
+				"&client_secret=" + GoogleClientSecretWeb +
+				"&grant_type=refresh_token";
+		String androidString = "refresh_token=" + user.getRefreshToken() +
+				"&client_id=" + GoogleClientIdAndroid +
+				"&client_secret=" + GoogleClientSecretAndroid +
+				"&grant_type=refresh_token";
 
-    	/*
-    	 * 
-    	 * client_id=8819981768.apps.googleusercontent.com&
+		/*
+		 * 
+		 * client_id=8819981768.apps.googleusercontent.com&
 client_secret={client_secret}&
 refresh_token=1/6BMfW9j53gdGImsiyUH5kU5RsR4zwI9lUVX-tqf8JXQ&
 grant_type=refresh_token
-    	 */
-        byte[] body = null;
-        
-        if(user.getDeviceType() == 1)
-        	body = iosString.getBytes();
-        else if(user.getDeviceType() == 2)
-        	body = webString.getBytes();
-        else if(user.getDeviceType() == 3)
-        	body = androidString.getBytes();
-        else
-        	throw new RuntimeException("the user's device type doesnt conform to any known types, their type: " + user.getDeviceType());
-        
-        URL url;
-        JSONObject json = null;
+		 */
+		byte[] body = null;
+		
+		if(user.getDeviceType() == 1)
+			body = iosString.getBytes();
+		else if(user.getDeviceType() == 2)
+			body = webString.getBytes();
+		else if(user.getDeviceType() == 3)
+			body = androidString.getBytes();
+		else
+			throw new RuntimeException("the user's device type doesnt conform to any known types, their type: " + user.getDeviceType());
+		
+		URL url;
+		JSONObject json = null;
 		try {
 			url = new URL(GoogleRefreshTokenEndpoint);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-	        conn.setDoOutput(true);
-	        conn.setFixedLengthStreamingMode(body.length);
-	        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
-	        conn.getOutputStream().write(body);
-	        body = IOUtils.toByteArray(conn.getInputStream());
-	        json = new JSONObject(new String(body));
+			conn.setDoOutput(true);
+			conn.setFixedLengthStreamingMode(body.length);
+			conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+			conn.getOutputStream().write(body);
+			body = IOUtils.toByteArray(conn.getInputStream());
+			json = new JSONObject(new String(body));
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
 		} catch (IOException e) {
@@ -1118,57 +1133,66 @@ grant_type=refresh_token
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
 		}
 		
-        GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
-        if(grtr.isInError())
-        	throw new RuntimeException("the GoogleRefreshTokenResponse is in error, message: " + grtr.getErrorMessage() + ", body: " + new String(body));
-        // TODO put token in database for caching?
-        
-        return grtr; 
+		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
+		// TODO put token in database for caching?
+		
+		return grtr; 
 	}
 	
 	public static void sendErrorToMe(String errorString){
 		ArrayList<String> to = new ArrayList<String>();
 		to.add("cameronmccord2@gmail.com");
-		EmailSender.sendEmail(SBEmail.newPlainTextEmail("logging@salesmanbuddy.com", to, "error", errorString, true));
+		try {
+			SBEmail.newPlainTextEmail("logging@salesmanbuddy.com", to, "error", errorString, true).send();
+		} catch (MalformedSBEmailException e) {
+			e.printStackTrace();
+			System.out.println(new StringBuilder().append("BIGERROR, there was an error sending an error email, message: ").append(e.getLocalizedMessage()));
+		}
 	}
 
 	
 	
 	
-	public UsersName getUsersName(String googleUserId) {
-		GoogleUserInfo gui = this.getGoogleUserInfoWithId(googleUserId);
-		if(gui.isInError())
-			throw new RuntimeException("error getGoogleUserInfo, message: " + gui.getErrorMessage());
-
+	public UsersName getUsersName(String googleUserId) throws UserNameException {
+		GoogleUserInfo gui;
 		UsersName name = new UsersName();
-		name.setName(gui.getName());
+		try {
+			gui = this.getGoogleUserInfoWithId(googleUserId);
+			name.setName(gui.getName());
+		} catch (GoogleUserInfoException e) {
+			e.printStackTrace();
+			throw new UserNameException(e.getLocalizedMessage());
+		} catch (GoogleRefreshTokenResponseException e) {
+			e.printStackTrace();
+			throw new UserNameException(e.getLocalizedMessage());
+		}
 		return name;
 	}
 	
 	
-	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId){
+	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId) throws GoogleUserInfoException, GoogleRefreshTokenResponseException{
 		GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId, null);
 		return this.getGoogleUserInfo(grtr.getTokenType(), grtr.getAccessToken());
 	}
 	
 	
-	public GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken) {
+	public GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken) throws GoogleUserInfoException {
 		URL url;
 		byte[] body = null;
-        JSONObject json = null;
-        String whatItHas = "";
+		JSONObject json = null;
+		String whatItHas = "";
 		try {
 			url = new URL(GoogleUserEndpoint);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-	        conn.setDoOutput(true);
-	        conn.setRequestMethod("GET");
-	        
-	        conn.setRequestProperty("Authorization", tokenType + " " + accessToken);
-	        whatItHas = conn.getRequestProperty("Authorization");
-	        
-	        body = IOUtils.toByteArray(conn.getInputStream());
-	        json = new JSONObject(new String(body));
-	        
+			conn.setDoOutput(true);
+			conn.setRequestMethod("GET");
+			
+			conn.setRequestProperty("Authorization", tokenType + " " + accessToken);
+			whatItHas = conn.getRequestProperty("Authorization");
+			
+			body = IOUtils.toByteArray(conn.getInputStream());
+			json = new JSONObject(new String(body));
+			
 		} catch (MalformedURLException e) {
 			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
 		} catch (IOException e) {
@@ -1183,19 +1207,25 @@ grant_type=refresh_token
 	
 	// Email sending stuff
 	
-	public final static Integer ON_TEST_DRIVE_EMAIL_TYPE = 1;
-	public final static Integer DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 2;
-	public final static Integer DAILY_SALESMAN_SUMMARY_EMAIL_TYPE = 3;
-	public final static Integer DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 4;
-	public final static Integer WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 5;
-	public final static Integer WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE = 6;
-	public final static Integer WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 7;
-//	public final static Integer BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 8;
-//	public final static Integer BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 9;
-//	public final static Integer BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 10;
-	public final static Integer MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 11;
-	public final static Integer MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 12;
-	public final static Integer MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 13;
+	public static final int ON_TEST_DRIVE_EMAIL_TYPE = 1;
+	public static final int DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 2;
+	public static final int DAILY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE = 14;
+	public static final int DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 4;
+	public static final int WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 5;
+	public static final int WEEKLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE = 15;
+	public static final int WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 7;
+	public static final int BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 8;
+	public static final int BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 9;
+	public static final int BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 10;
+	public static final int MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE = 11;
+	public static final int MONTHLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE = 16;
+	public static final int MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE = 13;
+	public static final int DAILY_SALESMAN_SUMMARY_EMAIL_TYPE = 3;
+	public static final int WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE = 6;
+	public static final int MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE = 12;
+	public static final int DAILY_STOCK_NUMBERS_EMAIL_TYPE = 17;
+	public static final int WEEKLY_STOCK_NUMBERS_EMAIL_TYPE = 18;
+	public static final int MONTHLY_STOCK_NUMBERS_EMAIL_TYPE = 19;
 	
 	public static final Integer DAILY_TYPE = 1;// night
 	public static final Integer WEEKLY_TYPE = 2;// monday
@@ -1213,93 +1243,132 @@ grant_type=refresh_token
 	
 	// about who - to who - how often(daily, weekly, bi-monthly, monthly) - about what(dealership, salesman, test drives)
 	
-	public void sendSummaryEmailsForType(Integer type, Integer dealershipId){
-		if(type == DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
-			this.sendDailyDealershipEmail(dealershipId);
-		else if(type == DAILY_SALESMAN_SUMMARY_EMAIL_TYPE)
-			this.sendDailySalesmanEmail(dealershipId);
-		else if(type == DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
-			this.sendDailyDealershipEmail(dealershipId);
-		else if(type == WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
-			this.sendWeeklyTestDriveEmail(dealershipId);
-		else if(type == WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE)
-			this.sendWeeklySalesmanEmail(dealershipId);
-		else if(type == WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
-			this.sendWeeklyDealershipEmail(dealershipId);
-//		else if(type == BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
-//			this.sendBiMonthlyTestDriveEmail(dealershipId);
-//		else if(type == BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
-//			this.sendBiMonthlySalesmanEmail(dealershipId);
-//		else if(type == BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
-//			this.sendBiMonthlyDealershipEmail(dealershipId);
-		else if(type == MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
-			this.sendMonthlyTestDriveEmail(dealershipId);
-		else if(type == MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
-			this.sendMonthlySalesmanEmail(dealershipId);
-		else if(type == MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
-			this.sendMonthlyDealershipEmail(dealershipId);
-		else
-			throw new RuntimeException("Invalid type found for sendSummaryEmailsForType: " + type + ", dealershipId: " + dealershipId);
+//	public void sendSummaryEmailsForType(Integer type, Integer dealershipId){
+//		if(type == DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+//			this.sendDailyDealershipEmail(dealershipId);
+//		else if(type == DAILY_SALESMAN_SUMMARY_EMAIL_TYPE)
+//			this.sendDailySalesmanEmail(dealershipId);
+//		else if(type == DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+//			this.sendDailyDealershipEmail(dealershipId);
+//		else if(type == WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+//			this.sendWeeklyTestDriveEmail(dealershipId);
+//		else if(type == WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+//			this.sendWeeklySalesmanEmail(dealershipId);
+//		else if(type == WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+//			this.sendWeeklyDealershipEmail(dealershipId);
+////		else if(type == BI_MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+////			this.sendBiMonthlyTestDriveEmail(dealershipId);
+////		else if(type == BI_MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+////			this.sendBiMonthlySalesmanEmail(dealershipId);
+////		else if(type == BI_MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+////			this.sendBiMonthlyDealershipEmail(dealershipId);
+//		else if(type == MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE)
+//			this.sendMonthlyTestDriveEmail(dealershipId);
+//		else if(type == MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE)
+//			this.sendMonthlySalesmanEmail(dealershipId);
+//		else if(type == MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE)
+//			this.sendMonthlyDealershipEmail(dealershipId);
+//		else
+//			throw new RuntimeException("Invalid type found for sendSummaryEmailsForType: " + type + ", dealershipId: " + dealershipId);
+//	}
+	
+	public String sendOnDemandReport(Integer reportType, Integer dealershipId, String replacementEmail) {
+		String finalMessage = "Email Sent";
+		switch(reportType){
+	
+		// generates one email object
+		case DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+		case DAILY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+		case DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+		case WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+		case WEEKLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+		case WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+		case MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+		case MONTHLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+		case MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+		case DAILY_STOCK_NUMBERS_EMAIL_TYPE:
+		case WEEKLY_STOCK_NUMBERS_EMAIL_TYPE:
+		case MONTHLY_STOCK_NUMBERS_EMAIL_TYPE:
+			String subject = "On-demand report from Salesman Buddy";
+			String body = this.generateEmailContentForDealershipIdReportType(dealershipId, reportType);
+			SBEmail email = SBEmail.newPlainTextEmail(REPORTS_EMAIL, null, subject, body, true);
+			email.replaceTo(replacementEmail);
+			
+			try {
+				email.send();
+			} catch (MalformedSBEmailException ex) {
+				ex.printStackTrace();
+				finalMessage = new StringBuilder().append("Error sending email about dealershipId: ").append(dealershipId).append(", type: ").append(reportType).append(", to:").append(replacementEmail).append(", on demand summary type, error:").append(ex.getLocalizedMessage()).toString();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(finalMessage);
+			}
+			break;
+			
+//		// generates multiple email objects
+		case DAILY_SALESMAN_SUMMARY_EMAIL_TYPE:
+		case WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+		case MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+			ArrayList<SBEmail> emails = generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, reportType);
+			for(SBEmail e : emails){
+				e.replaceTo(replacementEmail);
+				try {
+					e.send();
+				} catch (MalformedSBEmailException ex) {
+					ex.printStackTrace();
+					finalMessage = new StringBuilder().append("Error sending email about dealershipId: ").append(dealershipId).append(", type: ").append(reportType).append(", to:").append(replacementEmail).append(", individual salesman on demand summary type, error:").append(ex.getLocalizedMessage()).toString();
+					JDBCSalesmanBuddyDAO.sendErrorToMe(finalMessage);
+				}
+			}
+			break;
+	
+			default:
+				break;
+		}
+		return finalMessage;
 	}
 	
-	public void sendSummaryEmailsForOftenAboutDealershipId(Integer oftenType, Integer aboutType, Integer dealershipId){// called by the scheduler
-		if(aboutType == DEALERSHIP_TYPE)
-			this.sendDealershipSummaryEmail(oftenType, dealershipId);
-		else if(aboutType == SALESMAN_TYPE)
-			this.sendSalesmanSummaryEmail(oftenType, dealershipId);
-		else if(aboutType == TEST_DRIVE_TYPE)
-			this.sendTestDriveSummaryEmail(oftenType, dealershipId);
-		else
-			throw new RuntimeException("invalid aboutType found: " + aboutType);
-	}
-	
-	public void sendDealershipSummaryEmail(Integer type, Integer dealershipId){
-		if(type == DAILY_TYPE){
-			this.sendDailyDealershipEmail(dealershipId);
-		}else if(type == WEEKLY_TYPE){
-			this.sendWeeklyDealershipEmail(dealershipId);
-//		}else if(type == BI_MONTHLY_TYPE){
-//			this.sendBiMonthlyDealershipEmail(dealershipId);
-		}else if(type == MONTHLY_TYPE){
-			this.sendMonthlyDealershipEmail(dealershipId);
-		}else
-			throw new RuntimeException("send dealership summary email type not found: " + type);
-	}
-	
-	public void sendSalesmanSummaryEmail(Integer type, Integer dealershipId){
-		if(type == DAILY_TYPE){
-			this.sendDailySalesmanEmail(dealershipId);
-		}else if(type == WEEKLY_TYPE){
-			this.sendWeeklySalesmanEmail(dealershipId);
-//		}else if(type == BI_MONTHLY_TYPE){
-//			this.sendBiMonthlySalesmanEmail(dealershipId);
-		}else if(type == MONTHLY_TYPE){
-			this.sendMonthlySalesmanEmail(dealershipId);
-		}else
-			throw new RuntimeException("send dealership summary email type not found: " + type);
-	}
-	
-	public void sendTestDriveSummaryEmail(Integer type, Integer dealershipId){
-		if(type == DAILY_TYPE){
-			this.sendDailyTestDriveEmail(dealershipId);
-		}else if(type == WEEKLY_TYPE){
-			this.sendWeeklyTestDriveEmail(dealershipId);
-//		}else if(type == BI_MONTHLY_TYPE){
-//			this.sendBiMonthlyTestDriveEmail(dealershipId);
-		}else if(type == MONTHLY_TYPE){
-			this.sendMonthlyTestDriveEmail(dealershipId);
-		}else
-			throw new RuntimeException("send dealership summary email type not found: " + type);
+	private ArrayList<SBEmail> generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(Integer dealershipId, Integer reportType) {
+		DateTime to = new DateTime(DateTimeZone.UTC);
+		DateTime from = null;
+		switch(reportType){
+			case DAILY_SALESMAN_SUMMARY_EMAIL_TYPE:
+				from = to.minusDays(1).minusMinutes(10);
+				break;
+				
+			case WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+				from = to.minusWeeks(1).minusMinutes(10);
+				break;
+				
+			case MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+				from = to.minusMonths(1).minusMinutes(10);
+				break;
+				
+			default:
+				throw new RuntimeException("report type invalid for generateIndividualSalesmanSummaryEmailsForDealershipIdReportType");
+		}
+		
+		ArrayList<UserTree> userTrees = this.getAllUserTreeForDealershipIdType(dealershipId, reportType);
+		ArrayList<SBEmail> emails = new ArrayList<SBEmail>();
+		for(UserTree ut : userTrees){
+			
+			try {
+				String subject = "Report about " + this.getUsersName(ut.getUserId()).getName() + " from Salesman Buddy";
+				String body = this.individualSalesmanSummaryReport(ut.getUserId(), from, to);
+				SBEmail email = SBEmail.newPlainTextEmail(REPORTS_EMAIL, null, subject, body, true);
+				email.replaceTo(this.getEmailForGoogleId(ut.getSupervisorId()));
+				emails.add(email);
+			} catch (UserNameException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error in generateIndividualSalesmanSummaryEmailsForDealershipIdReportType for getting user's name for userTree: ").append(ut.toString()).append(", error: ").append(e.getLocalizedMessage()).toString());
+			}
+		}
+		return emails;
 	}
 	
 	public void runReportsForType(Integer type){
-//		JDBCSalesmanBuddyDAO.sendErrorToMe("Got a reports hit at " + new DateTime().toString());
 		if(type == DAILY_TYPE){
 			this.runDailyReports();
 		}else if(type == WEEKLY_TYPE){
 			this.runWeeklyReports();
-//		}else if(type == BI_MONTHLY_TYPE){
-			// dont care right now
 		}else if(type == MONTHLY_TYPE){
 			this.runMonthlyReports();
 		}else
@@ -1308,68 +1377,172 @@ grant_type=refresh_token
 	
 	private void runDailyReports() {
 		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		String subject = null;
+		String body = null;
+		ArrayList<String> toEmails = new ArrayList<String>();
+		Integer type = 0;
+		Integer dealershipId = 0;
+		
 		for(Dealerships d : dealerships){
-			this.sendDailyDealershipEmail(d.getId());
-			this.sendDailySalesmanEmail(d.getId());
-			this.sendDailyTestDriveEmail(d.getId());
+			dealershipId = d.getId();
+			
+			type = DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE;
+			subject = "Daily Dealership Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Daily dealership summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = DAILY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE;
+			subject = "Daily All Salesman Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Daily all salesman summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE;
+			subject = "Daily Test Drive Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Daily test drive summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = DAILY_SALESMAN_SUMMARY_EMAIL_TYPE;
+			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			try {
+				EmailSender.sendEmails(emails);
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Daily individual salesman summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
 		}
 	}
 
 	private void runWeeklyReports() {
 		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		String subject = null;
+		String body = null;
+		ArrayList<String> toEmails = new ArrayList<String>();
+		Integer type = 0;
+		Integer dealershipId = 0;
+		
 		for(Dealerships d : dealerships){
-			this.sendWeeklyDealershipEmail(d.getId());
-			this.sendWeeklySalesmanEmail(d.getId());
-			this.sendWeeklyTestDriveEmail(d.getId());
+			dealershipId = d.getId();
+			
+			type = WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE;
+			subject = "Weekly Dealership Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Weekly dealership summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = WEEKLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE;
+			subject = "Weekly All Salesman Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Weekly all salesmen summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE;
+			subject = "Weekly Test Drive Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Weekly test drive summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE;
+			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			try {
+				EmailSender.sendEmails(emails);
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Weekly individual salesman summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
 		}
 	}
 
 	private void runMonthlyReports() {
 		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		String subject = null;
+		String body = null;
+		ArrayList<String> toEmails = new ArrayList<String>();
+		Integer type = 0;
+		Integer dealershipId = 0;
+		
 		for(Dealerships d : dealerships){
-			this.sendMonthlyDealershipEmail(d.getId());
-			this.sendMonthlySalesmanEmail(d.getId());
-			this.sendMonthlyTestDriveEmail(d.getId());
+			dealershipId = d.getId();
+			
+			type = MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE;
+			subject = "Monthly Dealership Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", Monthly dealership summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = MONTHLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE;
+			subject = "Monthly All Salesman Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", monthly all salesman summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE;
+			subject = "Monthly Test Drive Summary from Salesman Buddy";
+			body = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+			toEmails = this.getEmailsForUserFromUserTrees(this.getAllUserTreeForDealershipIdType(dealershipId, type));
+			try {
+				SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, subject, body, true).send();
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", monthly test drive summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
+			
+			type = MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE;
+			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			try {
+				EmailSender.sendEmails(emails);
+			} catch (MalformedSBEmailException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about dealership: ").append(d.toString()).append(", montly individual salesmen summary type, error:").append(e.getLocalizedMessage()).toString());
+			}
 		}
 	}
 
-	private void sendDailyDealershipEmail(Integer dealershipId){
-		DateTime to = new DateTime(DateTimeZone.UTC);
-		DateTime from = to.minusDays(1).minusMinutes(1);
-		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
-		String licensesMessage = this.createLicensesSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
-		String salesmenMessage = this.createSalesmenSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
-		String finalMessage = this.createFinalMessageForDealership(licensesMessage, salesmenMessage, dealershipId, from, to);
-		JDBCSalesmanBuddyDAO.sendErrorToMe(finalMessage);
-	}
-
-	private String createFinalMessageForDealership(String licensesMessage, String salesmenMessage, Integer dealershipId, DateTime from, DateTime to) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("Here is the summary email for ");
-		sb.append(this.getDealershipById(dealershipId).getName());
-		sb.append(" between ");
-		sb.append(from.toString());
-		sb.append(" and ");
-		sb.append(to.toString());
-		sb.append(".\n\nTest drives taken during this period:\n");
-		sb.append(licensesMessage);
-		sb.append("\n\nSalesmen Summary:\n");
-		sb.append(salesmenMessage);
-		sb.append("\n\nThank you for using Salesman Buddy. If you have any questions, contact us at ");
-		sb.append(SUPPORT_EMAIL);
-		return sb.toString();
-	}
-
-
-	private String createSalesmenSummaryForLicenses(ArrayList<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("salesman summary goes here");
-		return sb.toString();
-	}
-
-
 	private String createLicensesSummaryForLicenses(ArrayList<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
 		StringBuilder sb = new StringBuilder();
+		sb.append("Test drives taken during this period:\n");
 		if(licenses.size() > 0){
 			for(Licenses l : licenses){
 				sb.append(l.getReportString());
@@ -1379,7 +1552,6 @@ grant_type=refresh_token
 		}
 		return sb.toString();
 	}
-
 
 	private ArrayList<Licenses> getLicensesForDateRangeDealershipId(DateTime from, DateTime to, Integer dealershipId) {
 		String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?;";
@@ -1395,47 +1567,199 @@ grant_type=refresh_token
 		}
 		return results;
 	}
-
-
-	private void sendWeeklyDealershipEmail(Integer dealershipId){
-		
-	}
-
-	private void sendMonthlyDealershipEmail(Integer dealershipId){
-		
+//	
+//	private void sendDailyDealershipEmail(Integer dealershipId){
+//		DateTime to = new DateTime(DateTimeZone.UTC);
+//		DateTime from = to.minusDays(1).minusMinutes(1);
+//		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
+//		String licensesMessage = this.createLicensesSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
+//		String salesmenMessage = this.createSalesmenSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
+//		String finalMessage = this.createFinalMessageForDealership(licensesMessage, salesmenMessage, dealershipId, from, to);
+////		SBEmail email = SBEmail.newPlainTextEmail(REPORTS_EMAIL, to, subject, body, individualEmailsToRecipients)
+//		JDBCSalesmanBuddyDAO.sendErrorToMe(finalMessage);
+//	}
+	
+//	private SBEmail createEmailForTypeDealershipId(Integer dealershipId, Integer type){
+//		ArrayList<UserTree> userTrees = this.getAllUserTreeForDealershipIdType(dealershipId, type);
+//		String emailBody = this.generateEmailContentForDealershipIdReportType(dealershipId, type);
+////		ArrayList<String> googleUserIds = this.getGoogleUserIdsForUserFromUserTrees(userTrees);
+////		ArrayList<String> toEmails = this.getEmailsForGoogleIds(googleUserIds);
+//		ArrayList<String> toEmails = this.getEmailsForUserFromUserTrees(userTrees);
+//		SBEmail email = SBEmail.newPlainTextEmail(REPORTS_EMAIL, toEmails, "Report Email", emailBody, true);
+//		return email;
+//	}
+	
+	private ArrayList<String> getEmailsForUserFromUserTrees(ArrayList<UserTree> userTrees){
+		ArrayList<String> ids;
+		try {
+			ids = this.getUserTreeGoogleIdsForType(userTrees, USER_TREE_TYPE);
+		} catch (InvalidUserTreeType e) {
+			throw new RuntimeException(e.getLocalizedMessage());
+		}
+		return this.getEmailsForGoogleIds(ids);
 	}
 	
-	private void sendDailyTestDriveEmail(Integer dealershipId){
-		// gather test drives for today
+	private ArrayList<String> getEmailsForSupervisorFromUserTrees(ArrayList<UserTree> userTrees){
+		ArrayList<String> ids;
+		try {
+			ids = this.getUserTreeGoogleIdsForType(userTrees, SUPERVISOR_TREE_TYPE);
+		} catch (InvalidUserTreeType e) {
+			throw new RuntimeException(e.getLocalizedMessage());
+		}
+		return this.getEmailsForGoogleIds(ids);
 	}
 
-	private void sendWeeklyTestDriveEmail(Integer dealershipId){
-		// gather test drives for this past week
-	}
-
-	private void sendMonthlyTestDriveEmail(Integer dealershipId){
-		
+	private String individualSalesmanSummaryReport(String googleUserId, DateTime from, DateTime to){
+		// TODO
+		return "Individualized report for salesman: " + googleUserId;
 	}
 	
-	private void sendDailySalesmanEmail(Integer dealershipId){
-		
+	private String allSalesmanSummaryReport(Integer dealershipId, DateTime from, DateTime to){
+		ArrayList<Users> salesmen = this.getAllUsersForDealershipId(dealershipId);
+		StringBuilder sb = new StringBuilder();
+		sb.append("Here is a report about your ").append(salesmen.size()).append(" salesmen\n\n\n");
+		for(Users s : salesmen){
+			sb.append(this.individualSalesmanSummaryReport(s.getGoogleUserId(), from, to));
+			sb.append("\n\n");
+		}
+		String finalMessage = this.wrapReportContentWithBeginningEnd(sb.toString(), 1, 2, dealershipId, from, to);
+		return finalMessage;
 	}
 
-	private void sendWeeklySalesmanEmail(Integer dealershipId){
-		
-	}
-
-	private void sendMonthlySalesmanEmail(Integer dealershipId){
-		
+	private String dealershipSummaryReport(Integer dealershipId, DateTime from, DateTime to){
+		// TODO
+		return null;
 	}
 	
-	public void sendEmailsAboutTestDriveForGoogleUserIdLicenseId(String googleUserId, Integer licenseId){
+	private String warningsReport(Integer dealershipId){
+		// TODO for reporting that scans arent getting stock numbers inputted or insurance questions answered
+		return null;
+	}
+	
+	private String testDriveSummaryReport(Integer dealershipId, DateTime from, DateTime to){
+		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
+		String licensesMessage = this.createLicensesSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
+		String finalMessage = this.wrapReportContentWithBeginningEnd(licensesMessage, 1, 2, dealershipId, from, to);
+		return finalMessage;
+	}
+	
+	private String stockNumberSummaryReport(Integer dealershipId, DateTime from, DateTime to){
+		ArrayList<String> stockNumbers = this.getUniqueStockNumbersForDealershipId(dealershipId);
+		StringBuilder sb = new StringBuilder();
+		for(String sn : stockNumbers){
+			sb.append(this.stockNumberReportForThisStockNumber(sn, from, to));
+			sb.append("\n");
+		}
+		String finalMessage = this.wrapReportContentWithBeginningEnd(sb.toString(), 1, 2, dealershipId, from, to);
+		return finalMessage;
+	}
+	
+	private String stockNumberReportForThisStockNumber(String sn, DateTime from, DateTime to) {
+		// TODO Auto-generated method stub
+		return "Report for stock number: " + sn;
+	}
+
+
+	private String wrapReportContentWithBeginningEnd(String content, Integer beginning, Integer end, Integer dealershipId, DateTime from, DateTime to){
+		// TODO
+		StringBuilder sb = new StringBuilder();
+		sb.append("BEGINNING CONTENT HERE(based on the beginning id passed:").append(beginning).append(")\n");
+		sb.append("Here is the summary email for ");
+		sb.append(this.getDealershipById(dealershipId).getName());
+		sb.append(" between ");
+		sb.append(this.printTimeDateForReports(from));
+		sb.append(" and ");
+		sb.append(this.printTimeDateForReports(to));
+		sb.append(".\n\n");
+		sb.append("END EXAMPLE BEGINNING CONTENT");
+		sb.append("\n\n");
+		sb.append(content);
+		sb.append("\nBEGIN EXAMPLE ENDING CONTENT\n");
+		sb.append("\n\nThank you for using Salesman Buddy. If you have any questions, contact us at ");
+		sb.append(SUPPORT_EMAIL);
+		sb.append("\nEND EXAMPLE ENDING CONTENT\n");
+		return sb.toString();
+	}
+
+	private String printTimeDateForReports(DateTime time) {
+		DateTimeFormatter fmt = DateTimeFormat.forPattern("EEEE MMMM d, yyyy 'at' K a");
+		return time.toString(fmt);
+	}
+
+
+	private String generateEmailContentForDealershipIdReportType(Integer dealershipId, Integer type) {
+		DateTime now = new DateTime(DateTimeZone.UTC);
+		final Integer BACK_MINUTES = 10;
+		DateTime dayPrevious = now.minusDays(1).minusMinutes(BACK_MINUTES);
+		DateTime weekPrevious = now.minusWeeks(1).minusMinutes(BACK_MINUTES);
+		DateTime monthPrevious = now.minusMonths(1).minusMinutes(BACK_MINUTES);
+		switch(type){
+		
+			case DAILY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+				return this.testDriveSummaryReport(dealershipId, dayPrevious, now);
+	
+			case DAILY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+				return this.allSalesmanSummaryReport(dealershipId, dayPrevious, now);
+	
+			case DAILY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+				return this.dealershipSummaryReport(dealershipId, dayPrevious, now);
+				
+			case DAILY_STOCK_NUMBERS_EMAIL_TYPE:
+				return this.stockNumberSummaryReport(dealershipId, dayPrevious, now);
+	
+			case WEEKLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+				return this.testDriveSummaryReport(dealershipId, weekPrevious, now);
+	
+			case WEEKLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+				return this.allSalesmanSummaryReport(dealershipId, weekPrevious, now);
+	
+			case WEEKLY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+				return this.dealershipSummaryReport(dealershipId, weekPrevious, now);
+				
+			case WEEKLY_STOCK_NUMBERS_EMAIL_TYPE:
+				return this.stockNumberSummaryReport(dealershipId, weekPrevious, now);
+	
+			case MONTHLY_TEST_DRIVE_SUMMARY_EMAIL_TYPE:
+				return this.testDriveSummaryReport(dealershipId, monthPrevious, now);
+	
+			case MONTHLY_ALL_SALESMAN_SUMMARY_EMAIL_TYPE:
+				return this.allSalesmanSummaryReport(dealershipId, monthPrevious, now);
+	
+			case MONTHLY_DEALERSHIP_SUMMARY_EMAIL_TYPE:
+				return this.dealershipSummaryReport(dealershipId, monthPrevious, now);
+				
+			case MONTHLY_STOCK_NUMBERS_EMAIL_TYPE:
+				return this.stockNumberSummaryReport(dealershipId, monthPrevious, now);
+	
+	//		case DAILY_SALESMAN_SUMMARY_EMAIL_TYPE:
+	//			
+	//			break;
+	//
+	//		case WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+	//			
+	//			break;
+	//
+	//		case MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE:
+	//			
+	//			break;
+				
+			default:
+				return "Error, couldn't find correct report type";
+		}
+	}
+	
+	private void sendEmailsAboutTestDriveForGoogleUserIdLicenseId(String googleUserId, Integer licenseId){
 		ArrayList<UserTree> userTrees = this.getAllUserTreesForGoogleUserIdType(googleUserId, ON_TEST_DRIVE_EMAIL_TYPE);
-		ArrayList<String> supervisorEmails = this.getSupervisorEmailsFromUserTrees(userTrees);
+		ArrayList<String> supervisorEmails = this.getEmailsForSupervisorFromUserTrees(userTrees);
 		String subject = this.createNowTestDriveSubjectForLicenseId(licenseId);
 		String message = this.createNowTestDriveMessageForLicenseId(licenseId);
 		SBEmail email = SBEmail.newPlainTextEmail(TEST_DRIVE_NOW_EMAIL, supervisorEmails, subject, message, true);
-		EmailSender.sendEmail(email);
+		try {
+			email.send();
+		} catch (MalformedSBEmailException e) {
+			e.printStackTrace();
+			JDBCSalesmanBuddyDAO.sendErrorToMe(new StringBuilder().append("Error sending email about googleUserId: ").append(googleUserId).append(", licenseId: ").append(licenseId).append(", Daily dealership summary type, error:").append(e.getLocalizedMessage()).toString());
+		}
 	}
 	
 	private String createNowTestDriveMessageForLicenseId(Integer licenseId) {
@@ -1443,31 +1767,82 @@ grant_type=refresh_token
 		LicensesListElement lle = this.getLicenseListElementForLicenseId(licenseId);
 		Licenses license = this.getLicenseForLicenseId(licenseId);
 		Users user = this.getUserById(license.getUserId());
-		UsersName un = this.getUsersName(user.getGoogleUserId());
+		String usersName = "<Error getting user's name>";
+		try {
+			usersName = this.getUsersName(user.getGoogleUserId()).getName();
+		} catch (UserNameException e) {
+			e.printStackTrace();
+			JDBCSalesmanBuddyDAO.sendErrorToMe("Error getting user's name: " + user.toString());
+		}
 		String stockNumber = LicensesListElement.getStockNumberForLicensesListElement(lle);
 		
 		sb.append("A test drive just occurred with ");
-		if(un.isInError())
-			sb.append("<Error getting name: ").append(un.getErrorMessage()).append(">");
-		else
-			sb.append(un.getName());
+		sb.append(usersName);
 		sb.append(" on vehicle ").append(stockNumber).append(".\n");
 		sb.append(this.getStatsAboutStockNumber(stockNumber, user.getDealershipId()));
 		sb.append(this.getStatsAboutUserId(user.getId()));
 		sb.append("\nIf you have any questions about Salesman Buddy, email us at ").append(SUPPORT_EMAIL).append(".");
 		return sb.toString();
 	}
+	
+	private DateTime getNowTime(){
+		return new DateTime(DateTimeZone.UTC);
+	}
 
 
 	private String getStatsAboutUserId(Integer userId) {
-		// TODO Finish this
-		return "<Put stats about this salesman here>\n";
+		DateTime to = this.getNowTime();
+		DateTime from = to.minusWeeks(1);
+		ArrayList<Licenses> licenses = this.getLicensesForDateRangeUserId(userId, to, from);
+		StringBuilder sb = new StringBuilder();
+		sb.append("This salesman has had ").append(licenses.size()).append(" test drives in the last week.\n");
+		return sb.toString();
+	}
+
+
+	private ArrayList<Licenses> getLicensesForDateRangeUserId(Integer userId, DateTime to, DateTime from) {
+		String sql = "SELECT * FROM licenses WHERE userId = ? AND created BETWEEN ? AND ?;";
+		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, userId);
+			statement.setString(2, from.toString());
+			statement.setString(3, to.toString());
+			ResultSet resultSet = statement.executeQuery();
+			results = Licenses.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
 	}
 
 
 	private String getStatsAboutStockNumber(String stockNumber, Integer dealershipId) {
-		// TODO Finish this
-		return "<Put stats about this vehicle here>\n";
+		DateTime to = this.getNowTime();
+		DateTime from = to.minusWeeks(1);
+		ArrayList<Licenses> licenses = this.getAllLicensesForStockNumberInDateRange(stockNumber, to, from);
+		StringBuilder sb = new StringBuilder();
+		sb.append("Stock Number ").append(stockNumber).append(" has been test driven ").append(licenses.size());
+		sb.append(" times in the last week.\n");
+		return sb.toString();
+	}
+
+
+	private ArrayList<Licenses> getAllLicensesForStockNumberInDateRange(String stockNumber, DateTime to, DateTime from) {
+		String sql = "SELECT l.* FROM licenses l, answers a, questions q WHERE q.tag = ? AND a.questionId = q.id AND a.answerText = ? AND a.licenseId = l.id";
+//		String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
+		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, ANSWER_TYPE_STOCK_NUMBER);
+			statement.setString(2, stockNumber);
+			
+
+			ResultSet resultSet = statement.executeQuery();
+			results = Licenses.parseResultSet(resultSet);
+
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
 	}
 
 
@@ -1476,18 +1851,15 @@ grant_type=refresh_token
 		return "Test drive subject for licenseId: " + licenseId;
 	}
 
-	private ArrayList<String> getSupervisorEmailsFromUserTrees(ArrayList<UserTree> userTrees) {
-		ArrayList<String> ids = this.getUserTreeGoogleIdsForType(userTrees, SUPERVISOR_TREE_TYPE);
-		return this.getEmailsForGoogleIds(ids);
-	}
-
-	private ArrayList<String> getUserTreeGoogleIdsForType(ArrayList<UserTree> userTrees, Integer type) {
+	private ArrayList<String> getUserTreeGoogleIdsForType(ArrayList<UserTree> userTrees, Integer type) throws InvalidUserTreeType {
 		ArrayList<String> ids = new ArrayList<String>();
 		for(UserTree u : userTrees){
 			if(type == JDBCSalesmanBuddyDAO.SUPERVISOR_TREE_TYPE) 
 				ids.add(u.getSupervisorId());
-			else
+			else if(type == JDBCSalesmanBuddyDAO.USER_TREE_TYPE)
 				ids.add(u.getUserId());
+			else
+				throw new InvalidUserTreeType("Type " + type + " unknown");
 		}
 		return ids;
 	}
@@ -1498,18 +1870,37 @@ grant_type=refresh_token
 	public int newUserTreeNode(String googleUserId, String supervisorId, Integer type){
 		String sql = "INSERT INTO userTree (userId, supervisorId, type) VALUES(?, ?, ?)";
 		int i = 0;
+		if(supervisorId == null)// allows for dealership-wide reports
+			supervisorId = "";
+		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, supervisorId);
 			statement.setInt(3, type);
 			statement.execute();
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		if(i == 0)
 			throw new RuntimeException("insert userTree failed, i == 0, " + googleUserId + ", supervisorId: " + supervisorId);
 		return i;
+	}
+	
+	private ArrayList<UserTree> getAllUserTreeForDealershipIdType(Integer dealershipId, Integer type) {
+		String sql = "SELECT * FROM userTree ut WHERE type = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?));";
+		ArrayList<UserTree> results = new ArrayList<UserTree>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, type);
+			statement.setInt(2, dealershipId);
+			statement.setInt(3, dealershipId);
+			ResultSet resultSet = statement.executeQuery();
+			results = UserTree.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
 	}
 	
 	public UserTree getUserTreeById(Integer id){
@@ -1605,42 +1996,66 @@ grant_type=refresh_token
 		return results;
 	}
 	
+	private static final Integer ANSWER_TYPE_STOCK_NUMBER = 2;
+	private ArrayList<String> getUniqueStockNumbersForDealershipId(Integer dealershipId) {
+		String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
+		ArrayList<String> results = new ArrayList<String>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, ANSWER_TYPE_STOCK_NUMBER);
+			statement.setInt(2, dealershipId);
+
+			ResultSet resultSet = statement.executeQuery();
+			while(resultSet.next()){
+				results.add(resultSet.getString("stockNumber"));
+			}
+
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	private ArrayList<Users> getAllUsersForDealershipId(Integer dealershipId) {
+		String sql = "SELECT * FROM users WHERE dealershipId = ?;";
+		ArrayList<Users> results = new ArrayList<Users>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, dealershipId);
+
+			ResultSet resultSet = statement.executeQuery();
+			results = Users.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+	
+	private String getEmailForGoogleId(String supervisorId) {
+		ArrayList<String> ids = new ArrayList<String>();
+		ids.add(supervisorId);
+		ArrayList<String> emails = this.getEmailsForGoogleIds(ids);
+		if(emails.size() > 0)
+			return emails.get(0);
+		return ERRORED_EMAIL;
+	}
+	
 	public ArrayList<String> getEmailsForGoogleIds(ArrayList<String> googleIds){
 		Integer unverifiedEmails = 0;
 		HashSet<String> recipients = new HashSet<String>();
 		for(String id : googleIds){
-			GoogleUserInfo gui = this.getGoogleUserInfoWithId(id);
-			if(gui.isInError()){
-				// TODO, figure out an error for this
-				JDBCSalesmanBuddyDAO.sendErrorToMe("gui was in error for getAllRecipientsForUserIdLicenseScan, googleUserId: " + id + ", message:" + gui.getErrorMessage());
-			}else{
+			GoogleUserInfo gui;
+			try {
+				gui = this.getGoogleUserInfoWithId(id);
 				if(gui.isVerifiedEmail()){
 					recipients.add(gui.getEmail());
 				}else{
 					unverifiedEmails++;
 				}
-			}
-		}
-		if(unverifiedEmails != 0)
-			JDBCSalesmanBuddyDAO.sendErrorToMe("found " + unverifiedEmails + " unverified emails");
-		return new ArrayList<String>(recipients);
-	}
-	
-	public ArrayList<String> getAllRecipientEmailsForGoogleUserIdType(String googleUserId, Integer type){
-		ArrayList<UserTree> nodes = this.getAllUserTreeForGoogleUserId(googleUserId);
-		Integer unverifiedEmails = 0;
-		HashSet<String> recipients = new HashSet<String>();
-		for(UserTree n : nodes){
-			GoogleUserInfo gui = this.getGoogleUserInfoWithId(n.getSupervisorId());
-			if(gui.isInError()){
-				// TODO, figure out an error for this
-				JDBCSalesmanBuddyDAO.sendErrorToMe("gui was in error for getAllRecipientsForUserIdLicenseScan, googleUserId: " + googleUserId + ", message:" + gui.getErrorMessage());
-			}else{
-				if(gui.isVerifiedEmail()){
-					recipients.add(gui.getEmail());
-				}else{
-					unverifiedEmails++;
-				}
+			} catch (GoogleUserInfoException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe("Error getting gui for getEmailsForGoogleIds, id: " + id + ", error" + e.getLocalizedMessage());
+			} catch (GoogleRefreshTokenResponseException e) {
+				e.printStackTrace();
+				JDBCSalesmanBuddyDAO.sendErrorToMe("Error getting refresh token response for getEmailsForGoogleIds, id: " + id + ", error" + e.getLocalizedMessage());
 			}
 		}
 		if(unverifiedEmails != 0)
@@ -1865,22 +2280,73 @@ grant_type=refresh_token
 	private Media updateMedia(Media media){
 		String sql = "UPDATE media SET name = ?, filename = ?, type = ?, audioLanguageId = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, media.getName());
 			statement.setString(2, media.getFilename());
 			statement.setInt(3, media.getType());
 			statement.setInt(4, media.getAudioLanguageId());
+//			statement.setString(5, media.getExtension());
 			statement.setInt(5, media.getId());
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+			throw new RuntimeException("Media: " + media.toString() + ", error: " + sqle.getLocalizedMessage());
 		}
 		if(i == 0)
 			throw new RuntimeException("update media failed for id: " + media.getId() + ", object: " + media.toString());
-		return this.getMediaById(media.getId());
+		
+		// save off the file here
+		if(media.getBase64Data() != null && media.getBase64Data().length() > 0)
+			return this.saveFileThatWasPutWithNewMedia(media);
+		else
+			return this.getMediaById(media.getId());
+		
+//		return this.getMediaById(media.getId());
 	}
 	
+	public int deleteMediaById(int mediaId) {
+		this.deletePopupsWithMediaId(mediaId);
+		this.deleteCaptionsWithMediaId(mediaId);
+		String sql = "DELETE FROM media WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, mediaId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException("Delete media with id: " + mediaId + ", error: " + sqle.getLocalizedMessage());
+		}
+		return i;
+	}
+	
+	private int deleteCaptionsWithMediaId(int mediaId) {
+		String sql = "DELETE FROM captions WHERE mediaId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, mediaId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException("delete captions with mediaId: " + mediaId + ", error: " + sqle.getLocalizedMessage());
+		}
+		return i;
+	}
+
+
+	private int deletePopupsWithMediaId(int mediaId) {
+		String sql = "DELETE FROM popups WHERE mediaId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, mediaId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException("delete popups with mediaId: " + mediaId + ", error: " + sqle.getLocalizedMessage());
+		}
+		return i;
+	}
+
+
 	private Media putNewMedia(Media media){
 		String sql = "INSERT INTO media (name, filename, type, audioLanguageId) VALUES (?, ?, ?, ?)";
 		int i = 0;
@@ -1927,10 +2393,10 @@ grant_type=refresh_token
 		}
 		
 		
-    	String filenameInBucket = this.saveFileToS3ForCaptionEditor(file, extension, media.getId(), 0);// file from this is usable everywhere else, works in chrome
-    	file.delete();
-    	Media newMedia = this.updateMediaForFileUpload(filenameInBucket, this.getCaptionEditorBucket().getId(), extension, media.getId());
-    	return newMedia;
+		String filenameInBucket = this.saveFileToS3ForCaptionEditor(file, extension, media.getId(), 0);// file from this is usable everywhere else, works in chrome
+		file.delete();
+		Media newMedia = this.updateMediaForFileUpload(filenameInBucket, this.getCaptionEditorBucket().getId(), extension, media.getId());
+		return newMedia;
 	}
 
 
@@ -2237,23 +2703,23 @@ grant_type=refresh_token
 		if(por.getMetadata() == null)
 			throw new RuntimeException("metadata is null");
 		por.getMetadata().setCacheControl("max-age=" + seconds);
-        s3.putObject(por);
-        return fileName;
+		s3.putObject(por);
+		return fileName;
 	}
 	
 	private File getFileFromBucketCaptionEditor(String fileName, String bucketName, String extension, String realFilename){
 		AmazonS3 s3 = this.getAmazonS3CaptionEditor();
-        S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
-        File tempFile = null;
-        try{
-        	tempFile = File.createTempFile(realFilename, extension);
-            tempFile.deleteOnExit();
-        	FileOutputStream out = new FileOutputStream(tempFile);
-        	IOUtils.copy(object.getObjectContent(), out);
-        }catch(IOException e){
-        	throw new RuntimeException("error copying inputstream from s3 to temporary file");
-        }
-        return tempFile;
+		S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
+		File tempFile = null;
+		try{
+			tempFile = File.createTempFile(realFilename, extension);
+			tempFile.deleteOnExit();
+			FileOutputStream out = new FileOutputStream(tempFile);
+			IOUtils.copy(object.getObjectContent(), out);
+		}catch(IOException e){
+			throw new RuntimeException("error copying inputstream from s3 to temporary file");
+		}
+		return tempFile;
 	}
 	
 	private String createS3BucketCaptionEditor(String bucketName){
@@ -2326,6 +2792,15 @@ grant_type=refresh_token
 		Media media = this.getMediaById(mediaId);
 		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());
 	}
+
+
+	
+
+
+	
+
+
+	
 
 
 	

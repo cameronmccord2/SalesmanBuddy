@@ -2,6 +2,9 @@ package com.salesmanBuddy.model;
 
 import java.util.ArrayList;
 
+import com.salesmanBuddy.dao.EmailSender;
+import com.salesmanBuddy.exceptions.MalformedSBEmailException;
+
 public class SBEmail {
 	private String from;
 	private ArrayList<String> to;
@@ -43,8 +46,17 @@ public class SBEmail {
 		e.setIndividualEmailsToRecipients(individualEmailsToRecipients);
 		return e;
 	}
+	
+	public void send() throws MalformedSBEmailException{
+		EmailSender.sendEmail(this);
+	}
 
 	public void addTo(String newTo) {
+		this.to.add(newTo);
+	}
+	
+	public void replaceTo(String newTo) {
+		this.to = new ArrayList<String>();
 		this.to.add(newTo);
 	}
 

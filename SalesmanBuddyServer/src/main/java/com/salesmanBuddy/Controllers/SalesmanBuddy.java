@@ -34,6 +34,8 @@ import org.springframework.web.client.RestTemplate;
 
 import com.salesmanBuddy.GOAuthResponse;
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
+import com.salesmanBuddy.exceptions.GoogleRefreshTokenResponseException;
+import com.salesmanBuddy.exceptions.UserNameException;
 import com.salesmanBuddy.model.BucketsCE;
 import com.salesmanBuddy.model.Captions;
 import com.salesmanBuddy.model.Dealerships;
@@ -102,64 +104,64 @@ public class SalesmanBuddy {
     	if(deviceType == -1)
     		throw new RuntimeException("You must specify a device type. Possible values are: 1:ios, 2:web, 3:android");
     	
-    	GoogleRefreshTokenResponse grtr = dao.codeForToken(code, redirect_uri, state);
-    	
+    	GoogleRefreshTokenResponse grtr;
     	StringBuilder sb = new StringBuilder();
-    	sb.append(redirect_uri);
-    	if(grtr.isInError()){
-    		sb.append("?state=error&message=");
-    		sb.append(grtr.getErrorMessage());
-    	}else{
+		try {
+			grtr = dao.codeForToken(code, redirect_uri, state);
+			sb.append(redirect_uri);
 	    	sb.append("?access_token=");
 	    	sb.append(grtr.getAccessToken());
 	    	sb.append("&expires_in=");
 	    	sb.append(grtr.getExpiresIn());
 	    	sb.append("&state=");
 	    	sb.append(state);
-    	}
-    	if(grtr.getRefreshToken() != null)
-    		sb.append("&other=aRefreshTokenWasFound");
-    	
-    	
-    	RestTemplate restTemplate = new RestTemplate();
-		GOAuthResponse gresponse = restTemplate.getForObject("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + grtr.getAccessToken(), GOAuthResponse.class);
-		String googleUserId = gresponse.getUser_id();
-    	
-    	Users user = dao.getUserByGoogleId(googleUserId);
-    	if(user == null){// new user
-			user = new Users();
-			user.setDeviceType(deviceType);
-			user.setGoogleUserId(googleUserId);
-			user.setRefreshToken(grtr.getRefreshToken());
-			user = dao.getUserById(dao.createUser(user));
-			
-    	}else{// user exists in our system already
-    		if(grtr.getRefreshToken() != null && grtr.getRefreshToken().length() > 0){// update refresh token if possible
-        		user.setRefreshToken(grtr.getRefreshToken());
-        		user.setDeviceType(deviceType);
-        		dao.updateRefreshTokenForUser(user);
-//        		throw new RuntimeException("recieved refreshs token" + grtr.getRefreshToken());//1/lEJ05j_oR6eguCOQYHbym5XPiEqE6BuaIE3gZ5NJvgM
-        	}
-    	}
-    	
-    	sb.append("&user_id=");
-    	sb.append(user.getId());
-    	
+	    	if(grtr.getRefreshToken() != null)
+	    		sb.append("&other=aRefreshTokenWasFound");
+	    	
+	    	RestTemplate restTemplate = new RestTemplate();
+			GOAuthResponse gresponse = restTemplate.getForObject("https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=" + grtr.getAccessToken(), GOAuthResponse.class);
+			String googleUserId = gresponse.getUser_id();
+	    	
+	    	Users user = dao.getUserByGoogleId(googleUserId);
+	    	if(user == null){// new user
+				user = new Users();
+				user.setDeviceType(deviceType);
+				user.setGoogleUserId(googleUserId);
+				user.setRefreshToken(grtr.getRefreshToken());
+				user = dao.getUserById(dao.createUser(user));
+				
+	    	}else{// user exists in our system already
+	    		if(grtr.getRefreshToken() != null && grtr.getRefreshToken().length() > 0){// update refresh token if possible
+	        		user.setRefreshToken(grtr.getRefreshToken());
+	        		user.setDeviceType(deviceType);
+	        		dao.updateRefreshTokenForUser(user);
+//	        		throw new RuntimeException("recieved refreshs token" + grtr.getRefreshToken());//1/lEJ05j_oR6eguCOQYHbym5XPiEqE6BuaIE3gZ5NJvgM
+	        	}
+	    	}
+	    	
+	    	sb.append("&user_id=");
+	    	sb.append(user.getId());
+	    	
+		} catch (GoogleRefreshTokenResponseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			sb.append("?state=error&message=");
+    		sb.append(e.getLocalizedMessage());
+		}
+    
     	return Response.temporaryRedirect(UriBuilder.fromUri(sb.toString()).build()).build();
     }
     
     @Path("refreshToken")
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response refreshToken(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("userId") int userId){
+    public Response refreshToken(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("userId") int userId) throws GoogleRefreshTokenResponseException{
     	if(userId < 1)
     		return Response.status(400).entity(new ErrorMessage("you must specify a valid user id")).build();
     	Users user = dao.getUserById(userId);
     	if(user == null)
     		return Response.status(400).entity(new ErrorMessage("you must specify a valid user id")).build();
     	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(user.getGoogleUserId(), user);
-    	if(grtr.isInError())
-    		return Response.status(500).entity(new ErrorMessage(grtr.getErrorMessage())).build();
     	grtr.setRefreshToken("");// clear this out so the client cant see it
     	return Response.ok().entity(grtr).build();
     }
@@ -184,8 +186,24 @@ public class SalesmanBuddy {
     		return Response.status(400).entity(new ErrorMessage("You must specify a valid type of report: weekly, monthly, daily")).build();
     	
     	dao.runReportsForType(reportType);
-//    	throw new RuntimeException("here");
     	return Response.ok().entity(new ErrorMessage("Ran the report")).build();
+    }
+    
+    @Path("reports")// Updated 10/23
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
+    public Response putReport(@Context HttpServletRequest request, UserTree o, @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId,
+    																		 @DefaultValue("0") @QueryParam("reportType") Integer reportType,
+    																		 @DefaultValue("") @QueryParam("email") String email){
+    	if(dealershipId == 0 || reportType == 0 || email.length() == 0)
+    		return Response.status(400).entity("You must specify a dealershipId, report type, email").build();
+    	
+    	String googleUserId = request.getUserPrincipal().getName();
+    	Users user = dao.getUserByGoogleId(googleUserId);
+    	if(user.getType() > 2 || (dao.getUsersForDealershipId(dealershipId).contains(user) && user.getType() > 1))
+    		return Response.ok(dao.sendOnDemandReport(reportType, dealershipId, email)).build();
+    	return Response.status(400).entity("You must have the rights for this dealership").build();
     }
     
     @Path("userExists")// Updated 10/23
@@ -363,9 +381,17 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getAllLicensesForUserId(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("googleUserId") String requestedGoogleUserId, 
-    																			 @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId){
+    																			 @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId,
+    																			 @DefaultValue("false") @QueryParam("all") boolean getAll){
     	String googleUserId = request.getUserPrincipal().getName();
-    	if(dealershipId != 0){
+    	if(getAll){
+    		Users user = dao.getUserByGoogleId(googleUserId);
+    		if(user.getType() > 2){
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicenses()){};
+            	return Response.ok(entity).build();
+    		}
+    		return Response.status(400).entity(new ErrorMessage("You must be an SB employee to see all licenses")).build();
+    	}else if(dealershipId != 0){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2 || (user.getDealershipId() == dealershipId && user.getType() == 2)){// SB employee OR manager type for the requested dealership
     			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForDealershipId(dealershipId)){};
@@ -392,7 +418,6 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putLicense(@Context HttpServletRequest request, LicensesFromClient licenseFromClient){
     	String googleUserId = request.getUserPrincipal().getName();
-//    	GenericEntity<LicensesListElement> entity = new GenericEntity<LicensesListElement>(){};
     	return Response.ok(dao.putLicense(licenseFromClient, googleUserId)).build();
     }
     
@@ -402,7 +427,6 @@ public class SalesmanBuddy {
     public Response deleteLicense(@Context HttpServletRequest request, @QueryParam("licenseid") int licenseId){
     	String googleUserId = request.getUserPrincipal().getName();
     	if(dao.userOwnsLicenseId(licenseId, googleUserId))
-//    		GenericEntity<DeleteLicenseResponse> entity = new GenericEntity<DeleteLicenseResponse>(){};
     		return Response.ok(dao.deleteLicense(licenseId)).build();
     	else
     		return Response.status(Status.UNAUTHORIZED).build();
@@ -443,8 +467,9 @@ public class SalesmanBuddy {
     		else
     			return Response.status(401).entity(new ErrorMessage("You are not authorized to get all userTree")).build();
     	}
+    	
     	if(entity != null)
-    		return Response.ok(entity).build();
+    		return Response.ok().entity(entity).build();
     	return Response.status(400).entity(new ErrorMessage("You must specify one of the options, do an options request to see them")).build();
     }
     
@@ -461,7 +486,7 @@ public class SalesmanBuddy {
     
     @Path("userTree")
     @DELETE
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
     public Response deleteUserTree(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("id") Integer userTreeId, 
     																	@DefaultValue("") @QueryParam("userGoogleUserId") String userGoogleUserId, 
     																	@DefaultValue("") @QueryParam("supervisorGoogleUserId") String supervisorGoogleUserId,
@@ -547,7 +572,7 @@ public class SalesmanBuddy {
     @Path("users/{googleUserId}/google/name")
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getNameForGoogleUserId(@Context HttpServletRequest request, @DefaultValue("") @PathParam("googleUserId") String googleUserId){
+    public Response getNameForGoogleUserId(@Context HttpServletRequest request, @DefaultValue("") @PathParam("googleUserId") String googleUserId) throws UserNameException{
     	
 //    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(googleUserId);
     	
@@ -756,6 +781,12 @@ public class SalesmanBuddy {
     	return Response.ok(dao.getFileForMediaId(mediaId)).build();
     }
     
+    @Path("media")
+    @DELETE
+    public Response deleteMediaById(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("id") int mediaId){
+    	return Response.ok(dao.deleteMediaById(mediaId)).build();
+    }
+    
     @Path("media")// Updated 10/24
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
@@ -765,11 +796,12 @@ public class SalesmanBuddy {
     		try{
     			media.setExtension(getFileTypeExtension(media.getContentType()));
     		}catch(Exception e){
-    			return Response.status(Status.NOT_ACCEPTABLE).build();
+    			return Response.status(Status.NOT_ACCEPTABLE).entity(new ErrorMessage(e.getLocalizedMessage())).build();
     		}
     	}
     	GenericEntity<Media> entity = new GenericEntity<Media>(dao.putMedia(media)){};
     	return Response.ok(entity).build();
+//    	return Response.status(400).entity("There has been a problem with your media: " + media.toString()).build();
     }
     
     @Path("captions")// works 10/13

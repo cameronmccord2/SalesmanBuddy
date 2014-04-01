@@ -1,9 +1,5 @@
 package com.salesmanBuddy.dao;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Timer;
@@ -24,23 +20,23 @@ import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 
+import com.salesmanBuddy.exceptions.MalformedSBEmailException;
 import com.salesmanBuddy.model.SBEmail;
 
-public class EmailSender {
+public class EmailSender{
 
 	private static EmailSender instance= null;
 	private static Object mutex= new Object();
 	private LinkedBlockingQueue<SBEmail> emailQueue;
-	private String USER_NAME = "";  // GMail user name (just the part before "@gmail.com")
-	private String PASSWORD = ""; // GMail password
+	private static final String EMAIL_USER_NAME = "cameronmccord@salesmanbuddy.com";  // GMail user name (just the part before "@gmail.com")
+    private static final String EMAIL_PASSWORD = "27&M2rk4$k"; // GMail password
 	private static final long EMAIL_DELAY = 10000;// 10 seconds
-//	private int count = 0;
 	protected DataSource dataSource;
-	
+	protected Timer timer;
 	
 	private EmailSender(){
 		this.emailQueue = new LinkedBlockingQueue<SBEmail>();
-		
+		System.out.println("started Emil sender");
 		try{
 			Context initContext = new InitialContext();
 			Context envContext = (Context)initContext.lookup("java:/comp/env");
@@ -49,7 +45,8 @@ public class EmailSender {
 			throw new RuntimeException(ne);
 		}
 
-		new Timer().schedule(new TimerTask(){
+		this.timer = new Timer();
+		this.timer.schedule(new TimerTask(){
 			public void run(){
 //				count++;
 				EmailSender.processEmails();
@@ -60,33 +57,48 @@ public class EmailSender {
 	private static EmailSender getInstance(){
 		if(instance==null){
 			synchronized (mutex){
-				if(instance==null) instance= new EmailSender();
+				if(instance==null){
+					instance= new EmailSender();
+					System.out.println("EmailSender instance created");
+				}
 			}
 		}
 		return instance;
 	}
 	
-	private void setUsername(String username){
-		this.USER_NAME = username;
-	}
-	
-	private void setPassword(String password) {
-		this.PASSWORD = password;
-	}
-	
-	public synchronized static void initEmailSender(String username, String password){
-		EmailSender.getInstance().setUsername(username);
-		EmailSender.getInstance().setPassword(password);
-	}
-	
-	public synchronized static void sendEmail(SBEmail email){
-		if(EmailSender.getInstance().USER_NAME.length() == 0 || EmailSender.getInstance().PASSWORD.length() == 0)
-			throw new RuntimeException("the username or password hasnt been setup yet for emailing");
-		
+	public synchronized static void sendEmail(SBEmail email) throws MalformedSBEmailException{
+		if((email.getBody() == null || email.getBody().length() == 0) && (email.getBodyHtml() == null || email.getBodyHtml().length() == 0))
+			throw new MalformedSBEmailException(new StringBuilder().append("The body and bodyHtml cannot be null or of length zero, email: ").append(email.toString()).toString());
+		if(email.getSubject() == null || email.getSubject().length() == 0)
+			throw new MalformedSBEmailException(new StringBuilder().append("The subject cannot be null or of length zero, email: ").append(email.toString()).toString());
+		if(email.getFrom() == null || email.getFrom().length() == 0)
+			throw new MalformedSBEmailException(new StringBuilder().append("The from cannot be null or of length zero, email: ").append(email.toString()).toString());
+		if(email.getTo() == null || email.getTo().size() == 0)
+			throw new MalformedSBEmailException(new StringBuilder().append("The to cannot be null or of length zero, email: ").append(email.toString()).toString());
+		for(String to : email.getTo()){
+			if(to == null || to.length() == 0)
+				throw new MalformedSBEmailException(new StringBuilder().append("The to emails must all be not null and not of length zero, email: ").append(email.toString()).toString());
+		}
+
 		if(!EmailSender.getInstance().emailQueue.contains(email)){// keeps duplicates from being added to the queue, during this period
 			email.setId(EmailSender.getInstance().saveEmailToDatabase(email));
 			EmailSender.getInstance().emailQueue.add(email);
 		}
+	}
+	
+	public static void sendEmails(ArrayList<SBEmail> emails) throws MalformedSBEmailException {
+		for(SBEmail e : emails)
+			EmailSender.sendEmail(e);
+	}
+	
+	public static void destroy(){
+		EmailSender.getInstance().timer.cancel();
+		System.out.println("email sender destroyed");
+	}
+	
+	public static void create(){
+		EmailSender.getInstance();
+		System.out.println("email sender created");
 	}
 
 	private int saveEmailToDatabase(SBEmail email) {
@@ -119,7 +131,7 @@ public class EmailSender {
 		EmailSender sender = EmailSender.getInstance();
 		ArrayList<SBEmail> emails = new ArrayList<SBEmail>();
 		sender.emailQueue.drainTo(emails);
-		//  the cound and emails.size() should be the same
+		//  the count and emails.size() should be the same
 		sender.sendFromGMail(emails);
 	}
 
@@ -142,9 +154,10 @@ public class EmailSender {
 
 		try {
 			Transport transport = session.getTransport("smtps");
-			transport.connect(host, USER_NAME, PASSWORD);
+			transport.connect(host, EMAIL_USER_NAME, EMAIL_PASSWORD);
 
 			for(SBEmail e : emails){
+				System.out.println("sending email");
 				if(e.isIndividualEmailsToRecipients()){
 					for(String to : e.getTo()) {
 						MimeMessage message = new MimeMessage(session);
@@ -188,7 +201,39 @@ public class EmailSender {
 		catch (MessagingException me) {
 			me.printStackTrace();
 		}
-//		System.out.println("sent");
 	}
-
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

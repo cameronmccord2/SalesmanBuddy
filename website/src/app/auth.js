@@ -315,7 +315,8 @@ auth.provider('AuthService', function($httpProvider){
 
 							// if(params.state && params.state !== "initial")
 								setTimeout(function LEAVEANGULAR() {// go to my server
-									var url = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/" + 'codeForToken';
+									// var url = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/" + 'codeForToken';
+									var url = "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/" + 'codeForToken';
 									url += "?code=" + params.code + '&deviceType=2&state=' + params.state + '&redirect_uri=' + pathChunks[0].split('#')[0];
 									$window.open(url, '_self');
 								}, 0);

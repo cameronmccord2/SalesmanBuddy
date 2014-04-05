@@ -125,6 +125,27 @@ CREATE TABLE userTree (
 	type 						int 		 default 0 				  NOT NULL
 );
 
+CREATE TABLE stockNumbers (
+	id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	dealershipId                int                                   NOT NULL FOREIGN KEY REFERENCES dealerships(id),
+	stockNumber 				NVARCHAR(30) 						  NOT NULL,
+	status 						int 		 default 0				  NOT NULL,
+	created                     DATETIME2    default SYSUTCDATETIME() NOT NULL,
+	soldOn                      DATETIME2    						  NULL,
+	createdBy 					int 								  NULL
+);
+
+CREATE TABLE emailBackup (
+	id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	created                     DATETIME2    default SYSUTCDATETIME() NOT NULL,
+	sentAt 						DATETIME2 							  NULL,
+	toEmails 				    NVARCHAR(4000) 						  NOT NULL,
+	fromEmail 					NVARCHAR(256) 						  NOT NULL,
+	subject 					NVARCHAR(256) 						  NOT NULL,
+	message 					NVARCHAR(max) 						  NOT NULL,
+	status 						int 		 default 0				  NOT NULL
+);
+
 
 
 

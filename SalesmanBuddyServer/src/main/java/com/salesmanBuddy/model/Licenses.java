@@ -13,13 +13,6 @@ public class Licenses {
 	protected Integer userId;
 	protected Integer stateId;
 	protected Date created;
-	
-	public String getReportString() {
-		StringBuilder sb = new StringBuilder();
-		sb.append(this.toString());
-		sb.append("\n");
-		return sb.toString();
-	}
 
 	public String toString() {
 		StringBuilder sb = new StringBuilder("");

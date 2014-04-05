@@ -15,18 +15,6 @@ public class Answers {
     protected Integer questionId;
     protected ImageDetails imageDetails;
     
-    /*
-     * id                         int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    answerText                 NVARCHAR(100)                        NOT NULL,
-    answerBool                 BIT          default 0                NOT NULL,
-    answerIsBool               BIT          default 0                NOT NULL,
-    driverId                   int                                   NOT NULL FOREIGN KEY REFERENCES drivers(id),
-    created                    DATETIME2    default SYSUTCDATETIME() NOT NULL(non-Javadoc)
-     * @see java.lang.Object#toString()
-     */
-    
-   
-    
     public static ArrayList<Answers> parseResultSet(ResultSet resultSet){
     	ArrayList<Answers> responses = new ArrayList<Answers>();
     	try{

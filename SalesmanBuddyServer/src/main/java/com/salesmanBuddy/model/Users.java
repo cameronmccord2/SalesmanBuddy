@@ -99,4 +99,71 @@ public class Users {
 		builder.append("]");
 		return builder.toString();
 	}
+
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((created == null) ? 0 : created.hashCode());
+		result = prime * result
+				+ ((dealershipId == null) ? 0 : dealershipId.hashCode());
+		result = prime * result
+				+ ((deviceType == null) ? 0 : deviceType.hashCode());
+		result = prime * result
+				+ ((googleUserId == null) ? 0 : googleUserId.hashCode());
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result
+				+ ((refreshToken == null) ? 0 : refreshToken.hashCode());
+		result = prime * result + ((type == null) ? 0 : type.hashCode());
+		return result;
+	}
+
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Users other = (Users) obj;
+		if (created == null) {
+			if (other.created != null)
+				return false;
+		} else if (!created.equals(other.created))
+			return false;
+		if (dealershipId == null) {
+			if (other.dealershipId != null)
+				return false;
+		} else if (!dealershipId.equals(other.dealershipId))
+			return false;
+		if (deviceType == null) {
+			if (other.deviceType != null)
+				return false;
+		} else if (!deviceType.equals(other.deviceType))
+			return false;
+		if (googleUserId == null) {
+			if (other.googleUserId != null)
+				return false;
+		} else if (!googleUserId.equals(other.googleUserId))
+			return false;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		if (refreshToken == null) {
+			if (other.refreshToken != null)
+				return false;
+		} else if (!refreshToken.equals(other.refreshToken))
+			return false;
+		if (type == null) {
+			if (other.type != null)
+				return false;
+		} else if (!type.equals(other.type))
+			return false;
+		return true;
+	}
 }

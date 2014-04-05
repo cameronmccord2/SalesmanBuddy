@@ -157,7 +157,6 @@ public class EmailSender{
 			transport.connect(host, EMAIL_USER_NAME, EMAIL_PASSWORD);
 
 			for(SBEmail e : emails){
-				System.out.println("sending email");
 				if(e.isIndividualEmailsToRecipients()){
 					for(String to : e.getTo()) {
 						MimeMessage message = new MimeMessage(session);

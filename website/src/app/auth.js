@@ -1,71 +1,5 @@
-/////   MTCAuthenticationService ////////
-// This will handle authentication for all apps
-// To configure, include module and in app.config ...
- 
-//////////////////////////////////////
-// IMPORTANT IMPORTANT IMPORTANT /////
-//////////////////////////////////////
-// YOU MUST USE angular 1.1.4 or HIGHER for this module to work properly!!!!
- 
-// Include in your module the dependancy ---> angular.module('someapp', ['MTCAuthenticationService'])
-// Inject AuthServiceProvider in a config function
-/// app.config(['AuthServiceProvider', function(AuthServiceProvider){
-		// Configureable Options:
-		// AuthServiceProvider.setClientID(yourClientID);
-		// AuthServiceProvider.pushScope(URLYouDependOn)  Do this for each scope
- 
-		// NEW
-		// You may now set the 'state' portion of the OAuth2 URL and the Auth Module
-		// will use it as an angular route to direct your app too upon load,  you can set
-		// it in the provider like so
-		// MTCAuthSerivceProvider.setState("/my/special/angular/route");
-		// or use it on the AuthService itself
- 
-		// DEPRECATED
-		// The auth module will now automatically set your redirect URI and also
-		// take you to angular routes in your app on redirect.  If you chooose to set
-		// it manually, we will use that instead
-		// AuthServiceProvider.setRedirectURI(path)
-		// Only one of these 3 may be used
-		// AuthServiceProvider.requireByu()  Requires a BYU login first time
-		// AuthServiceProvider.encourageByu()  Asks nicely for BYU login
-		// AuthServiceProvider.enforceByu()  Forces a BYU signin everytime no matter what
-// }])
-// NOTE:
-// This module automatically requests access to the https://api.mtc.byu.edu/auth scope
-// If you use this scope, it isn't necessary to push it
-// Thats it.  You should be off and running
-// To access the current user logged in inject the User service
-// You should first call the initUser function to ensure that the token needed to
-// get this user is available.  Here is a common use case
-//
-// User.initUser().then(function(){
-//            $scope.user = User.getUser();
-// })
-// The User.getUser() function returns the initialized user.
-// You can guaranatee that the user object will be there if you first call
-// initUser and use the .then property of the returned promise
+/////   Cameron McCord's Auth service ////////
 
-// You also have access to User.isUserInRole
-// Pass it a string, and you will get a boolean telling you
-// if the logged in user has that role
-// Ensure the user is initialized before using...
-// User.initUser().then(function(){
-//	        $scope.isAdmin = User.isUserInRole("myadminrole")
-// })
-// You may use the built in logout function like so
-// function ($scope, User) {
-//            $scope.logout = User.logout;
-// }
-// ....
-// <div ng-click="logout()"></div>
-
-// You may also get the list of Locations that a user has rights in
-// User.initUser().then(function(){
-//	        var locations = User.getUserLocations();
-// })
-// This will be an array of mtc location ids (2010852, 2012659, etc)
-// Most users will only have one, but some may have rights to multiple MTCs
 var auth = angular.module('AuthenticationService', []);
 // Configure service that will handle redirectURIs and ClientIds
 auth.provider('AuthService', function($httpProvider){
@@ -76,15 +10,15 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.state = "";
 	oauth.response_type = 'token';
 	oauth.scope = []; // We Required Auth scope for User Object
-	// oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
-	oauth.codeUrl = 'http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/codeForToken';
+	oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
+	// oauth.codeUrl = 'http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/codeForToken';
 	oauth.byuRequired = false;
 	oauth.byuEncouraged = false;
 	oauth.byuEnforcedEachTime = false;
 	oauth.redirect_uri = "";
 	oauth.unauthenticatedPaths = [];
 	var inTheMiddleOfAuthorization = function(){
-		// console.log("runing")
+
 		var path = String(window.location);
 		var regex = regex = /([^&=]+)=([^&]*)/g;
 		while (m = regex.exec(path.split("?")[1])) {
@@ -113,7 +47,6 @@ auth.provider('AuthService', function($httpProvider){
 		
 		waitForLogin:{
 			resolveThing: function($q, $timeout){
-				// console.log("herer")
 				var defer = $q.defer();
 				if(!inTheMiddleOfAuthorization())
 					defer.resolve();
@@ -143,7 +76,6 @@ auth.provider('AuthService', function($httpProvider){
 
 			var configObject = {
 				isTokenValid: function() {
-					// console.log(new Date(parseInt($window.sessionStorage.expiresAt)), $window.sessionStorage.accessToken)
 					if ((parseInt($window.sessionStorage.expiresAt) > new Date().getTime()) && $window.sessionStorage.accessToken) {
 						token = $window.sessionStorage.accessToken;
 						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
@@ -166,8 +98,6 @@ auth.provider('AuthService', function($httpProvider){
 					$window.sessionStorage.sbUserId = t.user_id;
 					$window.sessionStorage.accessToken = token;
 					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (parseInt(t.expires_in) * 1000) - (1000 * 60 * 5)).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
-					// console.log(t.expires_in)
-					// alert(new Date(parseInt($window.sessionStorage.expiresAt)));
 					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
 				},
 				inTheMiddleOfAuthorization: function(){
@@ -195,97 +125,7 @@ auth.provider('AuthService', function($httpProvider){
 				setRedirectURI: function(uri) {
 					oauth.redirect_uri = uri;
 				},
-
-				// retrieveToken: function() {
- 
-				// 	// Try to get the token from 3 different places
-				// 	// First: Check route params and see if we have it there
-				// 	// Second: Check sessionStorage for token
-				// 	// Third: Redirect to signin and get token
-				// 	// Look on route params
-				// 	var params = {}, queryString = '', path = String(window.location), regex = /([^&=]+)=([^&]*)/g, m;
-				// 	// remove the # added to the front of the URL
-				// 	var pathChunks = path.split("#");
- 
-				// 	if(pathChunks.length > 1) {
- 
-				// 		if(pathChunks[1].charAt(0) === "/")// if hash was found, this shouldnt be undefined
-				// 			pathChunks[1] = pathChunks[1].substring(1);
- 
-				// 		queryString = pathChunks[1];
-							   
- 
-				// 		while (m = regex.exec(queryString)) {
-				// 			params[decodeURIComponent(m[1])] = decodeURIComponent(m[2]);// save out each query param
-				// 		}
-			   
-	 
-				// 		if(params && params.access_token && params.expires_in && params.state) {
-				// 			// Got token from a redirect query string
-				// 			this.setToken(params);
-				// 			if(params.state && params.state !== "initial")
-				// 				setTimeout(function LEAVEANGULAR() {
-				// 					window.location.href = pathChunks[0] + "#" + params.state;
-				// 				}, 0);
-				// 		}
-				// 	}
- 
-				// 	// Look in sessionStorage, verify token in there is good
-				// 	if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
-				// 		token = $window.sessionStorage.accessToken;
-				// 		$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
-				// 	}
-				// 	// If checkToken is still false, and there is nothing in sessionStorage
-				// 	// redirect to sign in
-				// 	if (!this.checkToken()) {
-				// 		var url = this.buildUrl();
-				// 		$window.open(url, '_self');
-				// 	}
- 
-				// 	return this.getToken();
-				// },
-				// buildUrl: function() {
-				// 	function spaceDelimitScope(scopes) {
-				// 		var string = '';
-				// 		for (var i = scopes.length - 1; i >= 0; i--) {
-				// 			var scope = scopes[i];
-				// 			string += scope;
-				// 			if (i != 0) { // Last one, no space
-				// 				string += ' ';
-				// 			}
-				// 		};
-				// 		return string;
-				// 	}
- 
-				// 	var locationSplit = window.location.href.split("#");
-				// 	var redirect = locationSplit[0];
-
-				// 	if(!oauth.state)
-				// 		oauth.state = encodeURIComponent(locationSplit.length > 1 ? locationSplit[1] : oauth.state);
- 
-				// 	// If user set the redirect URI manually, ignore the implicit angular path for redirect
-				// 	if (oauth.redirect_uri === "")
-				// 		oauth.redirect_uri = redirect;
-				// 	var url = oauth.url;
-				// 	url += '?client_id=' + oauth.client_id;
-				// 	url += '&response_type=' + oauth.response_type;
-				// 	url += '&redirect_uri=' + oauth.redirect_uri;
-				// 	url += '&scope=' + spaceDelimitScope(oauth.scope);
-				// 	url += '&state=' + oauth.state;
-				// 	if (oauth.byuRequired || oauth.byuEncouraged || oauth.byuEnforced) {
-								  
-				// 		url += '&request_auths=';
-				// 		if (oauth.byuRequired)
-				// 			url += 'byurequired';
-				// 		if (oauth.byuEncouraged)
-				// 			url += 'byu';
-				// 		if (oauth.byuEnforced)
-				// 			url += 'byulogin';
-				// 	}
-				// 	return url;
-				// },
 				retrieveToken: function() {
-					//http://localhost:8080/salesmanBuddyAdmin/?state=initial&code=4/cbQCkbZQQIEf5XdYVhTTG7GUcSa6.kvELHd3p2poTmmS0T3UFEsNcBBR8iQI#/comingSoon
  
 					// Try to get the token from 3 different places
 					// First: Check route params and see if we have it there
@@ -316,9 +156,7 @@ auth.provider('AuthService', function($httpProvider){
 
 							// if(params.state && params.state !== "initial")
 								setTimeout(function LEAVEANGULAR() {// go to my server
-									// var url = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/" + 'codeForToken';
 									var url = oauth.codeUrl;
-									// var url = "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/" + 'codeForToken';
 									url += "?code=" + params.code + '&deviceType=2&state=' + params.state + '&redirect_uri=' + pathChunks[0].split('#')[0];
 									$window.open(url, '_self');
 								}, 0);

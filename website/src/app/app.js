@@ -2,8 +2,8 @@ var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationServic
 
 // TODO new user managers don't get assigned to type 2
 
-// app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
-app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
+app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
+// app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.constant("clientId", "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com");
 app.constant("userInfoEndpoint", "users/me");
 app.constant("usersPath", "users");

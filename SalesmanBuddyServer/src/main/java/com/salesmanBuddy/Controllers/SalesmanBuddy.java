@@ -732,7 +732,12 @@ public class SalesmanBuddy {
     		if(googleUserId.length() == 0)// assume that they are changing themselves
     			googleUserId = request.getUserPrincipal().getName();
     		
-    		return Response.ok(dao.updateUserToDealershipCode(googleUserId, dealershipCode)).build();
+    		Users user = null;
+    		if(type > 0)
+    			user = dao.updateUserToDealershipCodeType(googleUserId, dealershipCode, type);
+    		else
+    			user = dao.updateUserToDealershipCode(googleUserId, dealershipCode);
+    		return Response.ok(user).build();
     	}else if(type > 0){
     		if(googleUserId.length() == 0)// assume that they are changing themselves, I dont do this anywhere right now
     			googleUserId = request.getUserPrincipal().getName();

@@ -20,6 +20,12 @@
 	min-width: 1200px;
 }
 
+.subTopBarContainer{
+	width: 75%;
+	height: 40px;
+	float: left;
+}
+
 .topBarCompanyName{
 	color: white;
 	text-align: center;
@@ -80,8 +86,25 @@
 	margin: 42px 10px 0px 10px;
 }
 
+.subNavOption{
+	background-color: rgb(245, 245, 255);
+	cursor: pointer;
+	height: 40px;
+	float: right;
+	min-width: 100px;
+	text-align: center;
+	font-size: 12px;
+	text-decoration: none;
+}
+
 .navOptionText{
 	margin: 8px 5px 0px 5px;
+	display:block;
+	cursor: pointer;
+}
+
+.subTopBarContainer .navOptionText{
+	margin: 13px 5px 0px 5px;
 	display:block;
 	cursor: pointer;
 }
@@ -91,9 +114,19 @@
 	margin-top: 28px;
 }
 
+.subTopBarContainer .navDivSelected{
+	height: 40px;
+	margin-top: 0px;
+}
+
 .navTextSelected{
 	margin-top: 16px;
 	text-decoration: underline;;
+}
+
+.subTopBarContainer .navTextSelected{
+	text-decoration: underline;
+	margin-top: 13px;
 }
 
 .titleText{

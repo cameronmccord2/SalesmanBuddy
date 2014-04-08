@@ -946,6 +946,23 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
 		return this.getUserByGoogleId(googleUserId);
 	}
+	
+	public Users updateUserToDealershipCodeType(String googleUserId, String dealershipCode, int type) {
+		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
+		String sql = "UPDATE users SET dealershipId = ?, type = ? WHERE googleUserId = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, dealershipId);
+			statement.setInt(2, type);
+			statement.setString(3, googleUserId);
+			i = statement.executeUpdate();
+		}catch(SQLException sqle){
+			throw new RuntimeException("dealershipId: " + dealershipId + ", type:" + type + ", " + sqle.getLocalizedMessage());
+		}
+		if(i == 0)
+			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
+		return this.getUserByGoogleId(googleUserId);
+	}
 
 
 	private Dealerships getDealershipByDealershipCode(String dealershipCode) {
@@ -3174,6 +3191,9 @@ grant_type=refresh_token
 		Media media = this.getMediaById(mediaId);
 		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());
 	}
+
+
+	
 
 
 	

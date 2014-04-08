@@ -8,6 +8,8 @@ function licensesListCtrl($scope, licensesFactory, User, dealershipsFactory, use
 	$scope.selected = {};
 	$scope.hideCheckedLicenses = true;
 	$scope.search = "";
+	$scope.showBottom = true;
+	$scope.loadingMessage = "Loading Your Test Drives";
 
 	$scope.order = {
 		column:"",
@@ -43,7 +45,7 @@ function licensesListCtrl($scope, licensesFactory, User, dealershipsFactory, use
 	];
 	
 	User.initUser().then(function(){
-		if(User.getUser().sb.type == 1)// get them for this user
+		if($scope.isPath("/testDrives") || User.getUser().sb.type == 1)// get them for this user
 			$scope.selectedUser(User.getUser().sb.googleUserId);
 		else if(User.getUser().sb.type == 2)// choose whole dealership or specific user
 			$scope.selectedDealership(User.getUser().sb.dealershipId);
@@ -83,7 +85,6 @@ function licensesListCtrl($scope, licensesFactory, User, dealershipsFactory, use
 	}
 
 	$scope.selectedDealership = function(dealership){
-		console.log(dealership)
 		usersFactory.getUsersForDealershipId(dealership.id).then(function(users){
 			$scope.dealershipUsers = [];
 			$scope.dealershipUsers.push({name:"All Users", googleUserId:"0"});
@@ -99,8 +100,13 @@ function licensesListCtrl($scope, licensesFactory, User, dealershipsFactory, use
 	}
 
 	$scope.selectedUser = function(user){
+		$scope.showBottom = false;
 		if(user.googleUserId == "-1"){
-
+			licensesFactory.getAllLicenses().then(function(licenses){
+				$scope.displayList = $scope.processLicenses(licenses);
+				$scope.view = 'main';
+				$scope.showBottom = true;
+			});
 		}else if(user.googleUserId == "0"){
 			var id = null;
 			if($scope.selected.dealership && $scope.selected.dealership.id)
@@ -109,11 +115,13 @@ function licensesListCtrl($scope, licensesFactory, User, dealershipsFactory, use
 			licensesFactory.getAllLicensesForDealership(id).then(function(licenses){
 				$scope.displayList = $scope.processLicenses(licenses);
 				$scope.view = "main";
+				$scope.showBottom = true;
 			});
 		}else{
 			licensesFactory.getAllLicensesForUser(user.googleUserId).then(function(licenses){
 				$scope.displayList = $scope.processLicenses(licenses);
 				$scope.view = "main";
+				$scope.showBottom = true;
 			});
 		}
 	}

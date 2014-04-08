@@ -2,8 +2,8 @@ var app = angular.module('SALESMANBUDDYADMIN', ['ngRoute', 'AuthenticationServic
 
 // TODO new user managers don't get assigned to type 2
 
-app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
-// app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
+// app.constant("baseUrl", "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/");
+app.constant("baseUrl", "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/");
 app.constant("clientId", "38235450166-qo0e12u92l86qa0h6o93hc2pau6lqkei.apps.googleusercontent.com");
 app.constant("userInfoEndpoint", "users/me");
 app.constant("usersPath", "users");
@@ -17,24 +17,43 @@ app.constant("licenseImagePath", "licenseimage");
 app.constant("userTreePath", "userTree");
 app.constant("errorPath", "error");
 app.constant("reportsPath", "reports");
-app.constant("accessRights", {salesman:1, manager:2, sbUser:3});// page:required type level
+app.constant("accessRights", {salesman:1, manager:2, sbUser:3, upperSBUser:4});// page:required type level
+app.constant("rightsSBUser", 'sbUser');// same as values in accessRights
+app.constant("rightsManager", 'manager');
+app.constant("rightsSalesman", 'salesman');
+app.constant("rightsUpperSBUser", 'upperSBUser')
 
 
 app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', function($routeProvider, $locationProvider, AuthServiceProvider) {
   $routeProvider.
-	when('/comingSoon', { templateUrl: 'templates/comingSoon.html', controller: comingSoonCtrl, resolve: AuthServiceProvider.waitForLogin}).
+	// when('/comingSoon', { templateUrl: 'templates/comingSoon.html', controller: comingSoonCtrl, resolve: AuthServiceProvider.waitForLogin}).
 	when('/home', { templateUrl: 'templates/home.html', controller: homeCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/faq', { templateUrl: 'templates/help.html', controller: helpCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/loggedOut', { templateUrl: 'templates/loggedOut.html', controller: loggedOutCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/contactUs', { templateUrl: 'templates/contactUs.html', controller: contactUsCtrl, resolve: AuthServiceProvider.waitForLogin }).
-	when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
-	when('/licensesList', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
-	when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/allUsers', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/testDrives', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/dealershipManager', { templateUrl: 'templates/dealershipManager.html', controller: dealershipManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/newUser/:dealershipCode/:userType', { templateUrl: 'templates/newUser.html', controller: newUserCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/pricing', {templateUrl: 'templates/pricing.html', resolve: AuthServiceProvider.waitForLogin}).
 	when('/how', {templateUrl: 'templates/how.html', resolve: AuthServiceProvider.waitForLogin}).
-	when('/reportsManager', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
-	otherwise({ redirectTo: '/comingSoon' });
+	// when('/reportsManager', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
+
+	// new routes
+	when('/sbAdmin', {redirectTo:'/sbAdmin/dealerships'}).
+	when('/sbAdmin/dealerships', { templateUrl: 'templates/dealerships.html', controller: dealershipsCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/sbAdmin/testDrives', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/sbAdmin/users', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/sbAdmin/stockNumbers', { templateUrl: 'templates/stockNumbers.html', controller: stockNumbersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/sbAdmin/reports', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
+
+	when('/manager', {redirectTo:'/manager/reports'}).
+	when('/manager/reports', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	when('/manager/stockNumbers', {templateUrl:'templates/stockNumbers.html', controller: stockNumbersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/manager/users', {templateUrl:'templates/mUsers.html', controller: mUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/manager/testDrives', {templateUrl:'templates/mTestDrives.html', controller: mTestDrivesCtrl, resolve: AuthServiceProvider.waitForLogin }).
+
+	otherwise({ redirectTo: '/home' });
 }]);
 
 app.config(['AuthServiceProvider', 'baseUrl', 'clientId', function(AuthServiceProvider, baseUrl, clientId){
@@ -226,11 +245,12 @@ app.factory('usersFactory',function(baseUrl, usersPath, genericFactory, $http, $
 		return genericFactory.request('post', baseUrl + usersPath + "/" + googleUserId, "error updateUserToType", null, options);
 	}
 
-	factory.updateUserToDealershipCode = function(googleUserId, dealershipCode){
+	factory.updateUserToDealershipCode = function(googleUserId, dealershipCode, type){
 		// factory.userExists();
 		var options = {
 			params:{
-				dealershipcode:dealershipCode
+				dealershipcode:dealershipCode,
+				type:type || 0
 			}
 		};
 		// updates the specified googleUserId or "" meaning themselves
@@ -547,13 +567,17 @@ app.factory('licenseImageFactory',function(baseUrl, licenseImagePath, saveDataPa
 //******************************************
 // Rootscope Setup
 //********************************************
-app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl, dealershipsFactory, accessRights) {
+app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory, $q, userInfoEndpoint, baseUrl, dealershipsFactory, accessRights, rightsUpperSBUser, rightsSalesman, rightsManager, rightsSBUser) {
 	User.setUserInfoEndpoint(baseUrl + userInfoEndpoint);
 	$http.defaults.headers.common.authprovider = "google";
 
 	$rootScope.needsToBeLoggedIn;
 	$rootScope.userIsLoggedIn = false;
 	$rootScope.user = null;
+	$rootScope.rightsUpperSBUser = rightsUpperSBUser;
+	$rootScope.rightsSBUser = rightsSBUser;
+	$rootScope.rightsSalesman = rightsSalesman;
+	$rootScope.rightsManager = rightsManager;
 
 	$rootScope.logout = function(){
 		$rootScope.user = null;
@@ -561,7 +585,7 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 	}
 
 	$rootScope.goToPage = function(page){
-		$location.path("/" + page);
+		$location.path(page);
 	}
 
 	if(AuthService.isTokenValid()){
@@ -581,34 +605,70 @@ app.run(function ($rootScope, $http, User, AuthService, $location, usersFactory,
 	}
 
 	$rootScope.doesUserHaveAccessTo = function(what, exactly){
+		if(what == undefined || what.length == 0)
+			return true;
+
 		if(User.getUser()){
 			var type = User.getUser().sb.type;
-			if(exactly)
-				return (type == accessRights[what]);
-			else
-				return (type >= accessRights[what])
+			// console.log(type, what, exactly);
+			for (var i = what.length - 1; i >= 0; i--) {
+				// console.log(accessRights[what[i]])
+				if(exactly){
+					if(type == accessRights[what[i]])
+						return true;
+				}else if(type >= accessRights[what[i]])
+					return true;
+			};
+			
 		}
+		// if(exactly)
+		// 	console.log("strict")
 		return false;
 	}
 
 	$rootScope.isPath = function(path){
+		// console.log($rootScope.isSelected(path).length)
 		return $rootScope.isSelected(path).length;
 	}
 
 	$rootScope.isSelected = function(path, div){
-		var currentPath = $location.path().substr(1, 1+path.length);
-		if(div){
-			if(currentPath == path)
+		var currentPath = $location.path().substr(0, path.length);
+		// if(path == '/sbAdmin')
+		// 	console.log(currentPath, path, $location.path(), div)
+		if(currentPath == path){
+			if(div)
 				return 'navDivSelected';
-		}else{
-			if(currentPath == path)
-				return 'navTextSelected';
+			return 'navTextSelected';
 		}
 		return '';
 	}
+
+	$rootScope.tabs = {
+		main:[
+			{name:"Home", path:"/home", auth:[]},
+			{name:"How", path:"/how", auth:[]},
+			{name:"Pricing", path:"/pricing", auth:[]},
+			{name:"FAQ", path:"/faq", auth:[]},
+			{name:"Contact Us", path:"/contactUs", auth:[]},
+			{name:"My Test Drives", path:"/testDrives", auth:[rightsSalesman, rightsManager, rightsSBUser, rightsUpperSBUser], strictAuth:true},
+			{name:"Manager", path:"/manager/reports", auth:[rightsManager], strictAuth:true, specificPath:"/manager/"},
+			{name:"SB Admin", path:"/sbAdmin/dealerships", auth:[rightsSBUser, rightsUpperSBUser], strictAuth:true, specificPath:"/sbAdmin/"}
+		],
+		manager:[
+			{name:'Reports', path:"/manager/reports", auth:[rightsManager], strictAuth:false},
+			// {name:'Stock Numbers', path:"/manager/stockNumbers", auth:[rightsManager], strictAuth:false},
+			{name:'Users', path:"/manager/users", auth:[rightsManager], strictAuth:false},
+			{name:'All Test Drives', path:"/manager/testDrives", auth:[rightsManager], strictAuth:false}
+		],
+		sbUser:[
+			{name:'Reports', path:"/sbAdmin/reports", auth:[rightsSBUser], strictAuth:false},
+			{name:'Dealerships', path:"/sbAdmin/dealerships", auth:[rightsSBUser], strictAuth:false},
+			{name:'Users', path:"/sbAdmin/users", auth:[rightsSBUser], strictAuth:false},
+			{name:'Test Drives', path:"/sbAdmin/testDrives", auth:[rightsSBUser], strictAuth:false},
+			// {name:'Stock Numbers', path:"/sbAdmin/stockNumbers", auth:[rightsSBUser], strictAuth:false}
+		]
+	}
 });
-
-
 
 
 

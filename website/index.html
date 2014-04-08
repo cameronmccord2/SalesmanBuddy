@@ -28,25 +28,36 @@
 <body ng-cloak>
 	<div class="topBarCompanyName">
 		<div class="companyName">SalesmanBuddy.com</div>
-		<div ng-show="user" class="logOutContainer">
-			<div class="userName">{{user.google.name}}</div>
-			<div class="logOut" ng-click="logout()">Logout</div>
+		<div class="logOutContainer">
+			<div class="userName" ng-show="user">{{user.google.name}}</div>
+			<a class="userName" ng-hide="user" href="#/testDrives">Login</a>
+			<div class="logOut" ng-show="user" ng-click="logout()">Logout</div>
 		</div>
 	</div>
 	<div class="topBarContainer">
-		<div class="topBar" ng-hide="isPath('comingSoon')">
-			<div class="navOption" ng-click="goToPage('home')" ng-class="isSelected('home', true)"><div class="navOptionText" ng-class="isSelected('home')">Home</div></div>
-			<div class="navOption" ng-click="goToPage('how')" ng-class="isSelected('how', true)"><div class="navOptionText" ng-class="isSelected('how')">How</div></div>
-			<div class="navOption" ng-click="goToPage('pricing')" ng-class="isSelected('pricing', true)"><div class="navOptionText" ng-class="isSelected('pricing')">Pricing</div></div>
-			<div class="navOption" ng-click="goToPage('licensesList')" ng-show="doesUserHaveAccessTo('salesman')" ng-class="isSelected('licensesList', true)"><div class="navOptionText" ng-class="isSelected('licensesList')">Licences List</div></div>
-			<div class="navOption" ng-click="goToPage('allUsers')" ng-show="doesUserHaveAccessTo('sbUser')" ng-class="isSelected('allUsers', true)"><div class="navOptionText" ng-class="isSelected('allUsers')">All Users</div></div>
-			<div class="navOption" ng-click="goToPage('dealershipManager')" ng-show="doesUserHaveAccessTo('sbUser')" ng-class="isSelected('dealershipManager', true)"><div class="navOptionText" ng-class="isSelected('dealershipManager')">Dealership Manager</div></div>
-			<div class="navOption" ng-click="goToPage('reportsManager')" ng-show="doesUserHaveAccessTo('manager')" ng-class="isSelected('reportsManager', true)"><div class="navOptionText" ng-class="isSelected('reportsManager')">Reports Manager</div></div>
-			<div class="navOption" ng-click="goToPage('faq')" ng-class="isSelected('faq', true)"><div class="navOptionText" ng-class="isSelected('faq')">FAQ</div></div>
-			<div class="navOption" ng-click="goToPage('contactUs')" ng-class="isSelected('contactUs', true)"><div class="navOptionText" ng-class="isSelected('contactUs')">Contact Us</div></div>
-			
+		<div class="topBar" ng-hide="isPath('/comingSoon')">
+			<div ng-repeat="tab in tabs.main">
+				<div class="navOption" ng-click="goToPage(tab.path)" ng-class="isSelected(tab.specificPath || tab.path, true)" ng-show="doesUserHaveAccessTo(tab.auth, tab.strictAuth)">
+					<div class="navOptionText" ng-class="isSelected(tab.specificPath || tab.path)" ng-bind="tab.name"></div>
+				</div>
+			</div>
 		</div>
 	</div>
+	<div class="subTopBarContainer" ng-show="isPath('/manager')">
+		<div ng-repeat="tab in tabs.manager">
+			<div class="subNavOption" ng-click="goToPage(tab.path)" ng-class="isSelected(tab.specificPath || tab.path)" ng-show="doesUserHaveAccessTo(tab.auth, tab.strictAuth)">
+				<div class="navOptionText" ng-class="isSelected(tab.specificPath || tab.path)" ng-bind="tab.name"></div>
+			</div>
+		</div>
+	</div>
+	<div class="subTopBarContainer" ng-show="isPath('/sbAdmin')">
+		<div ng-repeat="tab in tabs.sbUser" ng-show="doesUserHaveAccessTo(tab.auth, tab.strictAuth)">
+			<div class="subNavOption" ng-click="goToPage(tab.path)" ng-class="isSelected(tab.specificPath || tab.path, true)">
+				<div class="navOptionText" ng-class="isSelected(tab.specificPath || tab.path)" ng-bind="tab.name"></div>
+			</div>
+		</div>
+	</div>
+	<div style="clear:left"></div>
 	<div ng-view class="viewBox"></div>
 </body>
 	<script src="lib/angular.js"></script>
@@ -57,7 +68,8 @@
 	<script src="src/controllers/allUsersCtrl.js"></script>
 	<script src="src/controllers/homeCtrl.js"></script>
 	<script src="src/controllers/licensesListCtrl.js"></script>
-	<script src="src/controllers/dealershipManagerCtrl.js"></script>
+	<script src="src/controllers/dealershipsCtrl.js"></script>
+	<script src="src/controllers/stockNumbersCtrl.js"></script>
 	<script src="src/controllers/newUserCtrl.js"></script>
 	<script src="src/controllers/helpCtrl.js"></script>
 	<script src="src/controllers/contactUsCtrl.js"></script>

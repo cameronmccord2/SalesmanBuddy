@@ -1,4 +1,4 @@
-function dealershipManagerCtrl($scope, dealershipsFactory, statesFactory){
+function dealershipsCtrl($scope, dealershipsFactory, statesFactory){
 
 	$scope.view = 'loading';
 	$scope.cache = {};

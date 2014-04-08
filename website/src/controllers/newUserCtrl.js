@@ -23,8 +23,12 @@ function newUserCtrl($scope, $routeParams, $location, usersFactory, User, dealer
 		$scope.view = "loading";
 		$scope.loadingMessage = "Please wait while we update your user account.";
 		User.initUser().then(function(){
-			console.log(User.getUser());
-			usersFactory.updateUserToDealershipCode(User.getUser().sb.googleUserId, $routeParams.dealershipCode).then(function(data){
+			var type = 0;
+			if($routeParams.userType == 'salesman')
+				type = 1;
+			else if($routeParams.userType == 'manager')
+				type = 3;
+			usersFactory.updateUserToDealershipCode(User.getUser().sb.googleUserId, $routeParams.dealershipCode, type).then(function(data){
 				$scope.view = "finished";
 			});
 		});

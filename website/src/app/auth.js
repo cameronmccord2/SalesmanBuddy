@@ -76,7 +76,8 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.state = "";
 	oauth.response_type = 'token';
 	oauth.scope = []; // We Required Auth scope for User Object
-	oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
+	// oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
+	oauth.codeUrl = 'http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/codeForToken';
 	oauth.byuRequired = false;
 	oauth.byuEncouraged = false;
 	oauth.byuEnforcedEachTime = false;
@@ -316,7 +317,8 @@ auth.provider('AuthService', function($httpProvider){
 							// if(params.state && params.state !== "initial")
 								setTimeout(function LEAVEANGULAR() {// go to my server
 									// var url = "http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/" + 'codeForToken';
-									var url = "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/" + 'codeForToken';
+									var url = oauth.codeUrl;
+									// var url = "http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/" + 'codeForToken';
 									url += "?code=" + params.code + '&deviceType=2&state=' + params.state + '&redirect_uri=' + pathChunks[0].split('#')[0];
 									$window.open(url, '_self');
 								}, 0);
@@ -408,7 +410,7 @@ auth.provider('AuthService', function($httpProvider){
 	}
 });
 // Configure User Service
-auth.factory('User', function(AuthService, $http, $q, $window, $location){
+auth.factory('User', function(AuthService, $http, $q, $window, $location, $sce){
 	var user = null; // DEPRECATED
 	var googleUser = null;
 	var myUser = null;
@@ -435,20 +437,20 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location){
 				// })
 				// .error(function() { d.reject() } ).then(function(){ // ---- END DEPRECATED
 					// console.log("getting user")
-					$http.get("https://www.googleapis.com/oauth2/v3/userinfo").success(function(data){
+					// $http.get($sce.trustAsResourceUrl("https://www.googleapis.com/oauth2/v3/userinfo")).success(function(data){
 
-						googleUser = data;
+						// googleUser = data;
 						$http.get(userInfoEndpoint).success(function(data){
-							myUser = data;
-
-							user = { google:googleUser, sb:myUser };
+							myUser = data.sb;
+							googleUser = data.google;
+							user = data;
 							d.resolve(user);
 						}).error(function(){
 							d.reject();
 						});
-					}).error(function(){
-						d.reject();
-					});
+					// }).error(function(){
+					// 	d.reject();
+					// });
 				// });
 						  
 			} else {
@@ -575,14 +577,14 @@ auth.config(['$httpProvider', function($httpProvider){
 						return config;
 					}
 					else {
-						// console.log("actually went here")
+						console.log("actually went here")
 						// Check Token.  If all is well, proceed
 						// Otherwise, suspend the request, get a new token, modify the request header
 						// before sending it out, and let it fly
 						// Don't stop from retrieving partials, or other assets with relative URLs
 						// TODO: Figure out better way to determine if URLs are relative or not
 						if (AuthService.isTokenValid() || config.url.indexOf("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=") != -1) {// something needs to be fixed here
-							// console.log("and then here", AuthService.isTokenValid())
+							console.log("and then here", AuthService.isTokenValid())
 							return config;
 						}
 						else {

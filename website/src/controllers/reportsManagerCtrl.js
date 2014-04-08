@@ -1,4 +1,4 @@
-function reportsManagerCtrl($scope, User, dealershipsFactory, userTreeFactory, usersFactory, $q, reportsFactory){
+function reportsManagerCtrl($scope, User, dealershipsFactory, userTreeFactory, usersFactory, $q, reportsFactory, rightsUpperSBUser, rightsSalesman, rightsManager, rightsSBUser){
 
 	$scope.view = 'loading';
 	$scope.dealerships = [];
@@ -63,11 +63,34 @@ function reportsManagerCtrl($scope, User, dealershipsFactory, userTreeFactory, u
 
 	}
 
+	$scope.sendAllReportsNow = function(){
+		if(!($scope.selects && $scope.selects.chosenDealership && $scope.selects.chosenDealership.id && $scope.selects.nowEmail))
+			return;
+		$scope.sendingOnDemandReport = true;
+		var promises = [];
+		for (var i = $scope.summaryOptions.length - 1; i >= 0; i--) {
+			promises.push(reportsFactory.requestReportNow($scope.summaryOptions[i].value, $scope.selects.nowEmail, $scope.selects.chosenDealership.id));
+		};
+		$q.all(promises).then(function(resolutions){
+			$scope.sendingOnDemandReport = false;
+			console.log(resolutions);
+			for (var i = resolutions.length - 1; i >= 0; i--) {
+				if(resolutions[i] != 'Email Sent')
+					alert("error sending email: " + resolutions[i]);
+			};
+		});
+	}
+
 	$scope.sendReportNow = function(){
+		if(!($scope.selects && $scope.selects.reportNowOption && $scope.selects.reportNowOption.value && $scope.selects.chosenDealership && $scope.selects.chosenDealership.id && $scope.selects.nowEmail))
+			return;
 		$scope.sendingOnDemandReport = true;
 		reportsFactory.requestReportNow($scope.selects.reportNowOption.value, $scope.selects.nowEmail, $scope.selects.chosenDealership.id).then(function(data){
-			console.log("data");
+			console.log(data);
 			$scope.sendingOnDemandReport = false;
+		}, function(data){
+			$scope.sendingOnDemandReport = false;
+			alert("Sending that reports has failed. Salesman Buddy has been notified and is working on the problem. Thank you for your patience.");
 		});
 	}
 
@@ -232,12 +255,12 @@ function reportsManagerCtrl($scope, User, dealershipsFactory, userTreeFactory, u
 	}
 
 	User.initUser().then(function(){
-		if($scope.doesUserHaveAccessTo('sbUser')){
+		if($scope.doesUserHaveAccessTo([rightsSBUser])){
 			dealershipsFactory.getAllDealerships().then(function(dealerships){
 				$scope.dealerships = dealerships;
 				$scope.view = 'main';
 			});
-		}else if($scope.doesUserHaveAccessTo('manager', true)){
+		}else if($scope.doesUserHaveAccessTo([rightsManager], true)){
 			$scope.selects.chosenDealership = {
 				id:User.getUser().sb.dealershipId
 			};

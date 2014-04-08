@@ -43,14 +43,14 @@
 			</div>
 		</div>
 	</div>
-	<div class="subTopBarContainer" ng-show="isPath('/manager')">
+	<div class="subTopBarContainer" ng-show="user && isPath('/manager')">
 		<div ng-repeat="tab in tabs.manager">
 			<div class="subNavOption" ng-click="goToPage(tab.path)" ng-class="isSelected(tab.specificPath || tab.path)" ng-show="doesUserHaveAccessTo(tab.auth, tab.strictAuth)">
 				<div class="navOptionText" ng-class="isSelected(tab.specificPath || tab.path)" ng-bind="tab.name"></div>
 			</div>
 		</div>
 	</div>
-	<div class="subTopBarContainer" ng-show="isPath('/sbAdmin')">
+	<div class="subTopBarContainer" ng-show="user && isPath('/sbAdmin')">
 		<div ng-repeat="tab in tabs.sbUser" ng-show="doesUserHaveAccessTo(tab.auth, tab.strictAuth)">
 			<div class="subNavOption" ng-click="goToPage(tab.path)" ng-class="isSelected(tab.specificPath || tab.path, true)">
 				<div class="navOptionText" ng-class="isSelected(tab.specificPath || tab.path)" ng-bind="tab.name"></div>

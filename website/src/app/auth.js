@@ -487,6 +487,9 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location, $sce){
 			$window.sessionStorage.accessToken = '';
 			$window.sessionStorage.expiresAt = '';
 			$location.path('/home');
+			myUser = null;
+			user = null;
+			googleUser = null;
 			// $window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
 		}
 	};

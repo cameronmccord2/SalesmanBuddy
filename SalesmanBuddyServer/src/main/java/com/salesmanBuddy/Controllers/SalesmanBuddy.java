@@ -388,7 +388,8 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getAllLicensesForUserId(@Context HttpServletRequest request, @DefaultValue("") @QueryParam("googleUserId") String requestedGoogleUserId, 
     																			 @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId,
-    																			 @DefaultValue("false") @QueryParam("all") boolean getAll){
+    																			 @DefaultValue("false") @QueryParam("all") boolean getAll,
+    																			 @DefaultValue("true") @QueryParam("getSubData") boolean getSubData){
     	String googleUserId = request.getUserPrincipal().getName();
     	if(getAll){
     		Users user = dao.getUserByGoogleId(googleUserId);
@@ -400,20 +401,20 @@ public class SalesmanBuddy {
     	}else if(dealershipId != 0){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2 || (user.getDealershipId() == dealershipId && user.getType() == 2)){// SB employee OR manager type for the requested dealership
-    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForDealershipId(dealershipId)){};
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForDealershipId(dealershipId, getSubData)){};
             	return Response.ok(entity).build();
     		}
     		return Response.status(400).entity(new ErrorMessage("You must be an SB employee OR specify a valid dealershipId that is the same as your own and have your type be a manager")).build();
     	}else if(requestedGoogleUserId.length() != 0){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2 || (user.getType() == 2 && dao.getUserByGoogleId(requestedGoogleUserId).getDealershipId() == user.getDealershipId())){// SB employee OR manager type for the same dealership as the requested user
-    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId, getSubData)){};
             	return Response.ok(entity).build();
     		}
     		return Response.status(400).entity(new ErrorMessage("You must be an SB employee OR be a manager at the same dealership as the user you are requesting")).build();
     	}else{
     		// must be for themselves
-    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId)){};
+    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId, getSubData)){};
         	return Response.ok(entity).build();
     	}
     }

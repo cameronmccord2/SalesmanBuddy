@@ -339,7 +339,7 @@ public class JDBCSalesmanBuddyDAO {
 	}
 
 	
-	public ArrayList<LicensesListElement> getAllLicensesForUserId(String googleUserId) {
+	public ArrayList<LicensesListElement> getAllLicensesForUserId(String googleUserId, boolean getSubData) {
 		String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
 		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
 		
@@ -351,9 +351,11 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException(sqle);
 		}
 		
-		ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
-		for(int i = 0; i < results.size(); i++){
-			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
+		if(getSubData){
+			ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+			for(int i = 0; i < results.size(); i++){
+				results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
+			}
 		}
 		
 		return results;
@@ -982,7 +984,7 @@ public class JDBCSalesmanBuddyDAO {
 
 
 	
-	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId) {
+	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId, boolean getSubData) {
 		String sql = "SELECT * FROM users WHERE dealershipId = ?";
 		ArrayList<Users> results = new ArrayList<Users>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -994,7 +996,7 @@ public class JDBCSalesmanBuddyDAO {
 		}
 		ArrayList<LicensesListElement> licenses = new ArrayList<LicensesListElement>();
 		for(Users u : results){
-			licenses.addAll(this.getAllLicensesForUserId(u.getGoogleUserId()));
+			licenses.addAll(this.getAllLicensesForUserId(u.getGoogleUserId(), getSubData));
 		}
 		return licenses;
 	}

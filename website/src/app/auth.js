@@ -10,7 +10,8 @@ auth.provider('AuthService', function($httpProvider){
 	oauth.state = "";
 	oauth.response_type = 'token';
 	oauth.scope = []; // We Required Auth scope for User Object
-	oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
+	oauth.codeUrl = null;
+	// oauth.codeUrl = 'http://salesmanbuddyserver.elasticbeanstalk.com/v1/salesmanbuddy/codeForToken';
 	// oauth.codeUrl = 'http://localhost:8080/salesmanBuddy/v1/salesmanbuddy/codeForToken';
 	oauth.byuRequired = false;
 	oauth.byuEncouraged = false;
@@ -35,8 +36,8 @@ auth.provider('AuthService', function($httpProvider){
 		setClientID: function(id) {
 			oauth.client_id = id;
 		},
-		setServerUrl: function(url){
-			oauth.authServerUrl = url;
+		setCodeForTokenUrl: function(url){
+			oauth.codeUrl = url;
 		},
 		pushScope: function(scope) {
 			oauth.scope.push(scope);
@@ -233,14 +234,6 @@ auth.provider('AuthService', function($httpProvider){
 					if(userId == null || userId.length < 1)
 						alert("there is a problem, the userid doesnt exist");
 					return oauth.refreshTokenUrl + "?userId=" + userId;
-				},
-				// UTILITY FUNCTIONS FOR GETTING USER LOGGED IN, LOGGING OUT, ETC
-				// DEPRECATED
-				logout: function() {
-					// Clear session storage
-					$window.sessionStorage.accessToken = '';
-					$window.sessionStorage.expiresAt = '';
-					$window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
 				}
 			};
 			return configObject;
@@ -266,31 +259,16 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location, $sce){
 			var t = AuthService.getToken();
 			if (user == null || AUTH.needsReset) {
 				// Go get the user object
-				// DEPRECATED ----
-				AuthService.retrieveToken();
+				AuthService.retrieveToken();// need this?
 				this.needsReset = false;
-				// $http.get("https://auth.mtc.byu.edu/oauth2/tokeninfo?access_token=" + AuthService.getToken()).success(function(data,status,headers,config){
-				// 	user = data;
-				// 	user.id = AuthService.getToken();
-				// })
-				// .error(function() { d.reject() } ).then(function(){ // ---- END DEPRECATED
-					// console.log("getting user")
-					// $http.get($sce.trustAsResourceUrl("https://www.googleapis.com/oauth2/v3/userinfo")).success(function(data){
-
-						// googleUser = data;
-						$http.get(userInfoEndpoint).success(function(data){
-							myUser = data.sb;
-							googleUser = data.google;
-							user = data;
-							d.resolve(user);
-						}).error(function(){
-							d.reject();
-						});
-					// }).error(function(){
-					// 	d.reject();
-					// });
-				// });
-						  
+				$http.get(userInfoEndpoint).success(function(data){
+					myUser = data.sb;
+					googleUser = data.google;
+					user = data;
+					d.resolve(user);
+				}).error(function(){
+					d.reject();
+				});
 			} else {
 				d.resolve(user); // We already have user
 			}
@@ -328,7 +306,6 @@ auth.factory('User', function(AuthService, $http, $q, $window, $location, $sce){
 			myUser = null;
 			user = null;
 			googleUser = null;
-			// $window.open('https://auth.mtc.byu.edu/oauth2/logout', "_self");
 		}
 	};
 	return config;
@@ -357,10 +334,6 @@ auth.factory('Async', function($q, AuthService, $rootScope, $window){
 			xmlhttp.onreadystatechange = function() {
 				if (xmlhttp.readyState == 4 && (xmlhttp.status == 200 || xmlhttp.status == 302))
 				{
-					// console.log(xmlhttp.response)
-					// params.access_token && params.expires_in && params.state && params.user_id
-
-					// var obj = eval('(' + xmlhttp.response + ')');
 					var obj = JSON.parse(xmlhttp.response);
 					var tokenResponse = {
 						access_token: obj.accessToken,

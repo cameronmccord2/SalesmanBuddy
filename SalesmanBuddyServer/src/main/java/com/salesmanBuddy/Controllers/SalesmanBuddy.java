@@ -489,11 +489,24 @@ public class SalesmanBuddy {
     @PUT
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response newStockNumber(@Context HttpServletRequest request, StockNumbers stockNumber){
+    public Response newStockNumber(@Context HttpServletRequest request, StockNumbers stockNumber, @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId
+    																							, @DefaultValue("") @QueryParam("stockNumber") String stockNumberNumber
+    																							, @DefaultValue("-1") @QueryParam("status") Integer status){
     	String googleUserId = request.getUserPrincipal().getName();
     	Users user = dao.getUserByGoogleId(googleUserId);
-    	if(user.getType() > 2 || user.getDealershipId() == stockNumber.getDealershipId())
+    	if(dealershipId == 0)
+    		dealershipId = user.getDealershipId();
+    	
+    	if(user.getType() > 2 || (user.getDealershipId() == stockNumber.getDealershipId() && user.getType() == 2)){
+    		if(dealershipId != 0 && stockNumberNumber.length() > 0){
+    			stockNumber = new StockNumbers();
+    			stockNumber.setDealershipId(dealershipId);
+    			stockNumber.setStockNumber(stockNumberNumber);
+    			stockNumber.setStatus((status == -1) ? 0 : status);
+    			stockNumber.setCreatedBy(user.getId());
+    		}
     		return Response.ok().entity(dao.newStockNumber(stockNumber)).build();
+    	}
     	return Response.status(400).entity(new ErrorMessage("You must be an sb employee or belong to this dealership to do this")).build();
     }
     

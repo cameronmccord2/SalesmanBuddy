@@ -267,12 +267,35 @@
 
 
 
+.tableLoadingGif{
+	width:20px;
+}
+.newStockNumberModal{
+	width: 500px;
+	height: 535px;
+	position: absolute;
+	background-color: rgb(243, 243, 243);
+	margin-left: 350px;
+}
 
-
-
-
-
-
+.newStockNumberModal .title{
+	text-align: center;
+	text-decoration: underline;
+	font-size: 20px;
+}
+.newStockNumberModal .multipleTextArea{
+	height: 400px;
+	width: 450px;
+	margin-left: 25px;
+}
+.newStockNumberModal .multipleSubmit{
+	margin-left: 205px;
+}
+.newStockNumberModal .singleInput{
+	margin-left: 25px;
+	margin-top: 2px;
+	margin-right: 10px;
+}
 
 
 

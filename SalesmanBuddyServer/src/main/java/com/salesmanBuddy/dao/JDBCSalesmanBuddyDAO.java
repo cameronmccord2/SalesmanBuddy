@@ -1228,7 +1228,9 @@ grant_type=refresh_token
 			name.setName(gui.getName());
 		} catch (GoogleUserInfoException e) {
 			e.printStackTrace();
-			throw new UserNameException(e.getLocalizedMessage());
+			name.setName("<Error getting name>");
+			return name;
+//			throw new UserNameException(e.getLocalizedMessage());
 		} catch (GoogleRefreshTokenResponseException e) {
 			e.printStackTrace();
 			throw new UserNameException(e.getLocalizedMessage());

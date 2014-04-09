@@ -1,3 +1,71 @@
-<div id="stockNumber">
-	Stock Numbers View
+<div ng-include="'templates/noRights.html'"></div>
+<div ng-include="'templates/loading.html'"></div>
+<div class="newStockNumberModal" ng-show="modals.newStockNumber">
+	<div class="title">New Stock Number</div>
+	<div>
+		<input class="singleInput" type="text" ng-model="newStockNumber.stockNumber" placeholder="New Stock Number">
+		<button class="singleSubmit" ng-click="saveNewStockNumber(newStockNumber.stockNumber)">Save</button>
+		<button class="singleClose" ng-click="modals.newStockNumber = false">Close</button>
+	</div>
+	<br><br>
+	<div>
+		<textarea class="multipleTextArea" ng-model="newStockNumber.many" placeholder="Multiple new stock numbers each on their own line."></textarea>
+		<button class="multipleSubmit" ng-click="saveMultipleStockNumbers(newStockNumber.many)">Save many</button>
+		<button class="multipleClose" ng-click="modals.newStockNumber = false">Close</button>
+	</div>
 </div>
+<div id="stockNumbers" class="content" ng-show="view == 'main'">
+	<div ng-show="doesUserHaveAccessTo([rightsSBUser])">
+		Dealerships: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-model="selects.dealership" ng-change="selectedDealership(selects.dealership.id)"></select>
+	</div>
+	<button style="float:right" ng-click="modals.newStockNumber = true">New Stock Number</button>
+	<div class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in columns">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, columns, 1160)">
+				{{column.name}}
+			</div>
+		</div>
+	</div>
+	<div class="tableBody">
+		<div class="row" ng-repeat="thing in stockNumbers | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(thing)">
+			<div class="rowElement" ng-repeat="column in columns" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, columns, 1160)">
+				<div class="rowText" ng-show="column.type == ''">{{thing[column.realColumnName] || 'None'}}</div>
+				<div class="rowText" ng-show="column.type == 'date'">{{thing[column.realColumnName] | date}}</div>
+				<div class="rowText" ng-show="column.type == 'bool'">{{thing[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'datePicker'">
+					<input type="date" ng-model="thing[column.realColumnName]" ng-change="column.ngChange(thing, thing[column.realColumnName])">
+				</div>
+				<div class="rowText" ng-show="column.type == 'loading'">
+					<img class="tableLoadingGif" ng-show="thing[column.realColumnName]" src="assets/loadingBig.gif">
+				</div>
+				<div class="rowText" ng-show="column.type == 'select'"><!-- only works is the column.options was a list defined before and not changed after the column was created -->
+					<select class="changeUserType" ng-model="thing[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, thing[column.realColumnName], thing)"></select>
+				</div>
+				<div class="rowText" ng-show="column.type == 'selectSoldBy'">
+					<select class="changeUserType" ng-model="thing[column.realColumnName]" ng-options="option as option.name for option in dealershipUsers" ng-change="column.ngChange($parent.$index, thing[column.realColumnName], thing)"></select>
+				</div>
+				<input ng-click="$event.stopPropagation()" class="rowText" style="width:150px" ng-show="column.type == '' && column.editable" ng-model="thing[column.realColumnName]">
+				<button ng-show="column.type == 'button'" ng-click="$event.stopPropagation(); column.ngClick(thing)">Save</button>
+			</div>
+		</div>
+	</div>
+	<div ng-show="stockNumbers.length == 0">You have no Stock Numbers in our system</div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

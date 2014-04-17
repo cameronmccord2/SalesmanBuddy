@@ -16,6 +16,7 @@ public class StockNumbers {
 	protected Date created;
 	protected Integer createdBy;
 	protected Date soldOn;
+	protected Integer soldBy;
 	
 	public static ArrayList<StockNumbers> parseResultSet(ResultSet resultSet){
     	ArrayList<StockNumbers> responses = new ArrayList<StockNumbers>();
@@ -44,6 +45,7 @@ public class StockNumbers {
 		response.setStatus(resultSet.getInt("status"));
 		response.setCreatedBy(resultSet.getInt("createdBy"));
 		response.setSoldOn(resultSet.getDate("soldOn"));
+		response.setSoldBy(resultSet.getInt("soldBy"));
 		return response;
 	}
 	
@@ -93,6 +95,8 @@ public class StockNumbers {
 		result = prime * result
 				+ ((dealershipId == null) ? 0 : dealershipId.hashCode());
 		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result + ((soldBy == null) ? 0 : soldBy.hashCode());
+		result = prime * result + ((soldOn == null) ? 0 : soldOn.hashCode());
 		result = prime * result + ((status == null) ? 0 : status.hashCode());
 		result = prime * result
 				+ ((stockNumber == null) ? 0 : stockNumber.hashCode());
@@ -127,6 +131,16 @@ public class StockNumbers {
 				return false;
 		} else if (!id.equals(other.id))
 			return false;
+		if (soldBy == null) {
+			if (other.soldBy != null)
+				return false;
+		} else if (!soldBy.equals(other.soldBy))
+			return false;
+		if (soldOn == null) {
+			if (other.soldOn != null)
+				return false;
+		} else if (!soldOn.equals(other.soldOn))
+			return false;
 		if (status == null) {
 			if (other.status != null)
 				return false;
@@ -154,6 +168,10 @@ public class StockNumbers {
 		builder.append(created);
 		builder.append(", createdBy=");
 		builder.append(createdBy);
+		builder.append(", soldOn=");
+		builder.append(soldOn);
+		builder.append(", soldBy=");
+		builder.append(soldBy);
 		builder.append("]");
 		return builder.toString();
 	}
@@ -164,6 +182,14 @@ public class StockNumbers {
 
 	public void setSoldOn(Date soldOn) {
 		this.soldOn = soldOn;
+	}
+
+	public Integer getSoldBy() {
+		return soldBy;
+	}
+
+	public void setSoldBy(Integer soldBy) {
+		this.soldBy = soldBy;
 	}
 	
 }

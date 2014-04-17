@@ -10,7 +10,7 @@
     <name>SalesmanBuddy</name>
 
     <build>
-        <finalName>SalesmanBuddy-0.0.15</finalName>
+        <finalName>${project.groupId}-${project.version}</finalName>
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

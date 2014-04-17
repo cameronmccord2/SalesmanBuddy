@@ -30,7 +30,6 @@ import javax.ws.rs.core.UriBuilder;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.IOUtils;
-import org.joda.time.DateTime;
 import org.springframework.web.client.RestTemplate;
 
 import com.salesmanBuddy.GOAuthResponse;
@@ -51,6 +50,7 @@ import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.Media;
+import com.salesmanBuddy.model.MediaForApp;
 import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
@@ -527,31 +527,6 @@ public class SalesmanBuddy {
     @POST
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response updateStockNumber(@Context HttpServletRequest request, StockNumbers stockNumber, @DefaultValue("0") @QueryParam("soldOn") long soldOn
-    																							   , @DefaultValue("false") @QueryParam("soldNow") boolean soldNow
-    																							   , @DefaultValue("0") @QueryParam("id") Integer id){
-    	String googleUserId = request.getUserPrincipal().getName();
-    	Users user = dao.getUserByGoogleId(googleUserId);
-    	// TODO check to make sure this works properly
-    	if(id != 0){
-    		if(soldNow){
-    			return Response.ok().entity(dao.updateStockNumberSoldOn(id, new DateTime())).build();
-    		}else if(soldOn != 0){
-    			return Response.ok().entity(dao.updateStockNumberSoldOn(id, new DateTime(soldOn))).build();
-    		}
-    		return Response.status(400).entity(new ErrorMessage("You must specify an id and (soldNow or soldOn)")).build();
-    	}
-    	
-    	if(user.getType() > 2 || user.getDealershipId() == stockNumber.getDealershipId())
-    		return Response.ok().entity(dao.updateStockNumber(stockNumber)).build();
-    		
-    	return Response.status(400).entity(new ErrorMessage("You must be an sb employee or belong to this dealership to do this")).build();
-    }
-    
-    @Path("stockNumbers")
-    @POST
-    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response updateStockNumber(@Context HttpServletRequest request, StockNumbers stockNumber){
     	String googleUserId = request.getUserPrincipal().getName();
     	Users user = dao.getUserByGoogleId(googleUserId);
@@ -914,16 +889,38 @@ public class SalesmanBuddy {
     	}
     }
     
+    @Path("medias")// works 10/13
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response getMediasForAppV1(@Context HttpServletRequest request){
+    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV1()){};
+    	return Response.ok(entity).build();
+    }
+    
     @Path("mediaFile")
     @GET
     public Response getMediaFile(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("mediaid") int mediaId){
-    	return Response.ok(dao.getFileForMediaId(mediaId)).build();
+    	File file = dao.getFileForMediaId(mediaId);
+    	Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).header("Content-Length", file.length()).build();
+    	return response;
     }
     
     @Path("media")
     @DELETE
     public Response deleteMediaById(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("id") int mediaId){
     	return Response.ok(dao.deleteMediaById(mediaId)).build();
+    }
+    
+    @Path("media/name")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
+    public Response putQuestion(@Context HttpServletRequest request, Media media, @DefaultValue("-1") @QueryParam("mediaId") int mediaId
+    															   				, @DefaultValue("") @QueryParam("name") String name){
+    	if(name.length() > 0 && mediaId != -1)
+    		return Response.ok().entity(dao.updateMediaName(mediaId, name)).build();
+    	
+    	return Response.status(400).entity("There has been a problem with your media: " + mediaId + ", name: " + name).build();
     }
     
     @Path("media")// Updated 10/24
@@ -1034,7 +1031,7 @@ public class SalesmanBuddy {
      * To try changing project to 1.7
      */
     @PUT
-    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
     public Response saveStringAsFileForCaptionEditor(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("base64") int base64, @DefaultValue("0") @QueryParam("mediaId") int mediaId, @DefaultValue("0") @QueryParam("popupId") int popupId){
     	String mimeType = request.getHeader("Content-Type");
 		String extension = "";

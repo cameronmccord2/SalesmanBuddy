@@ -18,6 +18,7 @@ public class Popups {
 	protected Integer bucketId;
 	protected String filenameInBucket;
 	protected String extension;
+	protected String bucketName;
 	
 	// convenience, not used now
 	protected String base64Data;
@@ -172,11 +173,142 @@ public class Popups {
 		builder.append(filenameInBucket);
 		builder.append(", extension=");
 		builder.append(extension);
+		builder.append(", bucketName=");
+		builder.append(bucketName);
 		builder.append(", base64Data=");
 		builder.append(base64Data);
 		builder.append(", contentType=");
 		builder.append(contentType);
 		builder.append("]");
 		return builder.toString();
+	}
+
+	public String getBucketName() {
+		return bucketName;
+	}
+
+	public void setBucketName(String bucketName) {
+		this.bucketName = bucketName;
+	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((base64Data == null) ? 0 : base64Data.hashCode());
+		result = prime * result
+				+ ((bucketId == null) ? 0 : bucketId.hashCode());
+		result = prime * result
+				+ ((bucketName == null) ? 0 : bucketName.hashCode());
+		result = prime * result
+				+ ((contentType == null) ? 0 : contentType.hashCode());
+		result = prime * result + ((created == null) ? 0 : created.hashCode());
+		result = prime * result
+				+ ((displayName == null) ? 0 : displayName.hashCode());
+		result = prime * result + ((endTime == null) ? 0 : endTime.hashCode());
+		result = prime * result
+				+ ((extension == null) ? 0 : extension.hashCode());
+		result = prime * result
+				+ ((filename == null) ? 0 : filename.hashCode());
+		result = prime
+				* result
+				+ ((filenameInBucket == null) ? 0 : filenameInBucket.hashCode());
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result
+				+ ((languageId == null) ? 0 : languageId.hashCode());
+		result = prime * result + ((mediaId == null) ? 0 : mediaId.hashCode());
+		result = prime * result
+				+ ((popupText == null) ? 0 : popupText.hashCode());
+		result = prime * result
+				+ ((startTime == null) ? 0 : startTime.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Popups other = (Popups) obj;
+		if (base64Data == null) {
+			if (other.base64Data != null)
+				return false;
+		} else if (!base64Data.equals(other.base64Data))
+			return false;
+		if (bucketId == null) {
+			if (other.bucketId != null)
+				return false;
+		} else if (!bucketId.equals(other.bucketId))
+			return false;
+		if (bucketName == null) {
+			if (other.bucketName != null)
+				return false;
+		} else if (!bucketName.equals(other.bucketName))
+			return false;
+		if (contentType == null) {
+			if (other.contentType != null)
+				return false;
+		} else if (!contentType.equals(other.contentType))
+			return false;
+		if (created == null) {
+			if (other.created != null)
+				return false;
+		} else if (!created.equals(other.created))
+			return false;
+		if (displayName == null) {
+			if (other.displayName != null)
+				return false;
+		} else if (!displayName.equals(other.displayName))
+			return false;
+		if (endTime == null) {
+			if (other.endTime != null)
+				return false;
+		} else if (!endTime.equals(other.endTime))
+			return false;
+		if (extension == null) {
+			if (other.extension != null)
+				return false;
+		} else if (!extension.equals(other.extension))
+			return false;
+		if (filename == null) {
+			if (other.filename != null)
+				return false;
+		} else if (!filename.equals(other.filename))
+			return false;
+		if (filenameInBucket == null) {
+			if (other.filenameInBucket != null)
+				return false;
+		} else if (!filenameInBucket.equals(other.filenameInBucket))
+			return false;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		if (languageId == null) {
+			if (other.languageId != null)
+				return false;
+		} else if (!languageId.equals(other.languageId))
+			return false;
+		if (mediaId == null) {
+			if (other.mediaId != null)
+				return false;
+		} else if (!mediaId.equals(other.mediaId))
+			return false;
+		if (popupText == null) {
+			if (other.popupText != null)
+				return false;
+		} else if (!popupText.equals(other.popupText))
+			return false;
+		if (startTime == null) {
+			if (other.startTime != null)
+				return false;
+		} else if (!startTime.equals(other.startTime))
+			return false;
+		return true;
 	}
 }

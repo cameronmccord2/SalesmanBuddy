@@ -69,6 +69,7 @@ import com.salesmanBuddy.model.LicensesFromClient;
 import com.salesmanBuddy.model.LicensesListElement;
 import com.salesmanBuddy.model.MaxValue;
 import com.salesmanBuddy.model.Media;
+import com.salesmanBuddy.model.MediaForApp;
 import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.SBEmail;
 import com.salesmanBuddy.model.States;
@@ -2446,7 +2447,7 @@ grant_type=refresh_token
 	}
 
 	public StockNumbers newStockNumber(StockNumbers stockNumber) {
-		String sql = "INSERT INTO stockNumbers (dealershipId, stockNumber, status, createdBy) VALUES(?, ?, ?, ?)";
+		String sql = "INSERT INTO stockNumbers (dealershipId, stockNumber, status, createdBy, soldBy) VALUES(?, ?, ?, ?, ?)";
 		int i = 0;
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
@@ -2454,6 +2455,7 @@ grant_type=refresh_token
 			statement.setString(2, stockNumber.getStockNumber());
 			statement.setInt(3, stockNumber.getStatus());
 			statement.setInt(4, stockNumber.getCreatedBy());
+			statement.setInt(5, stockNumber.getSoldBy());
 			statement.execute();
 			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
 			
@@ -2485,13 +2487,15 @@ grant_type=refresh_token
 	}
 
 	public StockNumbers updateStockNumber(StockNumbers stockNumber) {
-		String sql = "UPDATE stockNumbers SET dealershipId = ?, stockNumber = ?, status = ? WHERE id = ?";
+		String sql = "UPDATE stockNumbers SET dealershipId = ?, stockNumber = ?, status = ?, soldOn = ?, soldBy = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, stockNumber.getDealershipId());
 			statement.setString(2, stockNumber.getStockNumber());
 			statement.setInt(3, stockNumber.getStatus());
-			statement.setInt(4, stockNumber.getId());
+			statement.setDate(4, stockNumber.getSoldOn());
+			statement.setInt(5, stockNumber.getSoldBy());
+			statement.setInt(6, stockNumber.getId());
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2503,28 +2507,28 @@ grant_type=refresh_token
 		return stockNumber;
 	}
 	
-	public StockNumbers updateStockNumberSoldOn(Integer id, DateTime at) {
-		// TODO make sure this works properly
-		String sql = "UPDATE stockNumbers SET soldOn = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, at.toString());
-			statement.setInt(2, id);
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException("StockNumberId: " + id + ", dateTime: " + at.toString() + ", error: " + sqle.getLocalizedMessage());
-		}
-		if(i == 0)
-			throw new RuntimeException("update stockNumber failed for stockNumberId: " + id + ", dateTime: " + at.toString());
-		
-		try {
-			return this.getStockNumberById(id);
-		} catch (NoResultInResultSet e) {
-			// fail silently
-		}
-		return null;// will never happen because update was successful
-	}
+//	public StockNumbers updateStockNumberSoldOn(Integer id, DateTime at) {
+//		// TODO make sure this works properly
+//		String sql = "UPDATE stockNumbers SET soldOn = ? WHERE id = ?";
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, at.toString());
+//			statement.setInt(2, id);
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException("StockNumberId: " + id + ", dateTime: " + at.toString() + ", error: " + sqle.getLocalizedMessage());
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("update stockNumber failed for stockNumberId: " + id + ", dateTime: " + at.toString());
+//		
+//		try {
+//			return this.getStockNumberById(id);
+//		} catch (NoResultInResultSet e) {
+//			// fail silently
+//		}
+//		return null;// will never happen because update was successful
+//	}
 
 	public boolean userHasRightsToStockNumberId(Integer stockNumberId, String googleUserId) {
 		try {
@@ -2911,7 +2915,7 @@ grant_type=refresh_token
 
 
 	
-	public List<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
+	public ArrayList<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
 		String sql = "SELECT * FROM popups WHERE languageId = ? AND mediaId = ? ORDER BY startTime";
 		ArrayList<Popups> results = new ArrayList<Popups>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -2923,6 +2927,9 @@ grant_type=refresh_token
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
+		BucketsCE b = this.getCaptionEditorBucket();
+		for(Popups p : results)
+			p.setBucketName(b.getName());
 		return results;
 	}
 
@@ -3152,6 +3159,23 @@ grant_type=refresh_token
 			throw new RuntimeException("File that was just uploaded had 0 for popupId and mediaId, needs one of them");
 		return newFilename;
 	}
+	
+	
+	public Media updateMediaName(int mediaId, String name) {
+		String sql = "UPDATE media SET name = ? WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, name);
+			statement.setInt(2, mediaId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("update media for new name failed for id: " + mediaId + ", name: " + name);
+		return this.getMediaById(mediaId);
+	}
 
 
 	private Media updateMediaForFileUpload(String filenameInBucket, Integer bucketId, String extension, int mediaId) {
@@ -3197,47 +3221,49 @@ grant_type=refresh_token
 	}
 
 
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
-
-
-	
+	public ArrayList<MediaForApp> getMediasForAppV1() {
+		String sql = "SELECT * FROM media WHERE id IN (1062, 1064, 1063, 1049, 1048)";
+		ArrayList<MediaForApp> results = new ArrayList<MediaForApp>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			ResultSet resultSet = statement.executeQuery();
+			results = MediaForApp.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		BucketsCE b = this.getCaptionEditorBucket();
+		ArrayList<Languages> ls = this.getAllLanguages(0);
+		for(MediaForApp m : results){
+			m.setBucketName(b.getName());
+			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
+			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
+			for(Languages l : ls){
+				m.setLanguage(l);
+				if(l.getId().equals(m.getAudioLanguageId())){
+					m.setLanguage(l);
+					break;
+				}
+			}
+		}
+		
+		return results;
+	}
 
 
 	
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

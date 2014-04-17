@@ -132,7 +132,8 @@ CREATE TABLE stockNumbers (
 	status 						int 		 default 0				  NOT NULL,
 	created                     DATETIME2    default SYSUTCDATETIME() NOT NULL,
 	soldOn                      DATETIME2    						  NULL,
-	createdBy 					int 								  NULL
+	createdBy 					int 								  NULL,
+	soldBy 						int 								  NULL
 );
 
 CREATE TABLE emailBackup (

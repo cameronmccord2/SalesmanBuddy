@@ -107,4 +107,74 @@ public class Languages {
 	public void setNativeName(String nativeName) {
 		this.nativeName = nativeName;
 	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result
+				+ ((alternateName == null) ? 0 : alternateName.hashCode());
+		result = prime * result + ((code1 == null) ? 0 : code1.hashCode());
+		result = prime * result + ((code2 == null) ? 0 : code2.hashCode());
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result + ((mtcId == null) ? 0 : mtcId.hashCode());
+		result = prime * result
+				+ ((mtcTaught == null) ? 0 : mtcTaught.hashCode());
+		result = prime * result + ((name == null) ? 0 : name.hashCode());
+		result = prime * result
+				+ ((nativeName == null) ? 0 : nativeName.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		Languages other = (Languages) obj;
+		if (alternateName == null) {
+			if (other.alternateName != null)
+				return false;
+		} else if (!alternateName.equals(other.alternateName))
+			return false;
+		if (code1 == null) {
+			if (other.code1 != null)
+				return false;
+		} else if (!code1.equals(other.code1))
+			return false;
+		if (code2 == null) {
+			if (other.code2 != null)
+				return false;
+		} else if (!code2.equals(other.code2))
+			return false;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		if (mtcId == null) {
+			if (other.mtcId != null)
+				return false;
+		} else if (!mtcId.equals(other.mtcId))
+			return false;
+		if (mtcTaught == null) {
+			if (other.mtcTaught != null)
+				return false;
+		} else if (!mtcTaught.equals(other.mtcTaught))
+			return false;
+		if (name == null) {
+			if (other.name != null)
+				return false;
+		} else if (!name.equals(other.name))
+			return false;
+		if (nativeName == null) {
+			if (other.nativeName != null)
+				return false;
+		} else if (!nativeName.equals(other.nativeName))
+			return false;
+		return true;
+	}
 }

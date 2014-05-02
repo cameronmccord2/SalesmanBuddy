@@ -79,7 +79,7 @@ auth.provider('AuthService', function($httpProvider){
 				isTokenValid: function() {
 					if ((parseInt($window.sessionStorage.expiresAt) > new Date().getTime()) && $window.sessionStorage.accessToken) {
 						token = $window.sessionStorage.accessToken;
-						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+						$httpProvider.defaults.headers.common.Authorization = token;
 						return true;
 					}
 					return false;
@@ -99,7 +99,7 @@ auth.provider('AuthService', function($httpProvider){
 					$window.sessionStorage.sbUserId = t.user_id;
 					$window.sessionStorage.accessToken = token;
 					$window.sessionStorage.expiresAt = new Date(new Date().getTime() + (parseInt(t.expires_in) * 1000) - (1000 * 60 * 5)).getTime(); // Remove 5 minutes, to ensure service updates token before expiration
-					$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+					$httpProvider.defaults.headers.common.Authorization = token;
 				},
 				inTheMiddleOfAuthorization: function(){
 					var path = String(window.location);
@@ -185,7 +185,7 @@ auth.provider('AuthService', function($httpProvider){
 					// Look in sessionStorage, verify token in there is good
 					if($window.sessionStorage.accessToken && $window.sessionStorage.expiresAt && (parseInt($window.sessionStorage.expiresAt) > new Date().getTime())){
 						token = $window.sessionStorage.accessToken;
-						$httpProvider.defaults.headers.common.Authorization = 'Bearer ' + token;
+						$httpProvider.defaults.headers.common.Authorization = token;
 					}
 					// If checkToken is still false, and there is nothing in sessionStorage
 					// redirect to sign in
@@ -336,12 +336,12 @@ auth.factory('Async', function($q, AuthService, $rootScope, $window){
 				{
 					var obj = JSON.parse(xmlhttp.response);
 					var tokenResponse = {
-						access_token: obj.accessToken,
-						expires_in: obj.expiresIn
+						access_token: obj.token,
+						expires_in: obj.expiresAt
 					};
 					AuthService.setToken(tokenResponse);
 					// Modify this header
-					config.headers.Authorization = "Bearer " + AuthService.getToken();
+					config.headers.Authorization = AuthService.getToken();
 					deferred.resolve(config);
 					AUTH.needsReset = true;
 					$rootScope.$apply();
@@ -429,7 +429,7 @@ auth.run(function($rootScope, AuthService, $http, Async, $window, User){
 			// console.log("here")
 			// if (location.host.indexOf("mtc.byu.edu") != -1 && $window.sessionStorage.accessToken) {
 			// 	Async.getTokenAsync().then(function(){
-			// 		$http.defaults.headers.common.Authorization = "Bearer " + AuthService.getToken();
+			// 		$http.defaults.headers.common.Authorization = AuthService.getToken();
 			// 	});
 			// }
 			// else {

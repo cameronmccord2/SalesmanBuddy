@@ -33,10 +33,11 @@
 				<div class="rowText" ng-show="column.type == 'date'">{{thing[column.realColumnName] | date}}</div>
 				<div class="rowText" ng-show="column.type == 'bool'">{{thing[column.realColumnName]}}</div>
 				<div class="rowText" ng-show="column.type == 'datePicker'">
-					<input type="date" ng-model="thing[column.realColumnName]" ng-change="column.ngChange(thing, thing[column.realColumnName])">
+					<input type="date" ng-model="thing[column.realColumnName]" ng-hide="column.ngHide(thing)" ng-change="column.ngChange(thing, thing[column.realColumnName])">
 				</div>
-				<div class="rowText" ng-show="column.type == 'loading'">
-					<img class="tableLoadingGif" ng-show="thing[column.realColumnName]" src="assets/loadingBig.gif">
+				<div class="rowText" ng-show="column.type == 'message'">
+					<div ng-show="thing[column.realColumnName] == 'NONE'"></div>
+					<div ng-show="thing[column.realColumnName] != 'NONE'">{{thing[column.realColumnName]}}<img ng-hide="thing[column.realColumnName] == 'Saved'" class="tableLoadingGif" src="assets/loadingBig.gif"></div>
 				</div>
 				<div class="rowText" ng-show="column.type == 'select'"><!-- only works is the column.options was a list defined before and not changed after the column was created -->
 					<select class="changeUserType" ng-model="thing[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, thing[column.realColumnName], thing)"></select>

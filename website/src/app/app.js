@@ -47,6 +47,7 @@ app.config(['$routeProvider', '$locationProvider', 'AuthServiceProvider', functi
 	when('/sbAdmin/dealerships', { templateUrl: 'templates/dealerships.html', controller: dealershipsCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/sbAdmin/testDrives', { templateUrl: 'templates/licensesList.html', controller: licensesListCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/sbAdmin/users', { templateUrl: 'templates/allUsers.html', controller: allUsersCtrl, resolve: AuthServiceProvider.waitForLogin }).
+	// when('/sbAdmin/stockNumbers', { redirectTo:'/sbAdmin/stockNumbers/None' }).
 	when('/sbAdmin/stockNumbers', { templateUrl: 'templates/stockNumbers.html', controller: stockNumbersCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/sbAdmin/reports', {templateUrl:'templates/reportsManager.html', controller: reportsManagerCtrl, resolve: AuthServiceProvider.waitForLogin }).
 	when('/sbAdmin/dashboard', {templateUrl:'templates/dashboard.html', controller: dashboardCtrl, resolve: AuthServiceProvider.waitForLogin }).
@@ -620,10 +621,6 @@ app.factory('stockNumbersFactory',function(stockNumbersPath, genericFactory){
 
 	factory.updateStockNumber = function(stockNumber){
 		return genericFactory.request('post', stockNumbersPath, 'error updateStockNumber: ' + angular.toJson(stockNumber), stockNumber);
-	}
-
-	factory.updateStockNumberStatus = function(){
-		alert("finish this");
 	}
 
 	factory.deleteStockNumberById = function(id){

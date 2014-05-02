@@ -62,10 +62,12 @@ CREATE TABLE buckets (
 );
 
 CREATE TABLE tokens(
-	id                          int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
-	accessToken                 NVARCHAR(100)                         NOT NULL,
-	type                        NVARCHAR(20)                          NOT NULL,
-	expiresIn                   int                                   NOT NULL
+	id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	userId                   int                                    NOT NULL,
+	token 					 NVARCHAR(100) 							NOT NULL,
+	created                  DATETIME2    default SYSUTCDATETIME()  NOT NULL,
+	expiresAt 				 int 									NOT NULL,
+	type 					 int 									NOT NULL
 );
 
 CREATE TABLE licenses (
@@ -150,6 +152,8 @@ CREATE TABLE emailBackup (
 
 
 
+
+
 -- stuff for trainer app
 
 CREATE TABLE languages(
@@ -179,6 +183,10 @@ CREATE TABLE media (
 	extension                NVARCHAR(10)                           NULL,
 	filenameInBucket         NVARCHAR(30)                           NULL
 );
+
+
+
+INSERT INTO media (name, filename, type, audioLanguageId, bucketId, extension, filenameInBucket) VALUES ('Video #4', 'Portuguese #3.mp4', 1, 284, 1, '.mp4', 'odmgF549DN2VTodmgF549DN2VT');
 
 CREATE TABLE captions (
 	id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,

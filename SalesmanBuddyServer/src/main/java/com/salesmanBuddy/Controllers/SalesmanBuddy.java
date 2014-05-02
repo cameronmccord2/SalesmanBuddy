@@ -45,6 +45,7 @@ import com.salesmanBuddy.model.Dealerships;
 import com.salesmanBuddy.model.ErrorMessage;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
+import com.salesmanBuddy.model.GoogleToken;
 import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.Languages;
 import com.salesmanBuddy.model.LicensesFromClient;
@@ -115,7 +116,7 @@ public class SalesmanBuddy {
 		try {
 			grtr = dao.codeForToken(code, redirect_uri, state);
 			sb.append(redirect_uri);
-	    	sb.append("?access_token=");
+	    	sb.append("?access_token=Bearer%20");
 	    	sb.append(grtr.getAccessToken());
 	    	sb.append("&expires_in=");
 	    	sb.append(grtr.getExpiresIn());
@@ -148,6 +149,8 @@ public class SalesmanBuddy {
 	    	sb.append("&user_id=");
 	    	sb.append(user.getId());
 	    	
+	    	dao.saveGoogleTokenInCache(grtr, user);
+	    	
 		} catch (GoogleRefreshTokenResponseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -167,9 +170,9 @@ public class SalesmanBuddy {
     	Users user = dao.getUserById(userId);
     	if(user == null)
     		return Response.status(400).entity(new ErrorMessage("you must specify a valid user id")).build();
-    	GoogleRefreshTokenResponse grtr = dao.getValidTokenForUser(user.getGoogleUserId(), user);
-    	grtr.setRefreshToken("");// clear this out so the client cant see it
-    	return Response.ok().entity(grtr).build();
+    	GoogleToken gt = dao.getValidTokenForUser(user.getGoogleUserId(), user);
+//    	grtr.setRefreshToken("");// clear this out so the client cant see it
+    	return Response.ok().entity(gt).build();
     }
     
     @Path("reports")
@@ -688,7 +691,7 @@ public class SalesmanBuddy {
     	String googleUserId = request.getUserPrincipal().getName();
     	Users user = dao.getUserByGoogleId(googleUserId);
     	String accessToken = (String)request.getAttribute("accessToken");
-    	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer", accessToken);
+    	GoogleUserInfo gui = dao.getGoogleUserInfo("Bearer " + accessToken);
 //    	user.setRefreshToken(null);
 //    	GenericEntity<CombinedUser> entity = new GenericEntity<CombinedUser>(new CombinedUser(gui, user)){};
 ////    	throw new RuntimeException(entity);

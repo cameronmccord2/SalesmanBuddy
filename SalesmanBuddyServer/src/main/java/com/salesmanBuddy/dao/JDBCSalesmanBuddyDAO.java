@@ -61,6 +61,7 @@ import com.salesmanBuddy.model.DeleteLicenseResponse;
 import com.salesmanBuddy.model.ErrorMessage;
 import com.salesmanBuddy.model.FinishedPhoto;
 import com.salesmanBuddy.model.GoogleRefreshTokenResponse;
+import com.salesmanBuddy.model.GoogleToken;
 import com.salesmanBuddy.model.GoogleUserInfo;
 import com.salesmanBuddy.model.ImageDetails;
 import com.salesmanBuddy.model.Languages;
@@ -635,7 +636,7 @@ public class JDBCSalesmanBuddyDAO {
 	public LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId) {
 		if(licenseFromClient.getId() == null || licenseFromClient.getId() == 0)
 			throw new RuntimeException("id is either null or 0: " + licenseFromClient.toString());
-		this.updateShowInUserListForLicenseId(licenseFromClient.getId(), licenseFromClient.getShowInUserList());
+//		this.updateShowInUserListForLicenseId(licenseFromClient.getId(), licenseFromClient.getShowInUserList());
 		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
 			this.updateAnswerInDatabase(qaa.getAnswer());
 		}
@@ -643,7 +644,6 @@ public class JDBCSalesmanBuddyDAO {
 	}
 
 
-	
 	public ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId, ArrayList<Questions> questions) {
 		ArrayList<Answers> answers = this.getAnswersForLicenseId(licenseId);
 		ArrayList<QuestionsAndAnswers> qas = new ArrayList<QuestionsAndAnswers>();
@@ -1006,7 +1006,7 @@ public class JDBCSalesmanBuddyDAO {
 	
 	
 	public Dealerships getDealershipById(Integer dealershipId) {
-		String sql = "SELECT * FROM dealerships WHERE id = ?";
+		final String sql = "SELECT * FROM dealerships WHERE id = ?";
 		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
@@ -1098,7 +1098,6 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException(e.getLocalizedMessage());
 		}
 		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
-//		JDBCSalesmanBuddyDAO.sendErrorToMe("Got refresh token again for this: " + grtr.toString());
 		return grtr;
 	}
 	
@@ -1145,10 +1144,67 @@ public class JDBCSalesmanBuddyDAO {
 		return responseSB.toString();
 	}
 	
+	private GoogleToken getTokenForUserFromCache(Integer userId){
+		final String sql = "SELECT * FROM tokens WHERE userid = ? order by expiresAt DESC";
+		GoogleToken gt = null;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, userId);
+			
+			ResultSet resultSet = statement.executeQuery();
+			gt = GoogleToken.parseOneRowResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+//		java.util.Date now = new java.util.Date();
+		if(gt == null)
+			return null;
+		DateTime expiresAt = new DateTime(gt.getExpiresAt()).minusMinutes(1);
+//		DateTime expiresAt = new DateTime().plusSeconds((int)gt.getExpiresAt()).minusMinutes(1);
+		DateTime now = new DateTime();
+		if(expiresAt.isAfter(now))
+			return gt;
+		return null;
+	}
 	
-	public GoogleRefreshTokenResponse getValidTokenForUser(String googleUserId, Users user) throws GoogleRefreshTokenResponseException {
+//	id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
+//	userId                   int                                    NOT NULL,
+//	token 					 NVARCHAR(100) 							NOT NULL,
+//	created                  DATETIME2    default SYSUTCDATETIME()  NOT NULL,
+//	expiresAt 				 int 									NOT NULL,
+//	type 					 int 									NOT NULL
+	
+	public int saveGoogleTokenInCache(GoogleRefreshTokenResponse grtr, Users user) {
+		String sql = "INSERT INTO tokens (userId, token, expiresAt, type) VALUES (?, ?, ?, ?)";
+		int i = 0;
+		DateTime expiresAt = new DateTime().plusSeconds((int)grtr.getExpiresIn());
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+			statement.setInt(1, user.getId());
+			statement.setString(2, grtr.getTokenType() + " " + grtr.getAccessToken());
+			
+			
+			statement.setLong(3, expiresAt.getMillis());
+			statement.setInt(4, user.getType());
+
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException("expiresAt: " + expiresAt.getMillis() + ", grtr: " + grtr.toString() + ", user: " + user.toString() + ", error: " + sqle.getLocalizedMessage());
+		}
+		if(i == 0)
+			throw new RuntimeException("insert token failed");
+		return i;
+	}
+	
+	@SuppressWarnings("unused")
+	public GoogleToken getValidTokenForUser(String googleUserId, Users user) throws GoogleRefreshTokenResponseException {
 		if(user == null)
 			user = this.getUserByGoogleId(googleUserId);
+		
+		GoogleToken gt = this.getTokenForUserFromCache(user.getId());
+		if(gt != null)
+			return gt;
+		
+		
 		String iosString = "client_secret=" + GoogleClientSecretiOS
 				+ "&grant_type=refresh_token"
 				+ "&refresh_token=" + user.getRefreshToken()
@@ -1168,6 +1224,10 @@ public class JDBCSalesmanBuddyDAO {
 client_secret={client_secret}&
 refresh_token=1/6BMfW9j53gdGImsiyUH5kU5RsR4zwI9lUVX-tqf8JXQ&
 grant_type=refresh_token
+
+
+
+url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&client_id=38235450166-dgbh1m7aaab7kopia2upsdj314odp8fc.apps.googleusercontent.com&redirect_uri=urn%3Aietf%3Awg%3Aoauth%3A2.0%3Aoob&response_type=code&scope=https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fplus.me%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email
 		 */
 		byte[] body = null;
 		
@@ -1196,17 +1256,20 @@ grant_type=refresh_token
 		} catch (IOException e) {
 			// TODO make this error handling more comprehensive, if refreshtoken is invalid we need to be able to handle it
 			JDBCSalesmanBuddyDAO.sendErrorToMe("couldnt exchange refresh token for googleUserId: " + googleUserId + ", error: " + e.getLocalizedMessage());
-			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", deviceType:" + user.getDeviceType() + ", " + webString);
+			String jsonString = "";
+			if(json != null)
+				jsonString = json.toString();
+			throw new RuntimeException("!IOException: " + e.getLocalizedMessage() + ", deviceType:" + user.getDeviceType() + ", " + new String(body) + ", json: " + jsonString);
 		}catch(JSONException jse){
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
 		}
 		
 		GoogleRefreshTokenResponse grtr = new GoogleRefreshTokenResponse(json);
-		// TODO put token in database for caching?
-		
-		return grtr; 
+		// put token in database for caching
+		this.saveGoogleTokenInCache(grtr, user);
+		return this.getTokenForUserFromCache(user.getId()); 
 	}
-	
+
 	public static void sendErrorToMe(String errorString){
 		ArrayList<String> to = new ArrayList<String>();
 		to.add("cameronmccord2@gmail.com");
@@ -1218,9 +1281,6 @@ grant_type=refresh_token
 		}
 	}
 
-	
-	
-	
 	public UsersName getUsersName(String googleUserId) throws UserNameException {
 		GoogleUserInfo gui;
 		UsersName name = new UsersName();
@@ -1241,12 +1301,12 @@ grant_type=refresh_token
 	
 	
 	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId) throws GoogleUserInfoException, GoogleRefreshTokenResponseException{
-		GoogleRefreshTokenResponse grtr = this.getValidTokenForUser(googleUserId, null);
-		return this.getGoogleUserInfo(grtr.getTokenType(), grtr.getAccessToken());
+		GoogleToken gt = this.getValidTokenForUser(googleUserId, null);
+		return this.getGoogleUserInfo(gt.getToken());
 	}
 	
 	
-	public GoogleUserInfo getGoogleUserInfo(String tokenType, String accessToken) throws GoogleUserInfoException {
+	public GoogleUserInfo getGoogleUserInfo(String token) throws GoogleUserInfoException {
 		URL url;
 		byte[] body = null;
 		JSONObject json = null;
@@ -1257,7 +1317,7 @@ grant_type=refresh_token
 			conn.setDoOutput(true);
 			conn.setRequestMethod("GET");
 			
-			conn.setRequestProperty("Authorization", tokenType + " " + accessToken);
+			conn.setRequestProperty("Authorization", token);
 			whatItHas = conn.getRequestProperty("Authorization");
 			
 			body = IOUtils.toByteArray(conn.getInputStream());
@@ -1268,7 +1328,7 @@ grant_type=refresh_token
 		}catch (MalformedURLException e) {
 			throw new RuntimeException("malformedUrlException: " + e.getLocalizedMessage());
 		} catch (IOException e) {
-			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", tokenType:" + tokenType + ", accessToken: " + accessToken + ", auth:" + whatItHas + ", json: " + json + ", e: " + e);
+			throw new RuntimeException("IOException: " + e.getLocalizedMessage() + ", token:" + token + ", auth:" + whatItHas + ", json: " + json + ", e: " + e);
 		}catch(JSONException jse){
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
 		}

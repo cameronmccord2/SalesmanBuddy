@@ -56,6 +56,7 @@ import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.Questions;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.StockNumbers;
+import com.salesmanBuddy.model.SubPopups;
 import com.salesmanBuddy.model.UserTree;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.UsersName;
@@ -1027,6 +1028,49 @@ public class SalesmanBuddy {
     	return Response.ok(entity).build();
     }
     
+    @Path("subpopups")
+    @GET
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
+    public Response getAllSubPopups(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("popupId") Integer popupId){
+    	if(popupId == 0){
+	    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.getAllSubPopups()){};
+	    	return Response.ok(entity).build();
+    	}else if(popupId != 0){
+    		GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.getAllSubPopupsForPopupId(popupId)){};
+	    	return Response.ok(entity).build();
+    	}else{
+    		throw new RuntimeException("This should never get here, get popups, popupId: " + popupId);
+    	}
+    }
+    
+    @Path("subpopups")// Updated 10/24
+    @PUT
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response putSubPopups(@Context HttpServletRequest request, List<SubPopups> popups){
+    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.putSubPopups(popups)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("subpopups")
+    @POST
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response updateSubPopup(@Context HttpServletRequest request, SubPopups subPopup){
+    	GenericEntity<SubPopups> entity = new GenericEntity<SubPopups>(dao.updateSubPopup(subPopup)){};
+    	return Response.ok(entity).build();
+    }
+    
+    @Path("subpopups")// Updated 10/24
+    @DELETE
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
+    public Response deleteSubPopup(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("subPopupId") int subPopupId){
+    	if(dao.deleteSubPopup(subPopupId) == 1)
+    		return Response.ok().build();
+    	throw new RuntimeException("delete subpopup didnt return a 1");
+    }
+    
     @Path("saveData")// Updated 10/23
     //http://stackoverflow.com/questions/5999370/converting-between-nsdata-and-base64strings
     /*
@@ -1035,7 +1079,10 @@ public class SalesmanBuddy {
      */
     @PUT
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
-    public Response saveStringAsFileForCaptionEditor(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("base64") int base64, @DefaultValue("0") @QueryParam("mediaId") int mediaId, @DefaultValue("0") @QueryParam("popupId") int popupId){
+    public Response saveStringAsFileForCaptionEditor(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("base64") Integer base64,
+    																					  @DefaultValue("0") @QueryParam("mediaId") Integer mediaId, 
+    																					  @DefaultValue("0") @QueryParam("popupId") Integer popupId,
+    																					  @DefaultValue("0") @QueryParam("subPopupId") Integer subPopupId){
     	String mimeType = request.getHeader("Content-Type");
 		String extension = "";
 		File file = null;
@@ -1093,7 +1140,7 @@ public class SalesmanBuddy {
 			}
 		}
 		
-    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId)){};
+    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId, subPopupId)){};
     	file.delete();
     	return Response.ok(entity).build();
     }

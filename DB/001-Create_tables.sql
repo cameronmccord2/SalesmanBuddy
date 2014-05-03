@@ -214,3 +214,24 @@ CREATE TABLE popups (
 	extension                NVARCHAR(10)                          NULL,
 	created                  DATETIME2    default SYSUTCDATETIME() NOT NULL
 );
+
+CREATE TABLE subpopups (
+	id                       int                     IDENTITY(1,1) NOT NULL PRIMARY KEY,
+	popupText                NVARCHAR(4000)                        NULL,
+	popupId                  int                                   NOT NULL FOREIGN KEY REFERENCES popups(id),
+	startTime                int                                   NOT NULL,
+	endTime                  int                                   NOT NULL,
+	filename                 NVARCHAR(100)                         NULL,
+	bucketId                 int                                   NULL FOREIGN KEY REFERENCES bucketsCE(id),
+	filenameInBucket         NVARCHAR(30)                          NULL,
+	extension                NVARCHAR(10)                          NULL,
+	assetPosition 			 int 								   NULL,
+	created                  DATETIME2    default SYSUTCDATETIME() NOT NULL
+);
+
+
+
+
+
+
+

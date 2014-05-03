@@ -75,6 +75,7 @@ import com.salesmanBuddy.model.Popups;
 import com.salesmanBuddy.model.SBEmail;
 import com.salesmanBuddy.model.States;
 import com.salesmanBuddy.model.StockNumbers;
+import com.salesmanBuddy.model.SubPopups;
 import com.salesmanBuddy.model.UserTree;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.Answers;
@@ -2860,7 +2861,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		}
 		
 		
-		String filenameInBucket = this.saveFileToS3ForCaptionEditor(file, extension, media.getId(), 0);// file from this is usable everywhere else, works in chrome
+		String filenameInBucket = this.saveFileToS3ForCaptionEditor(file, extension, media.getId(), 0, 0);// file from this is usable everywhere else, works in chrome
 		file.delete();
 		Media newMedia = this.updateMediaForFileUpload(filenameInBucket, this.getCaptionEditorBucket().getId(), extension, media.getId());
 		return newMedia;
@@ -2876,7 +2877,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			ResultSet resultSet = statement.executeQuery();
 			results = Media.parseResultSet(resultSet);
 		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+			throw new RuntimeException(sqle.getLocalizedMessage() + ", mediaId: " + id);
 		}
 		if(results.size() == 1)
 			return results.get(0);
@@ -2885,9 +2886,9 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 
 	
-	public ArrayList<Media> getAllMedia() {
+	public List<Media> getAllMedia() {
 		String sql = "SELECT * FROM media";
-		ArrayList<Media> results = new ArrayList<Media>();
+		List<Media> results = new ArrayList<Media>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Media.parseResultSet(resultSet);
@@ -3126,7 +3127,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			writer = new OutputStreamWriter(new FileOutputStream(f));
 			writer.write(data);
 			writer.close();
-			filename = this.saveFileToS3ForCaptionEditor(f, extension, 0, 0);
+			filename = this.saveFileToS3ForCaptionEditor(f, extension, 0, 0, 0);
 		} catch (IOException e) {
 			throw new RuntimeException("failed saveStringAsFileForCaptionEditor, error: " + e.getLocalizedMessage());
 		}finally{
@@ -3199,7 +3200,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	
-	public String saveFileToS3ForCaptionEditor(File file, String extension, int mediaId, int popupId){
+	public String saveFileToS3ForCaptionEditor(File file, String extension, Integer mediaId, Integer popupId, Integer subPopupId){
 		if(file == null)
 			throw new RuntimeException("file trying to save to s3 is null");
 		BucketsCE captionEditorBucket = this.getCaptionEditorBucket();
@@ -3215,6 +3216,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			this.updateMediaForFileUpload(newFilename, captionEditorBucket.getId(), extension, mediaId);
 		else if(popupId != 0)
 			this.updatePopupWithUploadedFile(newFilename, captionEditorBucket.getId(), extension, popupId);
+		else if(subPopupId != 0)
+			this.updateSubPopupWithUploadedFile(newFilename, captionEditorBucket.getId(), extension, subPopupId);
 		else
 			throw new RuntimeException("File that was just uploaded had 0 for popupId and mediaId, needs one of them");
 		return newFilename;
@@ -3309,7 +3312,131 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 
+	public List<SubPopups> getAllSubPopups() {
+		String sql = "SELECT * FROM subpopups ORDER BY startTime";
+		List<SubPopups> results = new ArrayList<SubPopups>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			ResultSet resultSet = statement.executeQuery();
+			results = SubPopups.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+
+
+	public List<SubPopups> getAllSubPopupsForPopupId(Integer popupId) {
+		String sql = "SELECT * FROM subpopups WHERE popupId = ? ORDER BY startTime";
+		List<SubPopups> results = new ArrayList<SubPopups>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, popupId);
+
+			ResultSet resultSet = statement.executeQuery();
+			results = SubPopups.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return results;
+	}
+
+
+	public List<SubPopups> putSubPopups(List<SubPopups> subPopups) {
+		List<SubPopups> newList = new ArrayList<SubPopups>();
+		for(SubPopups subPopup : subPopups){
+			if(subPopup.getId() == 0)
+				newList.add(this.newSubPopup(subPopup));
+			else
+				newList.add(this.updateSubPopup(subPopup));
+		}
+		return newList;
+	}
 	
+	public SubPopups updateSubPopup(SubPopups subPopup) {
+		String sql = "UPDATE SubPopups SET popupText = ?, startTime = ?, endTime = ?, filename = ?, assetPosition = ? WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setString(1, subPopup.getPopupText());
+			statement.setInt(2, subPopup.getStartTime());
+			statement.setInt(3, subPopup.getEndTime());
+			statement.setString(4, subPopup.getFilename());
+			statement.setInt(5, subPopup.getAssetPosition());
+			statement.setInt(6, subPopup.getId());
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle.getLocalizedMessage() + ", object: " + subPopup.toString());
+		}
+		if(i == 0)
+			throw new RuntimeException("update SubPopups failed for id: " + subPopup.getId() + ", object: " + subPopup.toString());
+		return this.getSubPopupById(subPopup.getId());
+	}
+
+	public int deleteSubPopup(int subPopupId) {
+		String sql = "DELETE FROM subPopups WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, subPopupId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return i;
+	}
+	
+	public SubPopups newSubPopup(SubPopups subPopup) {
+		String sql = "INSERT INTO subPopups (popupText, popupId, startTime, endTime, filename, assetPosition) VALUES (?, ?, ?, ?, ?, ?)";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
+			statement.setString(1, subPopup.getPopupText());
+			statement.setInt(2, subPopup.getPopupId());
+			statement.setInt(3, subPopup.getStartTime());
+			statement.setInt(4, subPopup.getEndTime());
+			statement.setString(5, subPopup.getFilename());
+			statement.setInt(6, subPopup.getAssetPosition());
+			statement.execute();
+			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		if(i == 0)
+			throw new RuntimeException("insert SubPopup failed, i == 0");
+		return this.getSubPopupById(i);
+	}
+	
+	private SubPopups getSubPopupById(int subPopupId) {
+		String sql = "SELECT * FROM subPopups WHERE id = ?";
+		ArrayList<SubPopups> results = new ArrayList<SubPopups>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, subPopupId);
+			
+			ResultSet resultSet = statement.executeQuery();
+			results = SubPopups.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle.getLocalizedMessage() + ", id: " + subPopupId);
+		}
+		if(results.size() == 1)
+			return results.get(0);
+		throw new RuntimeException("couldnt get subPopup by id: " + subPopupId);
+	}
+
+	public SubPopups updateSubPopupWithUploadedFile(String newFilename, Integer bucketId, String extension, Integer subPopupId){
+		String sql = "UPDATE subPopups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			statement.setInt(1, bucketId);
+			statement.setString(2, newFilename);
+			statement.setString(3, extension);
+			statement.setInt(4, subPopupId);
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle.getLocalizedMessage());
+		}
+		if(i == 0)
+			throw new RuntimeException("updateSubPopupWithUploadedFile failed, i: " + i);
+		return this.getSubPopupById(subPopupId);
+	}
 }
 
 

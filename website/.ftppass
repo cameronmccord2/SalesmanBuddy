@@ -1,0 +1,18 @@
+{
+	"testKey": {
+		"username": "administrator",
+		"password": "admin4MTCbyu"
+	},
+	"devKey":{
+		"username": "administrator",
+		"password": "admin4MTCbyu"
+	},
+	"betaKey":{
+		"username": "administrator",
+		"password": "admin4MTCbyu"
+	},
+	"stageKey":{
+		"username": "administrator",
+		"password": "admin4MTCbyu"
+	}
+}

@@ -2989,8 +2989,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			throw new RuntimeException(sqle);
 		}
 		BucketsCE b = this.getCaptionEditorBucket();
-		for(Popups p : results)
+		for(Popups p : results){
 			p.setBucketName(b.getName());
+			p.setSubPopups(this.getAllSubPopupsForPopupId(p.getId()));
+		}
 		return results;
 	}
 
@@ -3020,10 +3022,27 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	public List<Popups> putPopups(List<Popups> popups) {
 		ArrayList<Popups> newList = new ArrayList<Popups>();
 		for(Popups popup : popups){
-			if(popup.getId() == 0)
-				newList.add(this.newPopup(popup));
-			else
-				newList.add(this.updatePopup(popup));
+			Popups p = null;
+			if(popup.getId() == 0){
+				p = this.newPopup(popup);
+				newList.add(p);
+				
+			}else{
+				p = this.updatePopup(popup);
+				newList.add(p);
+			}
+			for (SubPopups sub : popup.getSubPopups()) {// read popups off of original list
+				SubPopups newSub = null;
+				if(sub.getId() == 0){
+					sub.setPopupId(p.getId());
+					newSub = this.newSubPopup(sub);
+				}else{
+					newSub = this.updateSubPopup(sub);
+				}
+				if(p.getSubPopups() == null)
+					p.setSubPopups(new ArrayList<SubPopups>());
+				p.getSubPopups().add(newSub);
+			}
 		}
 		return newList;
 	}
@@ -3307,8 +3326,36 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 				}
 			}
 		}
-		
 		return results;
+	}
+	
+	public List<MediaForApp> getMediasForAppV2() {
+		String sql = "SELECT * FROM media ORDER BY name";
+		ArrayList<MediaForApp> results = new ArrayList<MediaForApp>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			ResultSet resultSet = statement.executeQuery();
+			results = MediaForApp.parseResultSet(resultSet);
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		BucketsCE b = this.getCaptionEditorBucket();
+		ArrayList<Languages> ls = this.getAllLanguages(0);
+		List<MediaForApp> finalResults = new ArrayList<MediaForApp>();
+		for(MediaForApp m : results){
+			m.setBucketName(b.getName());
+			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
+			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
+			for(Languages l : ls){
+				m.setLanguage(l);
+				if(l.getId().equals(m.getAudioLanguageId())){
+					m.setLanguage(l);
+					break;
+				}
+			}
+			if(!(m.getCaptions().size() == 0 && m.getPopups().size() == 0))
+				finalResults.add(m);
+		}
+		return finalResults;
 	}
 
 

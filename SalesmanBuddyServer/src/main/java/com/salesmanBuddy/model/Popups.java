@@ -4,6 +4,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 
 public class Popups {
 	protected Integer id;
@@ -19,6 +20,8 @@ public class Popups {
 	protected String filenameInBucket;
 	protected String extension;
 	protected String bucketName;
+	
+	protected List<SubPopups> subPopups;
 	
 	// convenience, not used now
 	protected String base64Data;
@@ -310,5 +313,13 @@ public class Popups {
 		} else if (!startTime.equals(other.startTime))
 			return false;
 		return true;
+	}
+
+	public List<SubPopups> getSubPopups() {
+		return subPopups;
+	}
+
+	public void setSubPopups(List<SubPopups> subPopups) {
+		this.subPopups = subPopups;
 	}
 }

@@ -1,0 +1,91 @@
+<div ng-include="'views/noRights.html'"></div>
+<div ng-include="'views/loading.html'"></div>
+<div ng-include="'views/error.html'"></div>
+<div id="reportsManager" ng-show="view == 'main' || view == 'loadingLower'">
+	<div class="anyDealership" ng-show="dealerships.length">
+		Dealership: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-change="selectedDealership()" ng-model="selects.chosenDealership"></select>
+	</div>
+	<div class="newReport">
+		<b>New Report - make this a modal?</b>
+		<br>Report Type: <select ng-options="type as type.name for type in newReportTypes" ng-model="selects.newReportType" ng-change="newDealershipErrorMessage = ''"></select>
+		<div ng-show="newDealershipErrorMessage.length" style="color:red">{{newDealershipErrorMessage}}</div>
+		<div ng-show="selects.newReportType.value == 1">
+			About: <select ng-options="option as option.name for option in summaryOptions" ng-model="selects.reportOption" ng-change="newDealershipErrorMessage = ''"></select>
+			<br>To Who: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selects.toUser" ng-change="newDealershipErrorMessage = ''"></select>
+			<br><button ng-click="newDealershipReport()">Save</button>
+		</div>
+		<div ng-show="selects.newReportType.value == 2">
+			About: <select ng-options="option as option.name for option in reportAboutToOptions" ng-model="selects.reportOption" ng-change="newDealershipErrorMessage = ''"></select>
+			<br>About who: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selects.aboutUser" ng-change="newDealershipErrorMessage = ''"></select>
+			<br>To Who: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selects.toUser" ng-change="newDealershipErrorMessage = ''"></select>
+			<br><button ng-click="newAboutToReport()">Save</button>
+		</div>
+		<div>
+			Send <select ng-options="option as option.name for option in summaryOptions" ng-model="selects.reportNowOption" ng-change="newDealershipErrorMessage = ''"></select> now to <input type="text" ng-model="selects.nowEmail" placeholder="Email"><button ng-hide="sendingOnDemandReport" ng-click="sendReportNow()">Send</button><button ng-hide="sendingOnDemandReport" ng-click="sendAllReportsNow()">All</button><div ng-show="sendingOnDemandReport">Sending</div>
+		</div>
+	</div>
+	<div class="newReportLegend">
+		<b>New Report Legend - make this a modal?</b>
+		<br>Report Times: Immediately, Daily, Weekly, Monthly
+		<br>Report Types:
+		<ul>
+			<li>Test Drive: Which salesmen did test drives</li>
+			<li>All Salesmen: Activity for each salesman</li>
+			<li>Stock Numbers: Stock number activity and inactivity</li>
+			<li>Dealership: All of the above reports in one email</li>
+		</ul>
+	</div>
+	<div ng-show="view == 'loadingLower'">
+		<img class="loadingGif" src="images/loadingBig.gif">
+		<div style="margin-left:500px; padding-top:40px;"></div>
+		<div>{{'Loading dealership data'}}</div>
+	</div>
+	<div class="dealershipReportsTable" ng-show="view == 'main'">
+		<div>Dealership-Wide Reports</div>
+		<div class="tableHead">
+			<div class="titleRowElement" ng-repeat="column in summaryColumns">
+				<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, summaryColumns, 1130)">
+					{{column.name}}
+				</div>
+			</div>
+		</div>
+		<div class="tableBody">
+			<div class="row" ng-repeat="userTree in summaryUserTrees() | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" title="{{userTree}}">
+				<div class="rowElement" ng-repeat="column in summaryColumns" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, summaryColumns, 1130)">
+					<div class="rowText" ng-show="column.type == ''">{{userTree[column.realColumnName]}}</div>
+					<div class="rowText" ng-show="column.type == 'date'">{{userTree[column.realColumnName] | date}}</div>
+					<div class="rowText" ng-show="column.type == 'bool'">{{userTree[column.realColumnName]}}</div>
+					<div class="rowText" ng-show="column.type == 'select'">
+						<select class="changeType" ng-model="userTree[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, userTree[column.realColumnName])"></select>
+					</div>
+				</div>
+				<button class="removeButton" ng-click="deleteUserTree(userTree, $index)">Remove</button>
+			</div>
+			<div ng-show="summaryUserTrees().length == 0">You have no Dealership-Wide reports</div>
+		</div>
+	</div>
+	<div class="specificSalesmanReportsTable" ng-show="view == 'main'">
+		<div>Specific Salesmen Reports</div>
+		<div class="tableHead">
+			<div class="titleRowElement" ng-repeat="column in aboutToColumns">
+				<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, aboutToColumns, 1130)">
+					{{column.name}}
+				</div>
+			</div>
+		</div>
+		<div class="tableBody">
+			<div class="row" ng-repeat="userTree in aboutToUserTrees() | limitTo:500" ng-class-odd="'odd'" ng-class-even="'even'" title="{{userTree}}">
+				<div class="rowElement" ng-repeat="column in aboutToColumns" ng-style="getAdjustedColumnWidth(column.desiredWidthInPixels, aboutToColumns, 1130)">
+					<div class="rowText" ng-show="column.type == ''">{{userTree[column.realColumnName]}}</div>
+					<div class="rowText" ng-show="column.type == 'date'">{{userTree[column.realColumnName] | date}}</div>
+					<div class="rowText" ng-show="column.type == 'bool'">{{userTree[column.realColumnName]}}</div>
+					<div class="rowText" ng-show="column.type == 'select'">
+						<select class="changeType" ng-model="userTree[column.realColumnName]" ng-options="option as option.name for option in column.options" ng-change="column.ngChange($parent.$index, userTree[column.realColumnName])"></select>
+					</div>
+				</div>
+				<button class="removeButton" ng-click="deleteUserTree(userTree, $index)">Remove</button>
+			</div>
+			<div ng-show="aboutToUserTrees().length == 0">You have no Salesman-Specific reports</div>
+		</div>
+	</div>
+</div>

@@ -1,0 +1,28 @@
+<div ng-include="'views/noRights.html'"></div>
+<div ng-include="'views/loading.html'"></div>
+<div ng-include="'views/error.html'"></div>
+<div id="newUser" class="main">
+	<div ng-show="view == 'main'">
+		<div class="titleText">Welcome to Salesman Buddy</div>
+		<div class="bodyText">
+			<div ng-show="newUserType == 'manager'">You are registering with Salesman Buddy as a manager user. You will be able view and schedule reports, manage your dealership's salesmen, and view dealership statistics. If you need to only register as a salesman, click <a ng-href="#/newUser/{{dealershipCode}}/salesman">here</a>.<br><br></div>
+			Is this the correct dealership?<br>
+			Name: {{dealership.name}}<br>
+			City: {{dealership.city}}<br>
+			State: {{dealership.state || 'loading'}}<br>
+			<button ng-click="confirmDealership()">Yes</button>
+			<button ng-click="denyDealership()">No</button>
+		</div>
+	</div>
+	<div ng-show="view == 'finished'">
+		<div class="titleText">Setup Complete</div>
+		<div class="bodyText">
+			You are finished with your account setup. Thank you for using Salesman Buddy. If you haven't already, install our app on your <a href="">Apple</a>, <a href="">Android</a>, and <a href="">Windows Phone</a> mobile device.
+			<br>
+			<br>
+			<br>
+			<a href="#/how">See how to use our app.</a><br>
+			<a ng-show="newUserType == 'manager'" href="#/how">See how to use our management features.</a>
+		</div>
+	</div>
+</div>

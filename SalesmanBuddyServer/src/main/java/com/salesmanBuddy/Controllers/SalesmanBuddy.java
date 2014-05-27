@@ -896,9 +896,15 @@ public class SalesmanBuddy {
     @Path("medias")// works 10/13
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getMediasForAppV1(@Context HttpServletRequest request){
-    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV1()){};
-    	return Response.ok(entity).build();
+    public Response getMediasForAppV1(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("version") int version){
+    	if(version == 1){
+	    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV1()){};
+	    	return Response.ok(entity).build();
+    	}else if(version == 2){
+    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV2()){};
+	    	return Response.ok(entity).build();
+    	}
+    	return Response.status(400).build();
     }
     
     @Path("mediaFile")

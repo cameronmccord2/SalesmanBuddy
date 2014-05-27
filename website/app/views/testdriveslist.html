@@ -1,0 +1,48 @@
+<div ng-include="'views/noRights.html'"></div>
+<div ng-include="'views/loading.html'"></div>
+<div ng-include="'views/error.html'"></div>
+<div id="licensesList" ng-show="view == 'main'">
+	<div ng-show="!isPath('/testDrives') && doesUserHaveAccessTo([rightsSBUser])">
+		All Users: <select ng-options="user as user.name for user in allUsers" ng-model="selected.allUser" ng-change="selectedUser(selected.allUser)"></select><br>
+		Dealerships: <select ng-options="dealership as dealership.name for dealership in dealerships" ng-model="selected.dealership" ng-change="selectedDealership(selected.dealership)"></select>
+	</div>
+	<div ng-show="!isPath('/testDrives') && doesUserHaveAccessTo([rightsManager])">
+		Dealership Users: <select ng-options="user as user.name for user in dealershipUsers" ng-model="selected.dealershipUser" ng-change="selectedUser(selected.dealershipUser)"></select>
+	</div>
+	<div ng-hide="showBottom">
+		<img class="loadingGif" src="images/loadingBig.gif">
+		<div style="margin-left:500px; padding-top:40px;"></div>
+		<div>{{loadingMessage || 'Loading User Licenses'}}</div>
+	</div>
+	<div ng-show="showBottom">
+		<button ng-click="hideCheckedLicenses = false" ng-show="hideCheckedLicenses">Show All</button>
+		<button ng-click="hideCheckedLicenses = true" ng-hide="hideCheckedLicenses">Show Active</button>
+		<input type="text" ng-model="search.$" placeholder="Search" ng-change="searchChanged()">
+
+		<table class="table table-striped table-hover">
+			<thead>
+				<tr>
+					<th style="cursor:pointer" ng-click="setOrderBy('firstName')">First Name</th>
+					<th style="cursor:pointer" ng-click="setOrderBy('lastName')">Last Name</th>
+					<th style="cursor:pointer" ng-click="setOrderBy('phoneNumber')">Phone Number</th>
+					<th style="cursor:pointer" ng-click="setOrderBy('stockNumber')">Stock Number</th>
+					<th style="cursor:pointer" ng-click="setOrderBy('created')">Created</th>
+					<th style="cursor:pointer" ng-click="setOrderBy('status')">Status</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr ng-repeat="license in displayList | limitTo:500 | filter:search:strict | orderBy:order.column:order.direction" ng-click="showDetails(license)" ng-hide="hideThisLicense(license)">
+					<td>{{license.firstName || 'None'}}</td>
+					<td>{{license.lastName || 'None'}}</td>
+					<td>{{license.phoneNumber || 'None'}}</td>
+					<td>{{license.stockNumber || 'None'}}</td>
+					<td>{{license.created | date}}</td>
+					<td>
+						<select class="changeUserType" ng-model="license.statusObject" ng-options="option as option.name for option in licenseStatuses" ng-change="changedStatus($index, license.statusObject)"></select>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+		<div ng-show="displayList.length == 0">You have no Test Drives at this time</div>
+	</div>
+</div>

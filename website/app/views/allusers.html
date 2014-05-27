@@ -1,0 +1,77 @@
+<div ng-include="'views/norights.html'"></div>
+<div ng-include="'views/loading.html'"></div>
+<div id="allUsers" class="content" ng-show="view == 'main'">
+	<input type="text" ng-model="search" placeholder="Search">
+
+
+	<table class="table table-striped table-hover">
+		<thead>
+			<tr>
+				<th style="cursor:pointer" ng-click="setOrderBy('dealershipId')">Dealership Id</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('dealershipName')">Dealership Name</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('deviceType')">Device Type</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('type')">Type</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('created')">Created</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('googleUserId')">Google User Id</th>
+				<th style="cursor:pointer" ng-click="setOrderBy('name')">Name</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr ng-repeat="user in users | limitTo:500 | filter:search:strict" ng-click="showDetails(user)">
+				<td>{{user.dealershipId || 'None'}}</td>
+				<td>{{user.dealershipName || 'None'}}</td>
+				<td>{{user.deviceType || 'None'}}</td>
+				<td>
+					<select class="changeUserType" ng-model="user.type" ng-options="option as option for option in userTypeOptions" ng-change="changeUserToType($index, user.type)"></select>
+				</td>
+				<td>{{user.created | date}}</td>
+				<td>{{user.googleUserId}}</td>
+				<td>{{user.name || 'None'}}</td>
+			</tr>
+		</tbody>
+	</table>
+
+
+
+	<!-- <div class="tableHead">
+		<div class="titleRowElement" ng-repeat="column in getColumnsForColumnType('main')">
+			<div class="tableText" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
+				{{column.name}}
+			</div>
+		</div>
+	</div>
+	<div class="tableBody">
+		<div class="row" ng-repeat="user in users | limitTo:500 | filter:search" ng-class-odd="'odd'" ng-class-even="'even'" ng-click="showDetails(user)">
+			<div class="rowElement" ng-repeat="column in getColumnsForColumnType('main')" ng-style="getAdjustedColumnWidth(column.desiredWidth, getColumnsForColumnType('main'), 1160)">
+				<div class="rowText" ng-show="column.type == ''">{{user[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'date'">{{user[column.realColumnName] | date}}</div>
+				<div class="rowText" ng-show="column.type == 'bool'">{{user[column.realColumnName]}}</div>
+				<div class="rowText" ng-show="column.type == 'select'">
+					<select class="changeUserType" ng-model="user[column.realColumnName]" ng-options="option as option for option in column.options" ng-change="column.ngChange($parent.$index, user[column.realColumnName])"></select>
+				</div>
+			</div> -->
+			
+			<!-- <div ng-show="user.showDetails">
+
+
+			{name:'Id', realColumnName:'id', desiredWidth:10, columnType:'main', type:''},
+		// {name:'Dealership Id', realColumnName:'dealershipId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Dealership', realColumnName:'dealershipName', desiredWidth:100, columnType:'main', type:''},
+		{name:'Device Type', realColumnName:'deviceType', desiredWidth:100, columnType:'main', type:''},
+		{name:'Type', realColumnName:'type', desiredWidth:40, columnType:'main', type:'select', options:[1, 2, 3, 4, 5], ngChange:$scope.changeUserToType},
+		{name:'Created', realColumnName:'created', desiredWidth:100, columnType:'main', type:'date'},
+		{name:'Google User Id', realColumnName:'googleUserId', desiredWidth:100, columnType:'main', type:''},
+		{name:'Name', realColumnName:'name', desiredWidth:100, columnType:'main', type:''}
+
+				<div class="subTitleRow">
+					<div class="subTitleRowElement" ng-repeat="column in getColumnsForColumnType('details')" ng-show="column.desiredWidth != 0">
+						<div class="assessmentTitleRowText" ng-style="{width:''+getAdjustedColumnWidth(column.desiredWidthInPixels, getColumnsForColumnType('assessment'), 1080)+'px'}">{{column.name}}</div>
+					</div>
+				</div>
+				<div class="stackTraceRow" ng-repeat="stackTrace in error.shownStackTraces" ng-class-odd="'odd'" ng-class-even="'even'">
+					{{stackTrace}}
+				</div>
+			</div> -->
+		<!-- </div>
+	</div> -->
+</div>

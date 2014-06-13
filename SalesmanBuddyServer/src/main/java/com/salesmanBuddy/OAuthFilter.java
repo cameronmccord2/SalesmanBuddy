@@ -16,8 +16,6 @@ import javax.servlet.ServletRequest;
 import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletRequestWrapper;
-import javax.servlet.http.HttpServletResponse;
-
 import org.apache.amber.oauth2.common.message.types.ParameterStyle;
 import org.apache.amber.oauth2.rs.request.OAuthAccessResourceRequest;
 import org.springframework.web.client.RestTemplate;

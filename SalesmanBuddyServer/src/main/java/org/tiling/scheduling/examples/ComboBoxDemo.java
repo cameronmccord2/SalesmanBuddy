@@ -14,7 +14,11 @@ import javax.swing.*;
  */
 public class ComboBoxDemo extends JPanel
                           implements ActionListener {
-    JLabel picture;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -2114131110531101625L;
+	JLabel picture;
 
     public ComboBoxDemo() {
         super(new BorderLayout());

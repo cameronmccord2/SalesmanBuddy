@@ -4,6 +4,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 
 public class LicensesListElement{
 	// licenses
@@ -11,10 +12,10 @@ public class LicensesListElement{
     protected Date created;
     protected Integer stateId;
     //custom here
-    protected ArrayList<QuestionsAndAnswers> qaas;
+    protected List<QuestionsAndAnswers> qaas;
 	
-	public static ArrayList<LicensesListElement> parseResultSet(ResultSet resultSet){
-    	ArrayList<LicensesListElement> responses = new ArrayList<LicensesListElement>();
+	public static List<LicensesListElement> parseResultSet(ResultSet resultSet){
+    	List<LicensesListElement> responses = new ArrayList<>();
     	try{
 			while(resultSet.next()){
 				LicensesListElement response = new LicensesListElement();
@@ -61,14 +62,6 @@ public class LicensesListElement{
 		this.created = created;
 	}
 
-	public ArrayList<QuestionsAndAnswers> getQaas() {
-		return qaas;
-	}
-
-	public void setQaas(ArrayList<QuestionsAndAnswers> qaas) {
-		this.qaas = qaas;
-	}
-
 	public Integer getStateId() {
 		return stateId;
 	}
@@ -90,5 +83,13 @@ public class LicensesListElement{
 		builder.append(qaas);
 		builder.append("]");
 		return builder.toString();
+	}
+
+	public List<QuestionsAndAnswers> getQaas() {
+		return qaas;
+	}
+
+	public void setQaas(List<QuestionsAndAnswers> qaas) {
+		this.qaas = qaas;
 	}
 }

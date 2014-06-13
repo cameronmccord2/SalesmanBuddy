@@ -1,6 +1,7 @@
 package com.salesmanBuddy.dao;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -86,7 +87,7 @@ public class EmailSender{
 		}
 	}
 	
-	public static void sendEmails(ArrayList<SBEmail> emails) throws MalformedSBEmailException {
+	public static void sendEmails(List<SBEmail> emails) throws MalformedSBEmailException {
 		for(SBEmail e : emails)
 			EmailSender.sendEmail(e);
 	}
@@ -129,14 +130,14 @@ public class EmailSender{
 //		EmailSender.sendEmail(s);
 		
 		EmailSender sender = EmailSender.getInstance();
-		ArrayList<SBEmail> emails = new ArrayList<SBEmail>();
+		List<SBEmail> emails = new ArrayList<>();
 		sender.emailQueue.drainTo(emails);
 		//  the count and emails.size() should be the same
 		sender.sendFromGMail(emails);
 	}
 
 
-	private synchronized void sendFromGMail(ArrayList<SBEmail> emails) {
+	private synchronized void sendFromGMail(List<SBEmail> emails) {
 		//      Properties props = System.getProperties();
 		Properties props = new Properties();
 		String host = "smtp.gmail.com";

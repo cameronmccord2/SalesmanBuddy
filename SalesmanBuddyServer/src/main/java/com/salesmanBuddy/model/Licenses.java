@@ -14,6 +14,17 @@ public class Licenses {
 	protected Integer stateId;
 	protected Date created;
 
+	public Licenses(LicensesFromClient lfc) {
+		this.setLatitude(lfc.getLatitude());
+		this.setLongitude(lfc.getLongitude());
+		this.setUserId(lfc.getUserId());
+		this.setStateId(lfc.getStateId());
+	}
+	
+	public Licenses(){
+		
+	}
+
 	public String toString() {
 		StringBuilder sb = new StringBuilder("");
 		sb.append("id:");

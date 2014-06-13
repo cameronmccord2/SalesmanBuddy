@@ -3,6 +3,7 @@ package com.salesmanBuddy.model;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 
 public class MediaForApp {
 	protected Integer id;
@@ -13,13 +14,13 @@ public class MediaForApp {
 	protected Integer bucketId;
 	protected String extension;
 	protected String filenameInBucket;
-	protected ArrayList<Captions> captions;
-	protected ArrayList<Popups> popups;
+	protected List<Captions> captions;
+	protected List<Popups> popups;
 	protected String bucketName;
 	protected Languages language;
 	
-	public static ArrayList<MediaForApp> parseResultSet(ResultSet resultSet){
-    	ArrayList<MediaForApp> responses = new ArrayList<MediaForApp>();
+	public static List<MediaForApp> parseResultSet(ResultSet resultSet){
+    	List<MediaForApp> responses = new ArrayList<>();
     	try{
 			while(resultSet.next()){
 				MediaForApp response = new MediaForApp();
@@ -235,22 +236,6 @@ public class MediaForApp {
 		return builder.toString();
 	}
 
-	public ArrayList<Captions> getCaptions() {
-		return captions;
-	}
-
-	public void setCaptions(ArrayList<Captions> captions) {
-		this.captions = captions;
-	}
-
-	public ArrayList<Popups> getPopups() {
-		return popups;
-	}
-
-	public void setPopups(ArrayList<Popups> popups) {
-		this.popups = popups;
-	}
-
 	public Languages getLanguage() {
 		return language;
 	}
@@ -265,5 +250,21 @@ public class MediaForApp {
 
 	public void setBucketName(String bucketName) {
 		this.bucketName = bucketName;
+	}
+
+	public List<Captions> getCaptions() {
+		return captions;
+	}
+
+	public void setCaptions(List<Captions> captions) {
+		this.captions = captions;
+	}
+
+	public List<Popups> getPopups() {
+		return popups;
+	}
+
+	public void setPopups(List<Popups> popups) {
+		this.popups = popups;
 	}
 }

@@ -1,13 +1,14 @@
 package com.salesmanBuddy.model;
 
 import java.util.ArrayList;
+import java.util.List;
 
 import com.salesmanBuddy.dao.EmailSender;
 import com.salesmanBuddy.exceptions.MalformedSBEmailException;
 
 public class SBEmail {
 	private String from;
-	private ArrayList<String> to;
+	private List<String> to;
 	private String subject;
 	private String body;
 	private String bodyHtml;
@@ -15,7 +16,7 @@ public class SBEmail {
 	
 	private Integer id;
 	
-	public static SBEmail newHtmlEmail(String from, ArrayList<String> to, String subject, String bodyHtml, boolean individualEmailsToRecipients){
+	public static SBEmail newHtmlEmail(String from, List<String> to, String subject, String bodyHtml, boolean individualEmailsToRecipients){
 		SBEmail e = new SBEmail();
 		e.setBody("");
 		e.setBodyHtml(bodyHtml);
@@ -26,7 +27,7 @@ public class SBEmail {
 		return e;
 	}
 	
-	public static SBEmail newPlainTextEmail(String from, ArrayList<String> to, String subject, String body, boolean individualEmailsToRecipients){
+	public static SBEmail newPlainTextEmail(String from, List<String> to, String subject, String body, boolean individualEmailsToRecipients){
 		SBEmail e = new SBEmail();
 		e.setBody(body);
 		e.setBodyHtml("");
@@ -37,7 +38,7 @@ public class SBEmail {
 		return e;
 	}
 	
-	public static SBEmail newEmail(String from, ArrayList<String> to, String subject, String body, String bodyHtml, boolean individualEmailsToRecipients){
+	public static SBEmail newEmail(String from, List<String> to, String subject, String body, String bodyHtml, boolean individualEmailsToRecipients){
 		SBEmail e = new SBEmail();
 		e.setBody(body);
 		e.setBodyHtml(bodyHtml);
@@ -66,14 +67,6 @@ public class SBEmail {
 
 	public void setFrom(String from) {
 		this.from = from;
-	}
-
-	public ArrayList<String> getTo() {
-		return to;
-	}
-
-	public void setTo(ArrayList<String> to) {
-		this.to = to;
 	}
 
 	public String getSubject() {
@@ -209,6 +202,14 @@ public class SBEmail {
 		builder.append(id);
 		builder.append("]");
 		return builder.toString();
+	}
+
+	public List<String> getTo() {
+		return to;
+	}
+
+	public void setTo(List<String> to) {
+		this.to = to;
 	}
 
 }

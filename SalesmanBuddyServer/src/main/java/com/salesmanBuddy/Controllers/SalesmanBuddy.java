@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.List;
 
 import javax.servlet.http.HttpServletRequest;
@@ -549,20 +548,20 @@ public class SalesmanBuddy {
     																 @DefaultValue("0") @QueryParam("sbUserId") Integer sbUserId, 
     																 @DefaultValue("0") @QueryParam("dealershipId") Integer dealershipId, 
     																 @DefaultValue("false") @QueryParam("all") boolean all){
-    	GenericEntity<ArrayList<UserTree>> entity = null;
+    	GenericEntity<List<UserTree>> entity = null;
     	if(requestedGoogleUserId.length() > 0)
-    		entity = new GenericEntity<ArrayList<UserTree>>(dao.getAllUserTreeForGoogleUserId(requestedGoogleUserId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleUserId(requestedGoogleUserId)){};// works 2-6-14
     	if(googleSupervisorId.length() > 0)
-    		entity = new GenericEntity<ArrayList<UserTree>>(dao.getAllUserTreeForGoogleSupervisorId(googleSupervisorId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleSupervisorId(googleSupervisorId)){};// works 2-6-14
     	if(sbUserId != 0)
-    		entity = new GenericEntity<ArrayList<UserTree>>(dao.getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(dao.getUserById(sbUserId).getGoogleUserId())){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(dao.getUserById(sbUserId).getGoogleUserId())){};// works 2-6-14
     	if(dealershipId != 0)
-    		entity = new GenericEntity<ArrayList<UserTree>>(dao.getAllUserTreeForDealershipId(dealershipId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForDealershipId(dealershipId)){};// works 2-6-14
     	if(all){
     		String googleUserId = request.getUserPrincipal().getName();
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2)
-    			entity = new GenericEntity<ArrayList<UserTree>>(dao.getAllUserTree()){};// works 2-6-14
+    			entity = new GenericEntity<List<UserTree>>(dao.getAllUserTree()){};// works 2-6-14
     		else
     			return Response.status(401).entity(new ErrorMessage("You are not authorized to get all userTree")).build();
     	}

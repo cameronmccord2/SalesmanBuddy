@@ -1,7 +1,5 @@
 package com.salesmanBuddy.model;
 
-import org.codehaus.jettison.json.JSONObject;
-
 public class UsersName {
 	protected String name;
 	protected boolean inError;

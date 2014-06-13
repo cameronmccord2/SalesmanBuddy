@@ -8,12 +8,10 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
-import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.MalformedURLException;
 import java.net.ProtocolException;
 import java.net.URL;
-import java.security.SecureRandom;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -22,10 +20,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.*;
 
-import javax.naming.Context;
-import javax.naming.InitialContext;
-import javax.naming.NamingException;
-import javax.sql.DataSource;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.io.IOUtils;
@@ -36,21 +30,16 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
-import com.amazonaws.auth.ClasspathPropertiesFileCredentialsProvider;
-import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.S3Object;
 import com.salesmanBuddy.exceptions.GoogleRefreshTokenResponseException;
 import com.salesmanBuddy.exceptions.GoogleUserInfoException;
 import com.salesmanBuddy.exceptions.InvalidUserTreeType;
 import com.salesmanBuddy.exceptions.MalformedSBEmailException;
+import com.salesmanBuddy.exceptions.NoBucketFoundException;
 import com.salesmanBuddy.exceptions.NoResultInResultSet;
 import com.salesmanBuddy.exceptions.UserNameException;
 import com.salesmanBuddy.model.Buckets;
@@ -85,10 +74,7 @@ import com.salesmanBuddy.model.UsersName;
 
 
 
-public class JDBCSalesmanBuddyDAO {
-//	static Logger log = Logger.getLogger("log.dao");
-//	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
-	protected DataSource dataSource;
+public class JDBCSalesmanBuddyDAO extends AWSDAO {
 	
 	static final private int isImage = 1;
 	static final private int isText = 2;
@@ -154,27 +140,22 @@ public class JDBCSalesmanBuddyDAO {
 		AllSalesmen, DealershipSummary, Warnings, TestDriveNow, TestDriveSummary, StockNumberSummary
 	};
 	
-	private SecureRandom random = new SecureRandom();
+	
 	
 	public JDBCSalesmanBuddyDAO(){
-		try{
-			Context initContext = new InitialContext();
-			Context envContext = (Context)initContext.lookup("java:/comp/env");
-			dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
-		}catch(NamingException ne){
-			throw new RuntimeException(ne);
-		}
-//		JDBCSalesmanBuddyDAO.sendErrorToMe("Initialized stuff, The current joda time is: " + new DateTime().toString() + ", utc: " + new DateTime(DateTimeZone.UTC).toString());
+		super();
 	}
 
 	
-	private Buckets getBucketForStateId(int stateId){
-		String sql = "SELECT * FROM buckets WHERE stateId = ?";
-		ArrayList<Buckets> results = new ArrayList<Buckets>();
+	private Buckets getBucketForStateId(int stateId) throws NoBucketFoundException{
+		final String sql = "SELECT * FROM buckets WHERE stateId = ?";
+		List<Buckets> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, stateId);
 			ResultSet resultSet = statement.executeQuery();
 			results = Buckets.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -182,91 +163,46 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException("There is more than one bucket for state: " + stateId);
 		if(results.size() == 1)
 			return results.get(0);
-		return null;
+		throw new NoBucketFoundException("No bucket found for stateId: " + stateId);
 	}
-	
-	private AmazonS3 getAmazonS3(){
-		AmazonS3 s3 = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
-		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-		s3.setRegion(usWest2);
-		return s3;
-	}
-	
-	private String addFileToBucket(String bucketName, String fileName, File file){
-		AmazonS3 s3 = this.getAmazonS3();
-		s3.putObject(new PutObjectRequest(bucketName, fileName, file));
-		return fileName;
-	}
-	
-	private File getFileFromBucket(String fileName, String bucketName){
-		System.out.println("Downloading an object");
-		AmazonS3 s3 = this.getAmazonS3();
-		S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
-		File tempFile = null;
-		try{
-			tempFile = File.createTempFile(this.randomAlphaNumericOfLength(15), ".jpeg");
-			tempFile.deleteOnExit();
-			FileOutputStream out = new FileOutputStream(tempFile);
-			IOUtils.copy(object.getObjectContent(), out);
-		}catch(IOException e){
-			throw new RuntimeException("error copying inputstream from s3 to temporary file");
-		}
-		return tempFile;
-	}
-	
-	private String createS3Bucket(String bucketName){
-		AmazonS3 s3 = this.getAmazonS3();
-		Bucket newBucket = s3.createBucket(bucketName);
-		return newBucket.getName();
-	}
-	
 	
 	public FinishedPhoto saveFileToS3ForStateId(int stateId, File file){
-		if(file == null)
-			throw new RuntimeException("file trying to save to s3 is null");
-		FinishedPhoto fp = new FinishedPhoto();
-		Buckets stateBucket = this.getBucketForStateId(stateId);
-		if(stateBucket == null){
-			this.makeBucketForStateId(stateId);
-			stateBucket = this.getBucketForStateId(stateId);
-		}
-		if(stateBucket.getName() == null){
-			throw new RuntimeException("statebucket name is null");
-		}
-		fp.setBucketId(stateBucket.getId());
-		fp.setFilename(this.addFileToBucket(stateBucket.getName(), this.randomAlphaNumericOfLength(15), file));
-		return fp;
-	}
-	
-	
-	public String randomAlphaNumericOfLength(Integer length){
-		switch(length.intValue()){
-		case 15:
-			int tries = 0;
-			while(true){
-				String s = new BigInteger(130, random).toString(32);
-				tries++;
-				if(s.length() == 26 && s.charAt(0) >= 'a' && s.charAt(0) <= 'z')
-					return s;
-				else if(tries > 10000)
-					throw new RuntimeException("couldnt get a random string length 26 not starting with a number after 10000 tries");
+		try {
+			if(file == null)
+				throw new RuntimeException("file trying to save to s3 is null");
+			FinishedPhoto fp = new FinishedPhoto();
+			Buckets stateBucket = this.getBucketForStateId(stateId);
+			if(stateBucket == null){
+				this.makeBucketForStateId(stateId);
+				stateBucket = this.getBucketForStateId(stateId);
 			}
-		default:
-			return "";
+			if(stateBucket.getName() == null){
+				throw new RuntimeException("statebucket name is null");
+			}
+			fp.setBucketId(stateBucket.getId());
+			fp.setFilename(this.addFileToBucket(stateBucket.getName(), this.randomAlphaNumericOfLength(15), file));
+			return fp;
+			
+		} catch (NoBucketFoundException e) {
+			e.printStackTrace();
+			throw new RuntimeException(e.getLocalizedMessage());
 		}
 	}
 	
 	private String makeBucketForStateId(int stateId){
 		String bucketName = "state-" + this.getStateNameForStateId(stateId).toLowerCase() + "-uuid-" + UUID.randomUUID();
-		bucketName = this.createS3Bucket(bucketName);
+		bucketName = this.createS3Bucket(bucketName, Regions.US_WEST_2);
 		
-		String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
+		final String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, stateId);
 			statement.setString(2, bucketName);
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -282,20 +218,16 @@ public class JDBCSalesmanBuddyDAO {
 		return state.getName();
 	}
 
-	
-	public String getString() {
-		return "From the dao";
-	}
-
-	
-	public ArrayList<States> getAllStates(int getInactiveToo) {// working 10/3/13
+	public List<States> getAllStates(int getInactiveToo) {// working 10/3/13
 		String sql = "SELECT * FROM states WHERE status = 1";
 		if(getInactiveToo > 0)
 			sql = "SELECT * FROM states";
-		ArrayList<States> states = new ArrayList<States>();
+		List<States> states = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			states = States.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -303,25 +235,29 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	public States getStateForId(Integer stateId) {
-		String sql = "SELECT * FROM states WHERE id = ?";
+		final String sql = "SELECT * FROM states WHERE id = ?";
 		States result = null;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, stateId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			result = States.parseOneRowResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return result;
 	}
-
 	
-	public ArrayList<Dealerships> getAllDealerships() {// working 10/3/13
-		String sql = "SELECT * FROM dealerships";
-		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
+	public List<Dealerships> getAllDealerships() {// working 10/3/13
+		final String sql = "SELECT * FROM dealerships";
+		List<Dealerships> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Dealerships.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -329,33 +265,37 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	public Dealerships getDealershipWithDealershipCode(String dealershipCode) {
-		String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
+		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
 		Dealerships result = null;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, dealershipCode);
+			
 			ResultSet resultSet = statement.executeQuery();
 			result = Dealerships.parseOneRowResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return result;
 	}
 
-	
-	public ArrayList<LicensesListElement> getAllLicensesForUserId(String googleUserId, boolean getSubData) {
-		String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
-		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
+	public List<LicensesListElement> getAllLicensesForUserId(String googleUserId, boolean getSubData) {
+		final String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
+		List<LicensesListElement> results = new ArrayList<>();
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			ResultSet resultSet = statement.executeQuery();
 			results = LicensesListElement.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		
 		if(getSubData){
-			ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+			List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
 			for(int i = 0; i < results.size(); i++){
 				results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
 			}
@@ -365,18 +305,19 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	public List<LicensesListElement> getAllLicenses() {
-		String sql = "SELECT * FROM licenses ORDER BY created desc";
-		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
+		final String sql = "SELECT * FROM licenses ORDER BY created desc";
+		List<LicensesListElement> results = new ArrayList<>();
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = LicensesListElement.parseResultSet(resultSet);
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		
-		ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
 		for(int i = 0; i < results.size(); i++){
 			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
 		}
@@ -385,19 +326,21 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private LicensesListElement getLicenseListElementForLicenseId(int id) {
-		String sql = "SELECT * FROM licenses WHERE id = ?";
-		ArrayList<LicensesListElement> results = new ArrayList<LicensesListElement>();
+		final String sql = "SELECT * FROM licenses WHERE id = ?";
+		List<LicensesListElement> results = new ArrayList<>();
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = LicensesListElement.parseResultSet(resultSet);
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 
-		ArrayList<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
 		for(int i = 0; i < results.size(); i++){
 			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
 		}
@@ -406,7 +349,6 @@ public class JDBCSalesmanBuddyDAO {
 		throw new RuntimeException("couldnt find the license by id: " + id);
 	}
 
-	
 	public FinishedPhoto saveStringAsFileForStateId(String data, int stateId, String extension) {// working 10/3/13
 		File f = null;
 		Writer writer = null;
@@ -418,6 +360,7 @@ public class JDBCSalesmanBuddyDAO {
 			writer.write(data);
 			writer.close();
 			fp = this.saveFileToS3ForStateId(stateId, f);
+			
 		} catch (IOException e) {
 			throw new RuntimeException("IOException for saveStringAsFileForStateId, error: " + e.getLocalizedMessage());
 		}finally{
@@ -430,7 +373,7 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int putLicenseInDatabase(Licenses license){
-		String sql = "INSERT INTO licenses (longitude, latitude, userId, stateId) VALUES (?, ?, ?, ?)";
+		final String sql = "INSERT INTO licenses (longitude, latitude, userId, stateId) VALUES (?, ?, ?, ?)";
 		int id = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setFloat(1, license.getLongitude());
@@ -438,37 +381,16 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(3, license.getUserId());
 			statement.setInt(4, license.getStateId());
 			statement.execute();
-			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			id = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return id;
 	}
-	
-	private int parseFirstInt(ResultSet generatedKeys, String key) {
-		try {
-			while(generatedKeys.next())
-				return (int) generatedKeys.getLong(1);
-		} catch (SQLException e) {
-			throw new RuntimeException("failed parseFirstInt, error: " + e.getLocalizedMessage());
-		}
-		try {
-			throw new RuntimeException("" + generatedKeys.getLong(1));
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-	}
-	
-	private Licenses convertLicenseFromClientToLicense(LicensesFromClient lfc){
-		Licenses l = new Licenses();
-		l.setLatitude(lfc.getLatitude());
-		l.setLongitude(lfc.getLongitude());
-		l.setUserId(lfc.getUserId());
-		l.setStateId(lfc.getStateId());
-		return l;
-	}
-
-
 	
 	public LicensesListElement putLicense(LicensesFromClient licenseFromClient, String googleUserId) {
 		Users user = this.getUserByGoogleId(googleUserId);
@@ -479,7 +401,7 @@ public class JDBCSalesmanBuddyDAO {
 		if(licenseFromClient.getUserId() == 0)
 			throw new RuntimeException("userid is " + licenseFromClient.getUserId() + ", its invalid");
 
-		Licenses l = this.convertLicenseFromClientToLicense(licenseFromClient);
+		Licenses l = new Licenses(licenseFromClient);
 		licenseId = this.putLicenseInDatabase(l);
 		if(licenseId == 0)
 			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId + ", license: " + l.toString());
@@ -511,29 +433,33 @@ public class JDBCSalesmanBuddyDAO {
 	private int updateShowInUserListForLicenseId(int licenseId, int showInUserList){
 		if(!(showInUserList == 1 || showInUserList == 0))
 			throw new RuntimeException("updateShowInUserListForLicenseId failed because showInUserList was not 0 or 1");
-		String sql = "UPDATE licenses SET showInUserList = ? WHERE id = ?";
+		final String sql = "UPDATE licenses SET showInUserList = ? WHERE id = ?";
 
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, showInUserList);
 			statement.setInt(2, licenseId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return i;
 	}
-
 	
 	public boolean userOwnsLicenseId(int licenseId, String googleUserId) {
-		String sql = "SELECT * FROM licenses WHERE id = ? AND userId = (SELECT id FROM users WHERE googleUserId = ?)";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		final String sql = "SELECT * FROM licenses WHERE id = ? AND userId = (SELECT id FROM users WHERE googleUserId = ?)";
+		List<Licenses> results = new ArrayList<>();
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, licenseId);
 			statement.setString(2, googleUserId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -543,12 +469,15 @@ public class JDBCSalesmanBuddyDAO {
 	}
 
 	private Buckets getBucketForBucketId(Integer bucketId) {
-		String sql = "SELECT * FROM buckets WHERE id = ?";
-		ArrayList<Buckets> results = new ArrayList<Buckets>();
+		final String sql = "SELECT * FROM buckets WHERE id = ?";
+		List<Buckets> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, bucketId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Buckets.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -557,37 +486,39 @@ public class JDBCSalesmanBuddyDAO {
 		return results.get(0);
 	}
 	
-	
 	public Licenses getLicenseForLicenseId(int licenseId) {
-		String sql = "SELECT * FROM licenses WHERE id = ?";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+		final String sql = "SELECT * FROM licenses WHERE id = ?";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, licenseId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		if(results.size() > 0)
 			return results.get(0);
-		throw new RuntimeException("licenseId does not match any in the database");
+		throw new RuntimeException("licenseId does not match any in the database, id: " + licenseId);
 	}
-
-
 	
 	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {
 		Buckets bucket = this.getBucketForBucketId(bucketId);
-		return this.getFileFromBucket(photoName, bucket.getName());
+		return this.getFileFromBucket(photoName, bucket.getName(), ".jpeg", this.randomAlphaNumericOfLength(15), Regions.US_WEST_2);
 	}
 
-	
 	public Users getUserByGoogleId(String googleUserId) {
-		String sql = "SELECT * FROM users WHERE googleUserId = ?";
-		ArrayList<Users> results = new ArrayList<Users>();
+		final String sql = "SELECT * FROM users WHERE googleUserId = ?";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -596,9 +527,8 @@ public class JDBCSalesmanBuddyDAO {
 		return null;
 	}
 	
-	
 	public int createUser(Users user) {
-		String sql = "INSERT INTO users (deviceType, type, googleUserId, refreshToken) VALUES(?, ?, ?, ?)";
+		final String sql = "INSERT INTO users (deviceType, type, googleUserId, refreshToken) VALUES(?, ?, ?, ?)";
 		int id = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, user.getDeviceType());
@@ -606,7 +536,11 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setString(3, user.getGoogleUserId());
 			statement.setString(4, user.getRefreshToken());
 			statement.executeUpdate();
-			id = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			id = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -614,16 +548,17 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException("failed inserting user, user: " + user.toString());
 		return id;
 	}
-
-
 	
 	public Users getUserById(int userId) {
-		String sql = "SELECT * FROM users WHERE id = ?";
-		ArrayList<Users> results = new ArrayList<Users>();
+		final String sql = "SELECT * FROM users WHERE id = ?";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, userId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -631,8 +566,6 @@ public class JDBCSalesmanBuddyDAO {
 			return results.get(0);
 		return null;
 	}
-
-
 	
 	public LicensesListElement updateLicense(LicensesFromClient licenseFromClient, String googleUserId) {
 		if(licenseFromClient.getId() == null || licenseFromClient.getId() == 0)
@@ -644,10 +577,9 @@ public class JDBCSalesmanBuddyDAO {
 		return this.getLicenseListElementForLicenseId(licenseFromClient.getId());
 	}
 
-
-	public ArrayList<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId, ArrayList<Questions> questions) {
-		ArrayList<Answers> answers = this.getAnswersForLicenseId(licenseId);
-		ArrayList<QuestionsAndAnswers> qas = new ArrayList<QuestionsAndAnswers>();
+	public List<QuestionsAndAnswers> getQuestionsAndAnswersForLicenseId(int licenseId, List<Questions> questions) {
+		List<Answers> answers = this.getAnswersForLicenseId(licenseId);
+		List<QuestionsAndAnswers> qas = new ArrayList<>();
 		for(Answers a : answers){
 			QuestionsAndAnswers qa = new QuestionsAndAnswers();
 			qa.setAnswer(a);
@@ -658,7 +590,7 @@ public class JDBCSalesmanBuddyDAO {
 		return qas;
 	}
 	
-	private Questions getQuestionFromListById(ArrayList<Questions> questions, int id){
+	private Questions getQuestionFromListById(List<Questions> questions, int id){
 		for(Questions q : questions){
 			if(q.getId() == id)
 				return q;
@@ -666,14 +598,15 @@ public class JDBCSalesmanBuddyDAO {
 		return null;
 	}
 	
-	
-	public ArrayList<Answers> getAnswersForLicenseId(int licenseId) {
-		String sql = "SELECT * FROM answers WHERE licenseId = ?";
-		ArrayList<Answers> results = new ArrayList<Answers>();
+	public List<Answers> getAnswersForLicenseId(int licenseId) {
+		final String sql = "SELECT * FROM answers WHERE licenseId = ?";
+		List<Answers> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, licenseId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Answers.parseResultSet(resultSet);
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -686,14 +619,16 @@ public class JDBCSalesmanBuddyDAO {
 		return results;
 	}
 
-
 	private ImageDetails getImageDetailsForAnswerId(Integer answerId) {
-		String sql = "SELECT * FROM imageDetails WHERE answerId = ?";
-		ArrayList<ImageDetails> results = new ArrayList<ImageDetails>();
+		final String sql = "SELECT * FROM imageDetails WHERE answerId = ?";
+		List<ImageDetails> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, answerId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = ImageDetails.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -703,7 +638,7 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int updateAnswerInDatabase(Answers answer) {
-		String sql = "UPDATE answers SET answerBool = ?, answerType = ?, answerText = ?, licenseId = ?, questionId = ? WHERE id = ?";
+		final String sql = "UPDATE answers SET answerBool = ?, answerType = ?, answerText = ?, licenseId = ?, questionId = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, answer.getAnswerBool());
@@ -712,6 +647,7 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(4, answer.getLicenseId());
 			statement.setInt(5, answer.getQuestionId());
 			statement.setInt(6, answer.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -725,13 +661,14 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int updateImageDetailsInDatabase(ImageDetails imageDetails) {
-		String sql = "UPDATE imageDetails SET photoName = ?, bucketId = ? WHERE id = ?";
+		final String sql = "UPDATE imageDetails SET photoName = ?, bucketId = ? WHERE id = ?";
 
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, imageDetails.getPhotoName());
 			statement.setInt(2, imageDetails.getBucketId());
 			statement.setInt(3, imageDetails.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -742,9 +679,8 @@ public class JDBCSalesmanBuddyDAO {
 		return i;
 	}
 
-
 	private int updateQuestionInDatabase(Questions q){
-		String sql = "UPDATE questions SET version = ?, questionOrder = ?, questionTextEnglish = ?, questionTextSpanish = ?, required = ?, questionType = ? WHERE id = ?";
+		final String sql = "UPDATE questions SET version = ?, questionOrder = ?, questionTextEnglish = ?, questionTextSpanish = ?, required = ?, questionType = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, q.getVersion());
@@ -754,7 +690,9 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(5, q.getRequired());
 			statement.setInt(6, q.getQuestionType());
 			statement.setInt(7, q.getId());
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -762,7 +700,7 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int putQuestionInDatabase(Questions q){
-		String sql = "INSERT INTO questions (version, questionOrder, questionTextEnglish, questionTextSpanish, required, questionType) VALUES (?, ?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO questions (version, questionOrder, questionTextEnglish, questionTextSpanish, required, questionType) VALUES (?, ?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, q.getVersion());
@@ -772,7 +710,11 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(5, q.getRequired());
 			statement.setInt(6, q.getQuestionType());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -780,7 +722,7 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int putAnswerInDatabase(Answers answer) {
-		String sql = "INSERT INTO answers (answerText, answerBool, licenseId, questionId, answerType) VALUES (?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO answers (answerText, answerBool, licenseId, questionId, answerType) VALUES (?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			if(answer.getAnswerText() == null)
@@ -791,7 +733,10 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(4, answer.getQuestionId());
 			statement.setInt(5, answer.getAnswerType());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -807,12 +752,15 @@ public class JDBCSalesmanBuddyDAO {
 	}
 
 	public Questions getQuestionById(Integer questionId) {
-		String sql = "SELECT * FROM questions WHERE id = ?";
-		ArrayList<Questions> results = new ArrayList<Questions>();
+		final String sql = "SELECT * FROM questions WHERE id = ?";
+		List<Questions> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, questionId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Questions.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -821,12 +769,14 @@ public class JDBCSalesmanBuddyDAO {
 		return null;
 	}
 	
-	public ArrayList<Questions> getAllQuestions() {
-		String sql = "SELECT * FROM questions ORDER BY questionOrder";
-		ArrayList<Questions> results = new ArrayList<Questions>();
+	public List<Questions> getAllQuestions() {
+		final String sql = "SELECT * FROM questions ORDER BY questionOrder";
+		List<Questions> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Questions.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -844,14 +794,18 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	private int putImageDetailsInDatabase(ImageDetails imageDetails){
-		String sql = "INSERT INTO imageDetails (photoName, bucketId, answerId) VALUES (?, ?, ?)";
+		final String sql = "INSERT INTO imageDetails (photoName, bucketId, answerId) VALUES (?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, imageDetails.getPhotoName());
 			statement.setInt(2, imageDetails.getBucketId());
 			statement.setInt(3, imageDetails.getAnswerId());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle + ", imageDetials: " + imageDetails.toString());
 		}
@@ -860,58 +814,56 @@ public class JDBCSalesmanBuddyDAO {
 		return i;
 	}
 
-
-	
 	public Questions putQuestion(Questions question) {
 		this.putQuestionInDatabase(question);
 		return this.getQuestionById(question.getId());
 	}
 
-
-	
 	public Questions updateQuestion(Questions question) {
 		this.updateQuestionInDatabase(question);
 		return this.getQuestionById(question.getId());
 	}
 	
-	
-	
-	
-	public ArrayList<Languages> getAllLanguages(int onlyMtcTaught) {
+	public List<Languages> getAllLanguages(int onlyMtcTaught) {
 		String sql = "SELECT * FROM languages";
 		if(onlyMtcTaught == 1)
 			sql = "SELECT * FROM languages WHERE mtcTaught = 1";
-		ArrayList<Languages> results = new ArrayList<Languages>();
+		List<Languages> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Languages.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
-
-
 	
 	public List<Users> getAllUsers() {
-		String sql = "SELECT * FROM users";
-		ArrayList<Users> results = new ArrayList<Users>();
+		final String sql = "SELECT * FROM users";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-	public ArrayList<Users> getUsersForDealershipId(Integer dealershipId) {
-		String sql = "SELECT * FROM users WHERE dealershipId = ?";
-		ArrayList<Users> results = new ArrayList<Users>();
+	public List<Users> getUsersForDealershipId(Integer dealershipId) {
+		final String sql = "SELECT * FROM users WHERE dealershipId = ?";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, dealershipId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -919,12 +871,14 @@ public class JDBCSalesmanBuddyDAO {
 	}
 	
 	public Users updateUserToType(String googleUserId, int type) {
-		String sql = "UPDATE users SET type = ? WHERE googleUserId = ?";
+		final String sql = "UPDATE users SET type = ? WHERE googleUserId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, type);
 			statement.setString(2, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -933,16 +887,16 @@ public class JDBCSalesmanBuddyDAO {
 		return this.getUserByGoogleId(googleUserId);
 	}
 
-
-	
 	public Users updateUserToDealershipCode(String googleUserId, String dealershipCode) {
 		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
-		String sql = "UPDATE users SET dealershipId = ? WHERE googleUserId = ?";
+		final String sql = "UPDATE users SET dealershipId = ? WHERE googleUserId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setString(2, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException("dealershipId: " + dealershipId + ", " + sqle.getLocalizedMessage());
 		}
@@ -953,13 +907,15 @@ public class JDBCSalesmanBuddyDAO {
 	
 	public Users updateUserToDealershipCodeType(String googleUserId, String dealershipCode, int type) {
 		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
-		String sql = "UPDATE users SET dealershipId = ?, type = ? WHERE googleUserId = ?";
+		final String sql = "UPDATE users SET dealershipId = ?, type = ? WHERE googleUserId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setInt(2, type);
 			statement.setString(3, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException("dealershipId: " + dealershipId + ", type:" + type + ", " + sqle.getLocalizedMessage());
 		}
@@ -968,14 +924,16 @@ public class JDBCSalesmanBuddyDAO {
 		return this.getUserByGoogleId(googleUserId);
 	}
 
-
 	private Dealerships getDealershipByDealershipCode(String dealershipCode) {
-		String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
-		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
+		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
+		List<Dealerships> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, dealershipCode);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Dealerships.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -984,35 +942,36 @@ public class JDBCSalesmanBuddyDAO {
 		throw new RuntimeException("failed to get dealership by dealershipCode: " + dealershipCode + ", count: " + results.size());
 	}
 
-
-	
 	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId, boolean getSubData) {
-		String sql = "SELECT * FROM users WHERE dealershipId = ?";
-		ArrayList<Users> results = new ArrayList<Users>();
+		final String sql = "SELECT * FROM users WHERE dealershipId = ?";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
-		ArrayList<LicensesListElement> licenses = new ArrayList<LicensesListElement>();
+		List<LicensesListElement> licenses = new ArrayList<>();
 		for(Users u : results){
 			licenses.addAll(this.getAllLicensesForUserId(u.getGoogleUserId(), getSubData));
 		}
 		return licenses;
 	}
 	
-	
-	
-	
 	public Dealerships getDealershipById(Integer dealershipId) {
 		final String sql = "SELECT * FROM dealerships WHERE id = ?";
-		ArrayList<Dealerships> results = new ArrayList<Dealerships>();
+		List<Dealerships> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Dealerships.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1021,9 +980,8 @@ public class JDBCSalesmanBuddyDAO {
 		throw new RuntimeException("failed to get the dealership by id: " + dealershipId);
 	}
 	
-	
 	public Dealerships newDealership(Dealerships dealership) {
-		String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode, notes) VALUES (?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode, notes) VALUES (?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, dealership.getName());
@@ -1032,7 +990,11 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setString(4, UUID.randomUUID().toString());
 			statement.setString(5, dealership.getNotes());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1040,11 +1002,9 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException("insert dealership failed");
 		return this.getDealershipById(i);
 	}
-
-
 	
 	public Dealerships updateDealership(Dealerships dealership) {
-		String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ?, notes = ? WHERE id = ?";
+		final String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ?, notes = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, dealership.getName());
@@ -1052,7 +1012,9 @@ public class JDBCSalesmanBuddyDAO {
 			statement.setInt(3, dealership.getStateId());
 			statement.setString(4, dealership.getNotes());
 			statement.setInt(5, dealership.getId());
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1061,18 +1023,19 @@ public class JDBCSalesmanBuddyDAO {
 		return this.getDealershipById(dealership.getId());
 	}
 	
-	
 	public void updateRefreshTokenForUser(Users userFromClient) {
 		if(userFromClient.getDeviceType() < 1 || userFromClient.getDeviceType() > 3)
 			throw new RuntimeException("their device type is not within the range 1-3, user: " + userFromClient.toString());
 		
-		String sql = "UPDATE users SET refreshToken = ?, deviceType = ? WHERE id = ?";
+		final String sql = "UPDATE users SET refreshToken = ?, deviceType = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, userFromClient.getRefreshToken());
 			statement.setInt(2, userFromClient.getDeviceType());
 			statement.setInt(3, userFromClient.getId());
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1080,7 +1043,6 @@ public class JDBCSalesmanBuddyDAO {
 			throw new RuntimeException("failed to update user's refresh token, refreshToken length: " + userFromClient.getRefreshToken().length() + ", userFromClient: " + userFromClient.toString());
 		return;
 	}
-	
 	
 	public GoogleRefreshTokenResponse codeForToken(String code, String redirectUri, String state) throws GoogleRefreshTokenResponseException {
 		String webString = "code=" + code +
@@ -1153,6 +1115,8 @@ public class JDBCSalesmanBuddyDAO {
 			
 			ResultSet resultSet = statement.executeQuery();
 			gt = GoogleToken.parseOneRowResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1167,27 +1131,23 @@ public class JDBCSalesmanBuddyDAO {
 		return null;
 	}
 	
-//	id                       int                      IDENTITY(1,1) NOT NULL PRIMARY KEY,
-//	userId                   int                                    NOT NULL,
-//	token 					 NVARCHAR(100) 							NOT NULL,
-//	created                  DATETIME2    default SYSUTCDATETIME()  NOT NULL,
-//	expiresAt 				 int 									NOT NULL,
-//	type 					 int 									NOT NULL
-	
 	public int saveGoogleTokenInCache(GoogleRefreshTokenResponse grtr, Users user) {
-		String sql = "INSERT INTO tokens (userId, token, expiresAt, type) VALUES (?, ?, ?, ?)";
+		final String sql = "INSERT INTO tokens (userId, token, expiresAt, type) VALUES (?, ?, ?, ?)";
 		int i = 0;
 		DateTime expiresAt = new DateTime().plusSeconds((int)grtr.getExpiresIn());
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, user.getId());
 			statement.setString(2, grtr.getTokenType() + " " + grtr.getAccessToken());
 			
-			
 			statement.setLong(3, expiresAt.getMillis());
 			statement.setInt(4, user.getType());
 
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException("expiresAt: " + expiresAt.getMillis() + ", grtr: " + grtr.toString() + ", user: " + user.toString() + ", error: " + sqle.getLocalizedMessage());
 		}
@@ -1196,7 +1156,6 @@ public class JDBCSalesmanBuddyDAO {
 		return i;
 	}
 	
-	@SuppressWarnings("unused")
 	public GoogleToken getValidTokenForUser(String googleUserId, Users user) throws GoogleRefreshTokenResponseException {
 		if(user == null)
 			user = this.getUserByGoogleId(googleUserId);
@@ -1204,7 +1163,6 @@ public class JDBCSalesmanBuddyDAO {
 		GoogleToken gt = this.getTokenForUserFromCache(user.getId());
 		if(gt != null)
 			return gt;
-		
 		
 		String iosString = "client_secret=" + GoogleClientSecretiOS
 				+ "&grant_type=refresh_token"
@@ -1258,8 +1216,6 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			// TODO make this error handling more comprehensive, if refreshtoken is invalid we need to be able to handle it
 			JDBCSalesmanBuddyDAO.sendErrorToMe("couldnt exchange refresh token for googleUserId: " + googleUserId + ", error: " + e.getLocalizedMessage());
 			String jsonString = "";
-			if(json != null)
-				jsonString = json.toString();
 			throw new RuntimeException("!IOException: " + e.getLocalizedMessage() + ", deviceType:" + user.getDeviceType() + ", " + new String(body) + ", json: " + jsonString);
 		}catch(JSONException jse){
 			throw new RuntimeException("JSONException: " + jse.getLocalizedMessage());
@@ -1269,17 +1225,6 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		// put token in database for caching
 		this.saveGoogleTokenInCache(grtr, user);
 		return this.getTokenForUserFromCache(user.getId()); 
-	}
-
-	public static void sendErrorToMe(String errorString){
-		ArrayList<String> to = new ArrayList<String>();
-		to.add("cameronmccord2@gmail.com");
-		try {
-			SBEmail.newPlainTextEmail("logging@salesmanbuddy.com", to, "error", errorString, true).send();
-		} catch (MalformedSBEmailException e) {
-			e.printStackTrace();
-			System.out.println(new StringBuilder().append("BIGERROR, there was an error sending an error email, message: ").append(e.getLocalizedMessage()));
-		}
 	}
 
 	public UsersName getUsersName(String googleUserId) throws UserNameException {
@@ -1292,7 +1237,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			e.printStackTrace();
 			name.setName("<Error getting name>");
 			return name;
-//			throw new UserNameException(e.getLocalizedMessage());
+
 		} catch (GoogleRefreshTokenResponseException e) {
 			e.printStackTrace();
 			throw new UserNameException(e.getLocalizedMessage());
@@ -1300,12 +1245,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return name;
 	}
 	
-	
 	public GoogleUserInfo getGoogleUserInfoWithId(String googleUserId) throws GoogleUserInfoException, GoogleRefreshTokenResponseException{
 		GoogleToken gt = this.getValidTokenForUser(googleUserId, null);
 		return this.getGoogleUserInfo(gt.getToken());
 	}
-	
 	
 	public GoogleUserInfo getGoogleUserInfo(String token) throws GoogleUserInfoException {
 		URL url;
@@ -1336,7 +1279,6 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		GoogleUserInfo gui = new GoogleUserInfo(json);
 		return gui;
 	}
-	
 	
 	// Email sending stuff
 	
@@ -1375,7 +1317,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		case DAILY_SALESMAN_SUMMARY_EMAIL_TYPE:
 		case WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE:
 		case MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE:
-			ArrayList<SBEmail> emails = generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, reportType);
+			List<SBEmail> emails = generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, reportType);
 			for(SBEmail e : emails){
 				e.replaceTo(replacementEmail);
 				try {
@@ -1394,7 +1336,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return finalMessage;
 	}
 	
-	private ArrayList<SBEmail> generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(Integer dealershipId, Integer reportType) {
+	private List<SBEmail> generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(Integer dealershipId, Integer reportType) {
 		DateTime to = new DateTime(DateTimeZone.UTC);
 		DateTime from = null;
 		switch(reportType){
@@ -1414,8 +1356,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 				throw new RuntimeException("report type invalid for generateIndividualSalesmanSummaryEmailsForDealershipIdReportType");
 		}
 		
-		ArrayList<UserTree> userTrees = this.getAllUserTreeForDealershipIdType(dealershipId, reportType);
-		ArrayList<SBEmail> emails = new ArrayList<SBEmail>();
+		List<UserTree> userTrees = this.getAllUserTreeForDealershipIdType(dealershipId, reportType);
+		List<SBEmail> emails = new ArrayList<>();
 		for(UserTree ut : userTrees){
 			
 			try {
@@ -1444,10 +1386,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private void runDailyReports() {
-		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		List<Dealerships> dealerships = this.getAllDealerships();
 		String subject = null;
 		String body = null;
-		ArrayList<String> toEmails = new ArrayList<String>();
+		List<String> toEmails = new ArrayList<>();
 		Integer type = 0;
 		Integer dealershipId = 0;
 		
@@ -1488,7 +1430,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			}
 			
 			type = DAILY_SALESMAN_SUMMARY_EMAIL_TYPE;
-			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			List<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
 			try {
 				EmailSender.sendEmails(emails);
 			} catch (MalformedSBEmailException e) {
@@ -1499,10 +1441,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private void runWeeklyReports() {
-		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		List<Dealerships> dealerships = this.getAllDealerships();
 		String subject = null;
 		String body = null;
-		ArrayList<String> toEmails = new ArrayList<String>();
+		List<String> toEmails = new ArrayList<>();
 		Integer type = 0;
 		Integer dealershipId = 0;
 		
@@ -1543,7 +1485,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			}
 			
 			type = WEEKLY_SALESMAN_SUMMARY_EMAIL_TYPE;
-			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			List<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
 			try {
 				EmailSender.sendEmails(emails);
 			} catch (MalformedSBEmailException e) {
@@ -1554,10 +1496,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private void runMonthlyReports() {
-		ArrayList<Dealerships> dealerships = this.getAllDealerships();
+		List<Dealerships> dealerships = this.getAllDealerships();
 		String subject = null;
 		String body = null;
-		ArrayList<String> toEmails = new ArrayList<String>();
+		List<String> toEmails = new ArrayList<>();
 		Integer type = 0;
 		Integer dealershipId = 0;
 		
@@ -1598,7 +1540,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			}
 			
 			type = MONTHLY_SALESMAN_SUMMARY_EMAIL_TYPE;
-			ArrayList<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
+			List<SBEmail> emails = this.generateIndividualSalesmanSummaryEmailsForDealershipIdReportType(dealershipId, type);
 			try {
 				EmailSender.sendEmails(emails);
 			} catch (MalformedSBEmailException e) {
@@ -1608,8 +1550,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		}
 	}
 	
-	private ArrayList<String> getEmailsForUserFromUserTrees(ArrayList<UserTree> userTrees){
-		ArrayList<String> ids;
+	private List<String> getEmailsForUserFromUserTrees(List<UserTree> userTrees){
+		List<String> ids;
 		try {
 			ids = this.getUserTreeGoogleIdsForType(userTrees, USER_TREE_TYPE);
 		} catch (InvalidUserTreeType e) {
@@ -1618,8 +1560,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return this.getEmailsForGoogleIds(ids);
 	}
 	
-	private ArrayList<String> getEmailsForSupervisorFromUserTrees(ArrayList<UserTree> userTrees){
-		ArrayList<String> ids;
+	private List<String> getEmailsForSupervisorFromUserTrees(List<UserTree> userTrees){
+		List<String> ids;
 		try {
 			ids = this.getUserTreeGoogleIdsForType(userTrees, SUPERVISOR_TREE_TYPE);
 		} catch (InvalidUserTreeType e) {
@@ -1630,7 +1572,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 	private String individualSalesmanSummaryReport(Integer userId, DateTime from, DateTime to){
 		Users user = this.getUserById(userId);
-		ArrayList<Licenses> licenses = this.getLicensesForDateRangeUserId(userId, to, from);
+		List<Licenses> licenses = this.getLicensesForDateRangeUserId(userId, to, from);
 		StringBuilder sb = new StringBuilder();
 		try {
 			sb.append(this.getUsersName(user.getGoogleUserId()).getName());
@@ -1672,7 +1614,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private String allSalesmanSummaryReport(Integer dealershipId, DateTime from, DateTime to){
-		ArrayList<Users> salesmen = this.getAllUsersForDealershipId(dealershipId);
+		List<Users> salesmen = this.getAllUsersForDealershipId(dealershipId);
 		StringBuilder sb = new StringBuilder();
 		for(Users s : salesmen){
 			sb.append(this.individualSalesmanSummaryReport(s.getId(), from, to));
@@ -1684,13 +1626,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 	private String dealershipSummaryReport(Integer dealershipId, DateTime from, DateTime to){
 		// TODO
-		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
-		ArrayList<Users> users = this.getAllUsersForDealershipId(dealershipId);
+		List<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
+		List<Users> users = this.getAllUsersForDealershipId(dealershipId);
 		Dealerships d = this.getDealershipById(dealershipId);
 		StringBuilder sb = new StringBuilder();
 		sb.append(d.getName()).append(" had ").append(licenses.size()).append(" test drives by ").append(users.size());
 		sb.append(" salesmen during this time period. The dealership also sold ");
-		ArrayList<StockNumbers> stockNumbers = this.getStockNumbersForDealershipFromTo(dealershipId, from, to);
+		List<StockNumbers> stockNumbers = this.getStockNumbersForDealershipFromTo(dealershipId, from, to);
 		sb.append(stockNumbers.size());
 		if(stockNumbers.size() == 1)
 			sb.append(" vehicle.");
@@ -1706,13 +1648,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private String testDriveSummaryReport(Integer dealershipId, DateTime from, DateTime to){
-		ArrayList<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
+		List<Licenses> licenses = this.getLicensesForDateRangeDealershipId(from, to, dealershipId);
 		String licensesMessage = this.createLicensesSummaryForLicenses(licenses, from, to, dealershipId, DEALERSHIP_TYPE);
 		String finalMessage = this.wrapReportContentWithBeginningEnd(licensesMessage, ReportBeginEnd.TestDriveSummary, ReportBeginEnd.TestDriveSummary, dealershipId, from, to);
 		return finalMessage;
 	}
 	
-	private String createLicensesSummaryForLicenses(ArrayList<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
+	private String createLicensesSummaryForLicenses(List<Licenses> licenses, DateTime from, DateTime to, Integer dealershipId, Integer dealershipType) {
 		// TODO
 		StringBuilder sb = new StringBuilder();
 		if(licenses.size() > 0){
@@ -1743,13 +1685,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private String getCustomerNameForLicenseId(Integer id) {
-		String sql = "SELECT q.tag tag, a.answerText answerText FROM answers a, questions q WHERE a.licenseId = ? AND (q.tag = ? OR q.tag = ?) AND a.questionId = q.id";
+		final String sql = "SELECT q.tag tag, a.answerText answerText FROM answers a, questions q WHERE a.licenseId = ? AND (q.tag = ? OR q.tag = ?) AND a.questionId = q.id";
 		String firstName = "<Unknown>";
 		String lastName = "<Unknown>";
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
 			statement.setInt(2, QUESTION_FIRST_NAME_TAG);
 			statement.setInt(3, QUESTION_LAST_NAME_TAG);
+			
 			ResultSet resultSet = statement.executeQuery();
 			while(resultSet.next()){
 				if(resultSet.getInt("tag") == QUESTION_FIRST_NAME_TAG)
@@ -1757,6 +1700,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 				else if(resultSet.getInt("tag") == QUESTION_LAST_NAME_TAG)
 					lastName = resultSet.getString("answerText");
 			}
+			resultSet.close();
 
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -1768,16 +1712,18 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private String getStockNumberForLicenseId(Integer id) {
-		String sql = "SELECT a.answerText answerText FROM answers a, questions q WHERE a.licenseId = ? AND a.questionId = q.id AND q.tag = ?";
+		final String sql = "SELECT a.answerText answerText FROM answers a, questions q WHERE a.licenseId = ? AND a.questionId = q.id AND q.tag = ?";
 		String stockNumber = "<Unknown>";
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
 			statement.setInt(2, QUESTION_STOCK_NUMBER);
+			
 			ResultSet resultSet = statement.executeQuery();
 			while(resultSet.next()){
 				stockNumber = resultSet.getString("answerText");
 				break;
 			}
+			resultSet.close();
 
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -1786,7 +1732,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private String stockNumberSummaryReport(Integer dealershipId, DateTime from, DateTime to){
-		ArrayList<String> stockNumbers = this.getUniqueStockNumbersForDealershipId(dealershipId);
+		List<String> stockNumbers = this.getUniqueStockNumbersForDealershipId(dealershipId);
 		StringBuilder sb = new StringBuilder();
 		for(String sn : stockNumbers){
 			sb.append(this.stockNumberReportForThisStockNumber(sn, from, to));
@@ -1797,7 +1743,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private String stockNumberReportForThisStockNumber(String stockNumber, DateTime from, DateTime to) {
-		ArrayList<Licenses> licenses = this.getLicensesWithStockNumberFromTo(stockNumber, from, to);
+		List<Licenses> licenses = this.getLicensesWithStockNumberFromTo(stockNumber, from, to);
 		StockNumbers sn = null;
 		try {
 			sn = this.getStockNumberByStockNumber(stockNumber);
@@ -1822,7 +1768,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			sb.append(" test drives, ");
 		else{
 			sb.append(" test drives. The last time was ");
-			ArrayList<Licenses> allLicenses = this.getLicensesWithStockNumber(stockNumber);
+			List<Licenses> allLicenses = this.getLicensesWithStockNumber(stockNumber);
 			if(allLicenses.size() > 0){
 				Date date = allLicenses.get(allLicenses.size() - 1).getCreated();
 				String lastTime = this.printTimeDateForReports(new DateTime(date));
@@ -1850,32 +1796,36 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return sb.toString();
 	}
 
-	private ArrayList<Licenses> getLicensesWithStockNumberFromTo(String stockNumber, DateTime from, DateTime to) {
-		String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId AND l.created between ? and ? ORDER BY l.created";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+	private List<Licenses> getLicensesWithStockNumberFromTo(String stockNumber, DateTime from, DateTime to) {
+		final String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId AND l.created between ? and ? ORDER BY l.created";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, stockNumber);
 			statement.setInt(2, QUESTION_STOCK_NUMBER);
 			statement.setString(3, from.toString());
 			statement.setString(4, to.toString());
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
-
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	private ArrayList<Licenses> getLicensesWithStockNumber(String stockNumber) {
-		String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId ORDER BY l.created";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+	private List<Licenses> getLicensesWithStockNumber(String stockNumber) {
+		final String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId ORDER BY l.created";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, stockNumber);
 			statement.setInt(2, QUESTION_STOCK_NUMBER);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
-
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -1948,7 +1898,6 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return time.toString(fmt);
 	}
 
-
 	private String generateEmailContentForDealershipIdReportType(Integer dealershipId, Integer type) {
 		DateTime now = new DateTime(DateTimeZone.forID("America/Denver"));
 		final Integer BACK_MINUTES = 10;
@@ -2011,8 +1960,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private void sendEmailsAboutTestDriveForGoogleUserIdLicenseId(String googleUserId, Integer licenseId){
-		ArrayList<UserTree> userTrees = this.getAllUserTreesForGoogleUserIdType(googleUserId, ON_TEST_DRIVE_EMAIL_TYPE);
-		ArrayList<String> supervisorEmails = this.getEmailsForSupervisorFromUserTrees(userTrees);
+		List<UserTree> userTrees = this.getAllUserTreesForGoogleUserIdType(googleUserId, ON_TEST_DRIVE_EMAIL_TYPE);
+		List<String> supervisorEmails = this.getEmailsForSupervisorFromUserTrees(userTrees);
 		String subject = "Test drive subject for licenseId: " + licenseId;
 		String message = this.createNowTestDriveMessageForLicenseId(licenseId);
 		SBEmail email = SBEmail.newPlainTextEmail(TEST_DRIVE_NOW_EMAIL, supervisorEmails, subject, message, true);
@@ -2046,74 +1995,73 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		String finalMessage = this.wrapReportContentWithBeginningEnd(sb.toString(), ReportBeginEnd.TestDriveNow, ReportBeginEnd.TestDriveNow, user.getDealershipId(), new DateTime(), new DateTime());
 		return finalMessage;
 	}
-	
-	private DateTime getNowTime(){
-		return new DateTime(DateTimeZone.UTC);
-	}
-
 
 	private String getStatsAboutUserId(Integer userId) {
 		DateTime to = this.getNowTime();
 		DateTime from = to.minusWeeks(1);
-		ArrayList<Licenses> licenses = this.getLicensesForDateRangeUserId(userId, to, from);
+		List<Licenses> licenses = this.getLicensesForDateRangeUserId(userId, to, from);
 		StringBuilder sb = new StringBuilder();
 		sb.append("This salesman has had ").append(licenses.size()).append(" test drives in the last week.\n");
 		return sb.toString();
 	}
 
-
-	private ArrayList<Licenses> getLicensesForDateRangeUserId(Integer userId, DateTime to, DateTime from) {
-		String sql = "SELECT * FROM licenses WHERE userId = ? AND created BETWEEN ? AND ?;";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+	private List<Licenses> getLicensesForDateRangeUserId(Integer userId, DateTime to, DateTime from) {
+		final String sql = "SELECT * FROM licenses WHERE userId = ? AND created BETWEEN ? AND ?;";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, userId);
 			statement.setString(2, from.toString());
 			statement.setString(3, to.toString());
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
 	private String getStatsAboutStockNumber(String stockNumber, Integer dealershipId) {
 		DateTime to = this.getNowTime();
 		DateTime from = to.minusWeeks(1);
-		ArrayList<Licenses> licenses = this.getAllLicensesForStockNumberInDateRange(stockNumber, to, from);
+		List<Licenses> licenses = this.getAllLicensesForStockNumberInDateRange(stockNumber, to, from);
 		StringBuilder sb = new StringBuilder();
 		sb.append("Stock Number ").append(stockNumber).append(" has been test driven ").append(licenses.size());
 		sb.append(" times in the last week.\n");
 		return sb.toString();
 	}
 
-	private ArrayList<Licenses> getLicensesForDateRangeDealershipId(DateTime from, DateTime to, Integer dealershipId) {
-		String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?;";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+	private List<Licenses> getLicensesForDateRangeDealershipId(DateTime from, DateTime to, Integer dealershipId) {
+		final String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?;";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setString(2, from.toString());
 			statement.setString(3, to.toString());
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-	private ArrayList<Licenses> getAllLicensesForStockNumberInDateRange(String stockNumber, DateTime to, DateTime from) {
-		String sql = "SELECT l.* FROM licenses l, answers a, questions q WHERE q.tag = ? AND a.questionId = q.id AND a.answerText = ? AND a.licenseId = l.id";
-//		String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
-		ArrayList<Licenses> results = new ArrayList<Licenses>();
+	private List<Licenses> getAllLicensesForStockNumberInDateRange(String stockNumber, DateTime to, DateTime from) {
+		final String sql = "SELECT l.* FROM licenses l, answers a, questions q WHERE q.tag = ? AND a.questionId = q.id AND a.answerText = ? AND a.licenseId = l.id";
+//		final String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
+		List<Licenses> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, QUESTION_STOCK_NUMBER);
 			statement.setString(2, stockNumber);
 			
-
 			ResultSet resultSet = statement.executeQuery();
 			results = Licenses.parseResultSet(resultSet);
+			resultSet.close();
 
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2121,8 +2069,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return results;
 	}
 
-	private ArrayList<String> getUserTreeGoogleIdsForType(ArrayList<UserTree> userTrees, Integer type) throws InvalidUserTreeType {
-		ArrayList<String> ids = new ArrayList<String>();
+	private List<String> getUserTreeGoogleIdsForType(List<UserTree> userTrees, Integer type) throws InvalidUserTreeType {
+		List<String> ids = new ArrayList<>();
 		for(UserTree u : userTrees){
 			if(type == JDBCSalesmanBuddyDAO.SUPERVISOR_TREE_TYPE) 
 				ids.add(u.getSupervisorId());
@@ -2134,11 +2082,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return ids;
 	}
 
-
 	// User Tree stuff
 	
 	public int newUserTreeNode(String googleUserId, String supervisorId, Integer type){
-		String sql = "INSERT INTO userTree (userId, supervisorId, type) VALUES(?, ?, ?)";
+		final String sql = "INSERT INTO userTree (userId, supervisorId, type) VALUES(?, ?, ?)";
 		int i = 0;
 		if(supervisorId == null)// allows for dealership-wide reports
 			supervisorId = "";
@@ -2148,7 +2095,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setString(2, supervisorId);
 			statement.setInt(3, type);
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2158,15 +2108,18 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 	
-	private ArrayList<UserTree> getAllUserTreeForDealershipIdType(Integer dealershipId, Integer type) {
-		String sql = "SELECT * FROM userTree ut WHERE type = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?));";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	private List<UserTree> getAllUserTreeForDealershipIdType(Integer dealershipId, Integer type) {
+		final String sql = "SELECT * FROM userTree ut WHERE type = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?));";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, type);
 			statement.setInt(2, dealershipId);
 			statement.setInt(3, dealershipId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2174,101 +2127,121 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public UserTree getUserTreeById(Integer id){
-		String sql = "SELECT * FROM userTree WHERE id = ?";
+		final String sql = "SELECT * FROM userTree WHERE id = ?";
 		UserTree result = null;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
+			
 			ResultSet resultSet = statement.executeQuery();
 			result = UserTree.parseOneResultFromSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return result;
 	}
 	
-	public ArrayList<UserTree> getAllUserTreeForGoogleUserId(String googleUserId){
-		String sql = "SELECT * FROM userTree WHERE userId = ?";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTreeForGoogleUserId(String googleUserId){
+		final String sql = "SELECT * FROM userTree WHERE userId = ?";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	public ArrayList<UserTree> getAllUserTreesForGoogleUserIdType(String googleUserId, Integer type){
-		String sql = "SELECT * FROM userTree WHERE userId = ? AND type = ?";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTreesForGoogleUserIdType(String googleUserId, Integer type){
+		final String sql = "SELECT * FROM userTree WHERE userId = ? AND type = ?";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			statement.setInt(2, type);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	public ArrayList<UserTree> getAllUserTreeForGoogleSupervisorId(String googleSupervisorId){
-		String sql = "SELECT * FROM userTree WHERE supervisorId = ?";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTreeForGoogleSupervisorId(String googleSupervisorId){
+		final String sql = "SELECT * FROM userTree WHERE supervisorId = ?";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleSupervisorId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	public ArrayList<UserTree> getAllUserTree() {
-		String sql = "SELECT * FROM userTree ORDER BY userId";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTree() {
+		final String sql = "SELECT * FROM userTree ORDER BY userId";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	public ArrayList<UserTree> getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(String googleUserId) {
-		String sql = "SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(String googleUserId) {
+		final String sql = "SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, googleUserId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	public ArrayList<UserTree> getAllUserTreeForDealershipId(Integer dealershipId) {
-		String sql = "SELECT * FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?);";
-		ArrayList<UserTree> results = new ArrayList<UserTree>();
+	public List<UserTree> getAllUserTreeForDealershipId(Integer dealershipId) {
+		final String sql = "SELECT * FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?);";
+		List<UserTree> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setInt(2, dealershipId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = UserTree.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	private ArrayList<String> getUniqueStockNumbersForDealershipId(Integer dealershipId) {
-		String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
-		ArrayList<String> results = new ArrayList<String>();
+	private List<String> getUniqueStockNumbersForDealershipId(Integer dealershipId) {
+		final String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
+		List<String> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, QUESTION_STOCK_NUMBER);
 			statement.setInt(2, dealershipId);
@@ -2277,6 +2250,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			while(resultSet.next()){
 				results.add(resultSet.getString("stockNumber"));
 			}
+			resultSet.close();
 
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2284,14 +2258,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return results;
 	}
 	
-	private ArrayList<Users> getAllUsersForDealershipId(Integer dealershipId) {
-		String sql = "SELECT * FROM users WHERE dealershipId = ?;";
-		ArrayList<Users> results = new ArrayList<Users>();
+	private List<Users> getAllUsersForDealershipId(Integer dealershipId) {
+		final String sql = "SELECT * FROM users WHERE dealershipId = ?;";
+		List<Users> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 
 			ResultSet resultSet = statement.executeQuery();
 			results = Users.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2299,17 +2275,17 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private String getEmailForGoogleId(String supervisorId) {
-		ArrayList<String> ids = new ArrayList<String>();
+		List<String> ids = new ArrayList<>();
 		ids.add(supervisorId);
-		ArrayList<String> emails = this.getEmailsForGoogleIds(ids);
+		List<String> emails = this.getEmailsForGoogleIds(ids);
 		if(emails.size() > 0)
 			return emails.get(0);
 		return ERRORED_EMAIL;
 	}
 	
-	public ArrayList<String> getEmailsForGoogleIds(ArrayList<String> googleIds){
+	public List<String> getEmailsForGoogleIds(List<String> googleIds){
 		Integer unverifiedEmails = 0;
-		HashSet<String> recipients = new HashSet<String>();
+		Set<String> recipients = new HashSet<>();
 		for(String id : googleIds){
 			GoogleUserInfo gui;
 			try {
@@ -2333,14 +2309,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public int updateUserTreeNode(String googleUserId, String googleSupervisorId, Integer id, Integer type){
-		String sql = "UPDATE userTree SET userId = ?, supervisorId = ?, type = ? WHERE id = ?";
+		final String sql = "UPDATE userTree SET userId = ?, supervisorId = ?, type = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, googleSupervisorId);
 			statement.setInt(3, type);
 			statement.setInt(4, id);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2350,11 +2328,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public int deleteUserTreeNodeById(Integer id){
-		String sql = "DELETE FROM userTree WHERE id = ?";
+		final String sql = "DELETE FROM userTree WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2364,12 +2344,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public int deleteUserTreeNodesForGoogleUserIdAllNodes(String googleUserId){
-		String sql = "DELETE FROM userTree WHERE supervisorId = ? OR userId = ?";
+		final String sql = "DELETE FROM userTree WHERE supervisorId = ? OR userId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			statement.setString(2, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2379,11 +2361,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public int deleteUserTreeNodesForUserId(String googleUserId){
-		String sql = "DELETE FROM userTree WHERE userId = ?";
+		final String sql = "DELETE FROM userTree WHERE userId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2393,11 +2377,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public int deleteUserTreeNodesForSupervisorId(String googleUserId){
-		String sql = "DELETE FROM userTree WHERE supervisorId = ?";
+		final String sql = "DELETE FROM userTree WHERE supervisorId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2407,12 +2393,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public ErrorMessage deleteUserTreeNodesForDealershipId(Integer dealershipId) {
-		String sql = "DELETE FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?)";
+		final String sql = "DELETE FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setInt(2, dealershipId);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2422,10 +2410,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public ErrorMessage deleteAllUserTreeNodes() {
-		String sql = "DELETE FROM userTree";
+		final String sql = "DELETE FROM userTree";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2435,13 +2424,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private StockNumbers getStockNumberByStockNumber(String stockNumber) throws NoResultInResultSet {
-		String sql = "SELECT * FROM stockNumbers WHERE stockNumber = ?";
+		final String sql = "SELECT * FROM stockNumbers WHERE stockNumber = ?";
 		StockNumbers result = null;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, stockNumber);
 
 			ResultSet resultSet = statement.executeQuery();
 			result = StockNumbers.parseOneRowResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2449,26 +2440,28 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public StockNumbers getStockNumberById(Integer id) throws NoResultInResultSet {
-		String sql = "SELECT * FROM stockNumbers WHERE id = ?;";
+		final String sql = "SELECT * FROM stockNumbers WHERE id = ?;";
 		StockNumbers result = null;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
 
 			ResultSet resultSet = statement.executeQuery();
 			result = StockNumbers.parseOneRowResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return result;
 	}
 
-
 	public List<StockNumbers> getAllStockNumbers() {
-		String sql = "SELECT * FROM stockNumbers";
-		ArrayList<StockNumbers> results = new ArrayList<StockNumbers>();
+		final String sql = "SELECT * FROM stockNumbers";
+		List<StockNumbers> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = StockNumbers.parseResultSet(resultSet);
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2476,24 +2469,25 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return results;
 	}
 
-
 	public List<StockNumbers> getStockNumbersForDealershipId(Integer dealershipId) {
-		String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ?;";
-		ArrayList<StockNumbers> results = new ArrayList<StockNumbers>();
+		final String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ?;";
+		List<StockNumbers> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 
 			ResultSet resultSet = statement.executeQuery();
 			results = StockNumbers.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 	
-	private ArrayList<StockNumbers> getStockNumbersForDealershipFromTo(Integer dealershipId, DateTime from, DateTime to) {
-		String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ? AND soldOn between ? and ?";
-		ArrayList<StockNumbers> results = new ArrayList<StockNumbers>();
+	private List<StockNumbers> getStockNumbersForDealershipFromTo(Integer dealershipId, DateTime from, DateTime to) {
+		final String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ? AND soldOn between ? and ?";
+		List<StockNumbers> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, dealershipId);
 			statement.setString(2, from.toString());
@@ -2501,6 +2495,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 			ResultSet resultSet = statement.executeQuery();
 			results = StockNumbers.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2508,7 +2504,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public StockNumbers newStockNumber(StockNumbers stockNumber) {
-		String sql = "INSERT INTO stockNumbers (dealershipId, stockNumber, status, createdBy, soldBy) VALUES(?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO stockNumbers (dealershipId, stockNumber, status, createdBy, soldBy) VALUES(?, ?, ?, ?, ?)";
 		int i = 0;
 		
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
@@ -2518,7 +2514,10 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(4, stockNumber.getCreatedBy());
 			statement.setInt(5, stockNumber.getSoldBy());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -2536,11 +2535,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 
 	public Integer deleteStockNumberById(Integer id) {
-		String sql = "DELETE FROM stockNumbers WHERE id = ?";
+		final String sql = "DELETE FROM stockNumbers WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
+			
 			i = statement.executeUpdate();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2548,7 +2549,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public StockNumbers updateStockNumber(StockNumbers stockNumber) {
-		String sql = "UPDATE stockNumbers SET dealershipId = ?, stockNumber = ?, status = ?, soldOn = ?, soldBy = ? WHERE id = ?";
+		final String sql = "UPDATE stockNumbers SET dealershipId = ?, stockNumber = ?, status = ?, soldOn = ?, soldBy = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, stockNumber.getDealershipId());
@@ -2557,6 +2558,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setDate(4, stockNumber.getSoldOn());
 			statement.setInt(5, stockNumber.getSoldBy());
 			statement.setInt(6, stockNumber.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2570,7 +2572,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 //	public StockNumbers updateStockNumberSoldOn(Integer id, DateTime at) {
 //		// TODO make sure this works properly
-//		String sql = "UPDATE stockNumbers SET soldOn = ? WHERE id = ?";
+//		final String sql = "UPDATE stockNumbers SET soldOn = ? WHERE id = ?";
 //		int i = 0;
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 //			statement.setString(1, at.toString());
@@ -2666,7 +2668,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 
 	
-	public ArrayList<Captions> putCaptions(List<Captions> captions) {
+	public List<Captions> putCaptions(List<Captions> captions) {
 		if(captions.size() == 0)
 			return new ArrayList<Captions>();
 		
@@ -2682,22 +2684,24 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private int getLatestCaptionVersionForMediaIdLanguageId(Integer mediaId, Integer languageId) {
-		String sql = "SELECT MAX(version) AS maxValue FROM captions WHERE mediaId = ? AND languageId = ?";
+		final String sql = "SELECT MAX(version) AS maxValue FROM captions WHERE mediaId = ? AND languageId = ?";
 		Integer maxValue = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			statement.setInt(2, languageId);
+			
 			ResultSet resultSet = statement.executeQuery();
 			maxValue = MaxValue.parseResultSetForMaxValue(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return maxValue;
 	}
 
-
 	private int putCaption(Captions caption){
-		String sql = "INSERT INTO captions (version, caption, mediaId, startTime, endTime, type, languageId) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO captions (version, caption, mediaId, startTime, endTime, type, languageId) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, caption.getVersion());
@@ -2708,7 +2712,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(6, caption.getType());
 			statement.setInt(7, caption.getLanguageId());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2717,27 +2725,26 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 
-
-	
-	public ArrayList<Captions> getAllCaptionsForMediaIdLanguageId(int mediaId, int languageId) {
+	public List<Captions> getAllCaptionsForMediaIdLanguageId(int mediaId, int languageId) {
 		Integer latestVersion = this.getLatestCaptionVersionForMediaIdLanguageId(mediaId, languageId);
 		
-		String sql = "SELECT * FROM captions WHERE mediaId = ? AND languageId = ? AND version = ? ORDER BY startTime";
-		ArrayList<Captions> results = new ArrayList<Captions>();
+		final String sql = "SELECT * FROM captions WHERE mediaId = ? AND languageId = ? AND version = ? ORDER BY startTime";
+		List<Captions> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			statement.setInt(2, languageId);
 			statement.setInt(3, latestVersion);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Captions.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
-	
 	public Media putMedia(Media media) {
 		if(media.getId() == 0)
 			return this.putNewMedia(media);
@@ -2746,7 +2753,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 		
 	private Media updateMedia(Media media){
-		String sql = "UPDATE media SET name = ?, filename = ?, type = ?, audioLanguageId = ? WHERE id = ?";
+		final String sql = "UPDATE media SET name = ?, filename = ?, type = ?, audioLanguageId = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, media.getName());
@@ -2755,6 +2762,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(4, media.getAudioLanguageId());
 //			statement.setString(5, media.getExtension());
 			statement.setInt(5, media.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2768,17 +2776,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			return this.saveFileThatWasPutWithNewMedia(media);
 		else
 			return this.getMediaById(media.getId());
-		
-//		return this.getMediaById(media.getId());
 	}
 	
 	public int deleteMediaById(int mediaId) {
 		this.deletePopupsWithMediaId(mediaId);
 		this.deleteCaptionsWithMediaId(mediaId);
-		String sql = "DELETE FROM media WHERE id = ?";
+		final String sql = "DELETE FROM media WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2788,10 +2795,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private int deleteCaptionsWithMediaId(int mediaId) {
-		String sql = "DELETE FROM captions WHERE mediaId = ?";
+		final String sql = "DELETE FROM captions WHERE mediaId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2800,12 +2808,12 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 
-
 	private int deletePopupsWithMediaId(int mediaId) {
-		String sql = "DELETE FROM popups WHERE mediaId = ?";
+		final String sql = "DELETE FROM popups WHERE mediaId = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -2814,9 +2822,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 
-
 	private Media putNewMedia(Media media){
-		String sql = "INSERT INTO media (name, filename, type, audioLanguageId) VALUES (?, ?, ?, ?)";
+		final String sql = "INSERT INTO media (name, filename, type, audioLanguageId) VALUES (?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, media.getName());
@@ -2824,13 +2831,18 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(3, media.getType());
 			statement.setInt(4, media.getAudioLanguageId());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		if(i == 0)
 			throw new RuntimeException("insert media failed, i == 0");
 		media.setId(i);
+		
 		// save off the file here
 		if(media.getBase64Data() != null && media.getBase64Data().length() > 0)
 			return this.saveFileThatWasPutWithNewMedia(media);
@@ -2860,22 +2872,22 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			}
 		}
 		
-		
 		String filenameInBucket = this.saveFileToS3ForCaptionEditor(file, extension, media.getId(), 0, 0);// file from this is usable everywhere else, works in chrome
 		file.delete();
 		Media newMedia = this.updateMediaForFileUpload(filenameInBucket, this.getCaptionEditorBucket().getId(), extension, media.getId());
 		return newMedia;
 	}
 
-
-	
 	public Media getMediaById(int id) {
-		String sql = "SELECT * FROM media WHERE id = ?";
-		ArrayList<Media> results = new ArrayList<Media>();
+		final String sql = "SELECT * FROM media WHERE id = ?";
+		List<Media> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
+			
 			ResultSet resultSet = statement.executeQuery();
 			results = Media.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle.getLocalizedMessage() + ", mediaId: " + id);
 		}
@@ -2884,23 +2896,21 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		throw new RuntimeException("couldnt find media by id: " + id + ", result set size was: " + results.size());
 	}
 
-
-	
 	public List<Media> getAllMedia() {
-		String sql = "SELECT * FROM media";
-		List<Media> results = new ArrayList<Media>();
+		final String sql = "SELECT * FROM media";
+		List<Media> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Media.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
-	
-	public ArrayList<Languages> putLanguages(List<Languages> languages) {
+	public List<Languages> putLanguages(List<Languages> languages) {
 		for(Languages l : languages){
 			this.putLanguage(l);
 		}
@@ -2908,7 +2918,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private int putLanguage(Languages language){
-		String sql = "INSERT INTO languages (mtcId, code1, code2, name, mtcTaught, alternateName, nativeName) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO languages (mtcId, code1, code2, name, mtcTaught, alternateName, nativeName) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, language.getMtcId());
@@ -2919,7 +2929,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setString(6, language.getAlternateName());
 			statement.setString(7, language.getNativeName());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2928,63 +2942,63 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 
-
-	
 	public List<Popups> getAllPopups() {
-		String sql = "SELECT * FROM popups ORDER BY startTime";
-		ArrayList<Popups> results = new ArrayList<Popups>();
+		final String sql = "SELECT * FROM popups ORDER BY startTime";
+		List<Popups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
-	
 	public List<Popups> getAllPopupsForLanguageId(int languageId) {
-		String sql = "SELECT * FROM popups WHERE languageId = ? ORDER BY startTime";
-		ArrayList<Popups> results = new ArrayList<Popups>();
+		final String sql = "SELECT * FROM popups WHERE languageId = ? ORDER BY startTime";
+		List<Popups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, languageId);
 
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
-	
 	public List<Popups> getAllPopupsForMediaId(int mediaId) {
-		String sql = "SELECT * FROM popups WHERE mediaId = ? ORDER BY startTime";
-		ArrayList<Popups> results = new ArrayList<Popups>();
+		final String sql = "SELECT * FROM popups WHERE mediaId = ? ORDER BY startTime";
+		List<Popups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
-
-
 	
-	public ArrayList<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
-		String sql = "SELECT * FROM popups WHERE languageId = ? AND mediaId = ? ORDER BY startTime";
-		ArrayList<Popups> results = new ArrayList<Popups>();
+	public List<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
+		final String sql = "SELECT * FROM popups WHERE languageId = ? AND mediaId = ? ORDER BY startTime";
+		List<Popups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, languageId);
 			statement.setInt(2, mediaId);
 			
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -2996,9 +3010,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return results;
 	}
 
-	
 	public Popups newPopup(Popups popup) {
-		String sql = "INSERT INTO popups (displayName, popupText, mediaId, languageId, startTime, endTime, filename) VALUES (?, ?, ?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO popups (displayName, popupText, mediaId, languageId, startTime, endTime, filename) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, popup.getDisplayName());
@@ -3009,7 +3022,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(6, popup.getEndTime());
 			statement.setString(7, popup.getFilename());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -3018,9 +3035,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return this.getPopupById(i);
 	}
 	
-	
 	public List<Popups> putPopups(List<Popups> popups) {
-		ArrayList<Popups> newList = new ArrayList<Popups>();
+		List<Popups> newList = new ArrayList<>();
 		for(Popups popup : popups){
 			Popups p = null;
 			if(popup.getId() == 0){
@@ -3048,13 +3064,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private Popups getPopupById(int popupId) {
-		String sql = "SELECT * FROM popups WHERE id = ?";
-		ArrayList<Popups> results = new ArrayList<Popups>();
+		final String sql = "SELECT * FROM popups WHERE id = ?";
+		List<Popups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
 			
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -3062,10 +3080,9 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			return results.get(0);
 		throw new RuntimeException("couldnt get popup by id: " + popupId);
 	}
-
 	
 	public Popups updatePopup(Popups popup) {
-		String sql = "UPDATE popups SET displayName = ?, popupText = ?, startTime = ?, endTime = ?, filename = ? WHERE id = ?";
+		final String sql = "UPDATE popups SET displayName = ?, popupText = ?, startTime = ?, endTime = ?, filename = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, popup.getDisplayName());
@@ -3074,6 +3091,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setInt(4, popup.getEndTime());
 			statement.setString(5, popup.getFilename());
 			statement.setInt(6, popup.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3084,15 +3102,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return this.getPopupById(popup.getId());
 	}
 	
-	
 	public Popups updatePopupWithUploadedFile(String newFilename, Integer bucketId, String extension, int popupId){
-		String sql = "UPDATE popups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
+		final String sql = "UPDATE popups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, bucketId);
 			statement.setString(2, newFilename);
 			statement.setString(3, extension);
 			statement.setInt(4, popupId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3103,13 +3121,12 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return this.getPopupById(popupId);
 	}
 
-
-	
 	public int deletePopup(int popupId) {
-		String sql = "DELETE FROM popups WHERE id = ?";
+		final String sql = "DELETE FROM popups WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3118,12 +3135,12 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return i;
 	}
 	
-	
 	public int deleteCaption(int captionId) {
-		String sql = "DELETE FROM captions WHERE id = ?";
+		final String sql = "DELETE FROM captions WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, captionId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3147,6 +3164,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			writer.write(data);
 			writer.close();
 			filename = this.saveFileToS3ForCaptionEditor(f, extension, 0, 0, 0);
+			
 		} catch (IOException e) {
 			throw new RuntimeException("failed saveStringAsFileForCaptionEditor, error: " + e.getLocalizedMessage());
 		}finally{
@@ -3158,13 +3176,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return filename;
 	}
 	
-	
 	public BucketsCE getCaptionEditorBucket(){
-		String sql = "SELECT * FROM bucketsCE";
-		ArrayList<BucketsCE> results = new ArrayList<BucketsCE>();
+		final String sql = "SELECT * FROM bucketsCE";
+		List<BucketsCE> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = BucketsCE.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -3176,15 +3195,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			return null;
 	}
 	
-	private AmazonS3 getAmazonS3CaptionEditor(){
-		AmazonS3 s3 = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
-		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-		s3.setRegion(usWest2);
-		return s3;
-	}
+//	private AmazonS3 getAmazonS3CaptionEditor(){
+//		AmazonS3 s3 = new AmazonS3Client(new ClasspathPropertiesFileCredentialsProvider());
+//		Region usWest2 = Region.getRegion(Regions.US_WEST_2);
+//		s3.setRegion(usWest2);
+//		return s3;
+//	}
 	
 	private String addFileToCaptionEditorBucket(String bucketName, String fileName, File file){
-		AmazonS3 s3 = this.getAmazonS3CaptionEditor();
+		AmazonS3 s3 = this.getAmazonS3(Regions.US_WEST_2);
 		PutObjectRequest por = new PutObjectRequest(bucketName, fileName, file);
 		por.setCannedAcl(CannedAccessControlList.PublicRead);
 		int seconds = 60*60*24;
@@ -3196,28 +3215,6 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		s3.putObject(por);
 		return fileName;
 	}
-	
-	private File getFileFromBucketCaptionEditor(String fileName, String bucketName, String extension, String realFilename){
-		AmazonS3 s3 = this.getAmazonS3CaptionEditor();
-		S3Object object = s3.getObject(new GetObjectRequest(bucketName, fileName));
-		File tempFile = null;
-		try{
-			tempFile = File.createTempFile(realFilename, extension);
-			tempFile.deleteOnExit();
-			FileOutputStream out = new FileOutputStream(tempFile);
-			IOUtils.copy(object.getObjectContent(), out);
-		}catch(IOException e){
-			throw new RuntimeException("error copying inputstream from s3 to temporary file");
-		}
-		return tempFile;
-	}
-	
-	private String createS3BucketCaptionEditor(String bucketName){
-		AmazonS3 s3 = this.getAmazonS3CaptionEditor();
-		Bucket newBucket = s3.createBucket(bucketName);
-		return newBucket.getName();
-	}
-	
 	
 	public String saveFileToS3ForCaptionEditor(File file, String extension, Integer mediaId, Integer popupId, Integer subPopupId){
 		if(file == null)
@@ -3242,13 +3239,13 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return newFilename;
 	}
 	
-	
 	public Media updateMediaName(int mediaId, String name) {
-		String sql = "UPDATE media SET name = ? WHERE id = ?";
+		final String sql = "UPDATE media SET name = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, name);
 			statement.setInt(2, mediaId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3259,15 +3256,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return this.getMediaById(mediaId);
 	}
 
-
 	private Media updateMediaForFileUpload(String filenameInBucket, Integer bucketId, String extension, int mediaId) {
-		String sql = "UPDATE media SET filenameInBucket = ?, bucketId = ?, extension = ? WHERE id = ?";
+		final String sql = "UPDATE media SET filenameInBucket = ?, bucketId = ?, extension = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, filenameInBucket);
 			statement.setInt(2, bucketId);
 			statement.setString(3, extension);
 			statement.setInt(4, mediaId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3280,13 +3277,17 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 	private String makeBucketForCaptionEditor(){
 		String bucketName = "captioneditor-uuid-" + UUID.randomUUID();
-		bucketName = this.createS3BucketCaptionEditor(bucketName);
+		bucketName = this.createS3Bucket(bucketName, Regions.US_WEST_2);
 		int i = 0;
-		String sql = "INSERT INTO bucketsCE (name) VALUES (?)";
+		final String sql = "INSERT INTO bucketsCE (name) VALUES (?)";
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, bucketName);
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -3295,25 +3296,24 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return bucketName;
 	}
 
-
-	
 	public File getFileForMediaId(int mediaId) {
 		Media media = this.getMediaById(mediaId);
-		return this.getFileFromBucketCaptionEditor(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename());
+		return this.getFileFromBucket(media.getFilenameInBucket(), this.getCaptionEditorBucket().getName(), media.getExtension(), media.getFilename(), Regions.US_WEST_2);
 	}
 
-
-	public ArrayList<MediaForApp> getMediasForAppV1() {
-		String sql = "SELECT * FROM media WHERE id IN (1062, 1064, 1063, 1049, 1048)";
-		ArrayList<MediaForApp> results = new ArrayList<MediaForApp>();
+	public List<MediaForApp> getMediasForAppV1() {
+		final String sql = "SELECT * FROM media WHERE id IN (1062, 1064, 1063, 1049, 1048)";
+		List<MediaForApp> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = MediaForApp.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		BucketsCE b = this.getCaptionEditorBucket();
-		ArrayList<Languages> ls = this.getAllLanguages(0);
+		List<Languages> ls = this.getAllLanguages(0);
 		for(MediaForApp m : results){
 			m.setBucketName(b.getName());
 			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
@@ -3330,16 +3330,18 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public List<MediaForApp> getMediasForAppV2() {
-		String sql = "SELECT * FROM media ORDER BY name";
-		ArrayList<MediaForApp> results = new ArrayList<MediaForApp>();
+		final String sql = "SELECT * FROM media ORDER BY name";
+		List<MediaForApp> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = MediaForApp.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		BucketsCE b = this.getCaptionEditorBucket();
-		ArrayList<Languages> ls = this.getAllLanguages(0);
+		List<Languages> ls = this.getAllLanguages(0);
 		List<MediaForApp> finalResults = new ArrayList<MediaForApp>();
 		for(MediaForApp m : results){
 			m.setBucketName(b.getName());
@@ -3358,37 +3360,38 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return finalResults;
 	}
 
-
 	public List<SubPopups> getAllSubPopups() {
-		String sql = "SELECT * FROM subpopups ORDER BY startTime";
-		List<SubPopups> results = new ArrayList<SubPopups>();
+		final String sql = "SELECT * FROM subpopups ORDER BY startTime";
+		List<SubPopups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = SubPopups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
 	public List<SubPopups> getAllSubPopupsForPopupId(Integer popupId) {
-		String sql = "SELECT * FROM subpopups WHERE popupId = ? ORDER BY startTime";
-		List<SubPopups> results = new ArrayList<SubPopups>();
+		final String sql = "SELECT * FROM subpopups WHERE popupId = ? ORDER BY startTime";
+		List<SubPopups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
 
 			ResultSet resultSet = statement.executeQuery();
 			results = SubPopups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
 		return results;
 	}
 
-
 	public List<SubPopups> putSubPopups(List<SubPopups> subPopups) {
-		List<SubPopups> newList = new ArrayList<SubPopups>();
+		List<SubPopups> newList = new ArrayList<>();
 		for(SubPopups subPopup : subPopups){
 			if(subPopup.getId() == 0)
 				newList.add(this.newSubPopup(subPopup));
@@ -3399,7 +3402,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public SubPopups updateSubPopup(SubPopups subPopup) {
-		String sql = "UPDATE SubPopups SET popupText = ?, startTime = ?, endTime = ?, filename = ?, assetPosition = ? WHERE id = ?";
+		final String sql = "UPDATE SubPopups SET popupText = ?, startTime = ?, endTime = ?, filename = ?, assetPosition = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, subPopup.getPopupText());
@@ -3408,6 +3411,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setString(4, subPopup.getFilename());
 			statement.setInt(5, subPopup.getAssetPosition());
 			statement.setInt(6, subPopup.getId());
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3419,10 +3423,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public int deleteSubPopup(int subPopupId) {
-		String sql = "DELETE FROM subPopups WHERE id = ?";
+		final String sql = "DELETE FROM subPopups WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, subPopupId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){
@@ -3432,7 +3437,7 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public SubPopups newSubPopup(SubPopups subPopup) {
-		String sql = "INSERT INTO subPopups (popupText, popupId, startTime, endTime, filename, assetPosition) VALUES (?, ?, ?, ?, ?, ?)";
+		final String sql = "INSERT INTO subPopups (popupText, popupId, startTime, endTime, filename, assetPosition) VALUES (?, ?, ?, ?, ?, ?)";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, subPopup.getPopupText());
@@ -3442,7 +3447,11 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 			statement.setString(5, subPopup.getFilename());
 			statement.setInt(6, subPopup.getAssetPosition());
 			statement.execute();
-			i = this.parseFirstInt(statement.getGeneratedKeys(), "id");
+			
+			ResultSet resultSet = statement.getGeneratedKeys();
+			i = this.parseFirstInt(resultSet, "id");
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
 		}
@@ -3452,13 +3461,15 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private SubPopups getSubPopupById(int subPopupId) {
-		String sql = "SELECT * FROM subPopups WHERE id = ?";
-		ArrayList<SubPopups> results = new ArrayList<SubPopups>();
+		final String sql = "SELECT * FROM subPopups WHERE id = ?";
+		List<SubPopups> results = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, subPopupId);
 			
 			ResultSet resultSet = statement.executeQuery();
 			results = SubPopups.parseResultSet(resultSet);
+			resultSet.close();
+			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle.getLocalizedMessage() + ", id: " + subPopupId);
 		}
@@ -3468,13 +3479,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public SubPopups updateSubPopupWithUploadedFile(String newFilename, Integer bucketId, String extension, Integer subPopupId){
-		String sql = "UPDATE subPopups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
+		final String sql = "UPDATE subPopups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, bucketId);
 			statement.setString(2, newFilename);
 			statement.setString(3, extension);
 			statement.setInt(4, subPopupId);
+			
 			i = statement.executeUpdate();
 			
 		}catch(SQLException sqle){

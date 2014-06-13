@@ -493,21 +493,26 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public Licenses getLicenseForLicenseId(int licenseId) {
-		final String sql = "SELECT * FROM licenses WHERE id = ?";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, licenseId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try{
+			return this.getRow("licenses", "id", licenseId, Licenses.class);
+		}catch(NoSqlResultsException e){
+			throw new RuntimeException("Couldnt get license by id: " + licenseId + ", error: " + e.getLocalizedMessage());
 		}
-		if(results.size() > 0)
-			return results.get(0);
-		throw new RuntimeException("licenseId does not match any in the database, id: " + licenseId);
+//		final String sql = "SELECT * FROM licenses WHERE id = ?";
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, licenseId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(results.size() > 0)
+//			return results.get(0);
+//		throw new RuntimeException("licenseId does not match any in the database, id: " + licenseId);
 	}
 	
 	public File getLicenseImageForPhotoNameBucketId(String photoName,Integer bucketId) {

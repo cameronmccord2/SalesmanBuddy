@@ -4,8 +4,12 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class Licenses {
+public class Licenses implements ResultSetParser<Licenses> {
+	
 	protected Integer id;
 	protected Integer showInUserList;
 	protected float longitude;
@@ -24,6 +28,58 @@ public class Licenses {
 	public Licenses(){
 		
 	}
+	
+	@Override
+	public List<Licenses> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<Licenses> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<Licenses> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<Licenses> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Licenses parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		Licenses result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public Licenses parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public Licenses parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		Licenses response = new Licenses();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setLongitude(resultSet.getFloat(prefix + "longitude"));
+		response.setLatitude(resultSet.getFloat(prefix + "latitude"));
+		response.setUserId(resultSet.getInt(prefix + "userId"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		response.setStateId(resultSet.getInt(prefix + "stateId"));
+		return response;
+	}
+	
+	public static List<Licenses> parseResultSet(ResultSet resultSet) {
+		try{
+			return new Licenses().parseResultSetAll(resultSet);
+		}catch (SQLException e){
+			throw new RuntimeException(e);
+		}
+	}
 
 	public String toString() {
 		StringBuilder sb = new StringBuilder("");
@@ -41,25 +97,6 @@ public class Licenses {
 		sb.append(this.stateId);
 		sb.append("}");
 		return sb.toString();
-	}
-
-	public static ArrayList<Licenses> parseResultSet(ResultSet resultSet) {
-		ArrayList<Licenses> responses = new ArrayList<Licenses>();
-		try {
-			while (resultSet.next()) {
-				Licenses response = new Licenses();
-				response.setId(resultSet.getInt("id"));
-				response.setLongitude(resultSet.getFloat("longitude"));
-				response.setLatitude(resultSet.getFloat("latitude"));
-				response.setUserId(resultSet.getInt("userId"));
-				response.setCreated(resultSet.getDate("created"));
-				response.setStateId(resultSet.getInt("stateId"));
-				responses.add(response);
-			}
-		} catch (SQLException e) {
-			throw new RuntimeException(e);
-		}
-		return responses;
 	}
 
 	public Integer getId() {
@@ -118,3 +155,26 @@ public class Licenses {
 		this.stateId = stateId;
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

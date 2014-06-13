@@ -4,8 +4,11 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class Users {
+public class Users implements ResultSetParser<Users> {
 	protected Integer id;
     protected Integer dealershipId;
     protected Integer deviceType;
@@ -14,24 +17,57 @@ public class Users {
     protected String googleUserId;
     protected String refreshToken;
     
-    public static ArrayList<Users> parseResultSet(ResultSet resultSet){
-    	ArrayList<Users> responses = new ArrayList<Users>();
-    	try{
-			while(resultSet.next()){
-				Users response = new Users();
-				response.setCreated(resultSet.getDate("created"));
-				response.setId(resultSet.getInt("id"));
-				response.setDealershipId(resultSet.getInt("dealershipId"));
-				response.setDeviceType(resultSet.getInt("deviceType"));
-				response.setType(resultSet.getInt("type"));
-				response.setGoogleUserId(resultSet.getString("googleUserId"));
-				response.setRefreshToken(resultSet.getString("refreshToken"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
+    @Override
+	public List<Users> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<Users> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+
+	@Override
+	public Set<Users> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<Users> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+
+	@Override
+	public Users parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		Users result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+
+	@Override
+	public Users parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+
+	@Override
+	public Users parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		Users response = new Users();
+		response.setCreated(resultSet.getDate("created"));
+		response.setId(resultSet.getInt("id"));
+		response.setDealershipId(resultSet.getInt("dealershipId"));
+		response.setDeviceType(resultSet.getInt("deviceType"));
+		response.setType(resultSet.getInt("type"));
+		response.setGoogleUserId(resultSet.getString("googleUserId"));
+		response.setRefreshToken(resultSet.getString("refreshToken"));
+		return response;
+	}
+    
+    public static List<Users> parseResultSet(ResultSet resultSet) throws SQLException{
+		return new Users().parseResultSetAll(resultSet);
     }
     
     
@@ -167,3 +203,20 @@ public class Users {
 		return true;
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

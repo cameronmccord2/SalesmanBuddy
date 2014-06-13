@@ -4,30 +4,63 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class ImageDetails {
+public class ImageDetails implements ResultSetParser<ImageDetails> {
+	
 	protected Integer id;
 	protected String photoName;
     protected Integer bucketId;
     protected Date created;
     protected Integer answerId;
     
-    public static ArrayList<ImageDetails> parseResultSet(ResultSet resultSet){
-    	ArrayList<ImageDetails> responses = new ArrayList<ImageDetails>();
-    	try{
-			while(resultSet.next()){
-				ImageDetails response = new ImageDetails();
-				response.setId(resultSet.getInt("id"));
-				response.setPhotoName(resultSet.getString("photoName"));
-				response.setBucketId(resultSet.getInt("bucketId"));
-				response.setCreated(resultSet.getDate("created"));
-				response.setAnswerId(resultSet.getInt("answerId"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
+    @Override
+	public List<ImageDetails> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<ImageDetails> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<ImageDetails> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<ImageDetails> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public ImageDetails parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		ImageDetails result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public ImageDetails parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public ImageDetails parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		ImageDetails response = new ImageDetails();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setPhotoName(resultSet.getString(prefix + "photoName"));
+		response.setBucketId(resultSet.getInt(prefix + "bucketId"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		response.setAnswerId(resultSet.getInt(prefix + "answerId"));
+		return response;
+	}
+    
+    public static List<ImageDetails> parseResultSet(ResultSet resultSet) throws SQLException{
+    	return new ImageDetails().parseResultSetAll(resultSet);
     }
 
 	public Integer getBucketId() {

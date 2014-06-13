@@ -4,8 +4,12 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class Questions {
+public class Questions implements ResultSetParser<Questions> {
+	
 	protected Integer id;
     protected Integer version;
     protected Date created;
@@ -16,27 +20,55 @@ public class Questions {
     protected Integer required;
     protected Integer tag;
 
+    @Override
+	public List<Questions> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<Questions> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<Questions> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<Questions> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Questions parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		Questions result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public Questions parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public Questions parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		Questions response = new Questions();
+		response.setId(resultSet.getInt("id"));
+		response.setVersion(resultSet.getInt("version"));
+		response.setCreated(resultSet.getDate("created"));
+		response.setQuestionOrder(resultSet.getInt("questionOrder"));
+		response.setQuestionTextEnglish(resultSet.getString("questionTextEnglish"));
+		response.setQuestionTextSpanish(resultSet.getString("questionTextSpanish"));
+		response.setQuestionType(resultSet.getInt("questionType"));
+		response.setTag(resultSet.getInt("tag"));
+		response.setRequired(resultSet.getInt("required"));
+		return response;
+	}
     
-    public static ArrayList<Questions> parseResultSet(ResultSet resultSet){
-    	ArrayList<Questions> responses = new ArrayList<Questions>();
-    	try{
-			while(resultSet.next()){
-				Questions response = new Questions();
-				response.setId(resultSet.getInt("id"));
-				response.setVersion(resultSet.getInt("version"));
-				response.setCreated(resultSet.getDate("created"));
-				response.setQuestionOrder(resultSet.getInt("questionOrder"));
-				response.setQuestionTextEnglish(resultSet.getString("questionTextEnglish"));
-				response.setQuestionTextSpanish(resultSet.getString("questionTextSpanish"));
-				response.setQuestionType(resultSet.getInt("questionType"));
-				response.setTag(resultSet.getInt("tag"));
-				response.setRequired(resultSet.getInt("required"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
+    public static List<Questions> parseResultSet(ResultSet resultSet) throws SQLException{
+    	return new Questions().parseResultSetAll(resultSet);
     }
 
 	public String getQuestionTextEnglish() {
@@ -111,4 +143,26 @@ public class Questions {
 		this.tag = tag;
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

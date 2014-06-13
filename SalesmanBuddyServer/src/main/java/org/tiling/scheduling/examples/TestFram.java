@@ -23,11 +23,16 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 
 public class TestFram extends JPanel implements ActionListener {
-    private boolean DEBUG = false;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -2840542364728295717L;
+	private boolean DEBUG = false;
     
    
 
 /** Listens to the combo box. */
+@SuppressWarnings("rawtypes")
 public void actionPerformed(ActionEvent e) {
     JComboBox cb = (JComboBox)e.getSource();
     String petName = (String)cb.getSelectedItem();

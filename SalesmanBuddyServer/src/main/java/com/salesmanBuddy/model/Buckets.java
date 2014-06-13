@@ -4,28 +4,64 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class Buckets {
+public class Buckets implements ResultSetParser<Buckets> {
 	protected Integer id;
 	protected Integer stateId;
 	protected String name;
 	protected Date created;
 	
-	public static ArrayList<Buckets> parseResultSet(ResultSet resultSet){
-    	ArrayList<Buckets> responses = new ArrayList<Buckets>();
-    	try{
-			while(resultSet.next()){
-				Buckets response = new Buckets();
-				response.setId(resultSet.getInt("id"));
-				response.setStateId(resultSet.getInt("stateId"));
-				response.setName(resultSet.getString("name"));
-				response.setCreated(resultSet.getDate("created"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
+	@Override
+	public List<Buckets> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<Buckets> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<Buckets> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<Buckets> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Buckets parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		Buckets result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public Buckets parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public Buckets parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		Buckets response = new Buckets();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setStateId(resultSet.getInt(prefix + "stateId"));
+		response.setName(resultSet.getString(prefix + "name"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		return response;
+	}
+	
+	public static List<Buckets> parseResultSet(ResultSet resultSet){
+    	try {
+			return new Buckets().parseResultSetAll(resultSet);
+		} catch (SQLException e) {
+			throw new RuntimeException(e);
+		}
     }
 	
 	public Integer getId() {
@@ -70,3 +106,23 @@ public class Buckets {
 		return builder.toString();
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

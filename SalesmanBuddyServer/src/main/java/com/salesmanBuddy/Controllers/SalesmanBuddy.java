@@ -378,7 +378,9 @@ public class SalesmanBuddy {
     	if(getAll){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2){
-    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicenses()){};
+    			List<LicensesListElement> list = dao.getAllLicenses();
+    			dao.addQuestionsAndAnswersToLicenseListElements(list);
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(list){};
             	return Response.ok(entity).build();
     		}
     		return Response.status(400).entity(new ErrorMessage("You must be an SB employee to see all licenses")).build();

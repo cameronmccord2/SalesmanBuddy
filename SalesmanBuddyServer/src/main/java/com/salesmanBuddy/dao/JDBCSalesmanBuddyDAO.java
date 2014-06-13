@@ -35,6 +35,7 @@ import com.salesmanBuddy.exceptions.InvalidUserTreeType;
 import com.salesmanBuddy.exceptions.MalformedSBEmailException;
 import com.salesmanBuddy.exceptions.NoBucketFoundException;
 import com.salesmanBuddy.exceptions.NoResultInResultSet;
+import com.salesmanBuddy.exceptions.NoSqlResultsException;
 import com.salesmanBuddy.exceptions.UserNameException;
 import com.salesmanBuddy.model.Buckets;
 import com.salesmanBuddy.model.Dealerships;
@@ -203,66 +204,83 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	public List<States> getAllStates(int getInactiveToo) {// working 10/3/13
-		String sql = "SELECT * FROM states WHERE status = 1";
 		if(getInactiveToo > 0)
-			sql = "SELECT * FROM states";
-		List<States> states = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			ResultSet resultSet = statement.executeQuery();
-			states = States.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return states;
+			return this.getList("states", "name", null, States.class);
+		return this.getList("states", "status", 1, "name", null, States.class);
+//		String sql = "SELECT * FROM states WHERE status = 1";
+//		if(getInactiveToo > 0)
+//			sql = "SELECT * FROM states";
+//		List<States> states = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			ResultSet resultSet = statement.executeQuery();
+//			states = States.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return states;
 	}
 	
 	public States getStateForId(Integer stateId) {
-		final String sql = "SELECT * FROM states WHERE id = ?";
-		States result = null;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, stateId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			result = States.parseOneRowResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.getRow("states", "id", stateId, States.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("StateId: " + stateId + ", error: " + e.getLocalizedMessage());
 		}
-		return result;
+//		final String sql = "SELECT * FROM states WHERE id = ?";
+//		States result = null;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, stateId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			result = States.parseOneRowResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return result;
 	}
-	
+
 	public List<Dealerships> getAllDealerships() {// working 10/3/13
-		final String sql = "SELECT * FROM dealerships";
-		List<Dealerships> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			ResultSet resultSet = statement.executeQuery();
-			results = Dealerships.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("dealerships", "id", null, Dealerships.class);
+//		final String sql = "SELECT * FROM dealerships";
+//		List<Dealerships> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Dealerships.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	public Dealerships getDealershipWithDealershipCode(String dealershipCode) {
-		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
-		Dealerships result = null;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, dealershipCode);
-			
-			ResultSet resultSet = statement.executeQuery();
-			result = Dealerships.parseOneRowResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("dealershipCode: " + dealershipCode + ", error: " + e);
 		}
-		return result;
+//		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
+//		Dealerships result = null;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, dealershipCode);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			result = Dealerships.parseOneRowResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return result;
 	}
+
+	
+
 
 	public List<LicensesListElement> getAllLicensesForUserId(String googleUserId, boolean getSubData) {
 		final String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
@@ -271,11 +289,15 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, googleUserId);
 			ResultSet resultSet = statement.executeQuery();
-			results = LicensesListElement.parseResultSet(resultSet);
+			results = LicensesListElement.class.newInstance().parseResultSetAll(resultSet);
 			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
+		} catch (InstantiationException e) {
+			throw new RuntimeException(e);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
 		}
 		
 		if(getSubData){
@@ -289,49 +311,44 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public List<LicensesListElement> getAllLicenses() {
-		final String sql = "SELECT * FROM licenses ORDER BY created desc";
-		List<LicensesListElement> results = new ArrayList<>();
-		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			ResultSet resultSet = statement.executeQuery();
-			results = LicensesListElement.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		
-		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
-		for(int i = 0; i < results.size(); i++){
-			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
-		}
-		
-		return results;
+		return this.getList("licenses", "created", "desc", LicensesListElement.class);
 	}
 	
-	private LicensesListElement getLicenseListElementForLicenseId(int id) {
-		final String sql = "SELECT * FROM licenses WHERE id = ?";
-		List<LicensesListElement> results = new ArrayList<>();
-		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = LicensesListElement.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-
+	public void addQuestionsAndAnswersToLicenseListElements(List<LicensesListElement> list){
 		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
-		for(int i = 0; i < results.size(); i++){
-			results.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(results.get(i).getId(), questions));
+		for(int i = 0; i < list.size(); i++){
+			list.get(i).setQaas(this.getQuestionsAndAnswersForLicenseId(list.get(i).getId(), questions));
 		}
-		if(results.size() == 1)
-			return results.get(0);
+	}
+	
+	private LicensesListElement getLicenseListElementForLicenseId(Integer id) {
+		LicensesListElement result;
+		try {
+			result = this.getRow("licenses", "id", id, LicensesListElement.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("id: " + id + ", error: " + e.getLocalizedMessage());
+		}
+		
+		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
+		result.setQaas(this.getQuestionsAndAnswersForLicenseId(result.getId(), questions));
+//		final String sql = "SELECT * FROM licenses WHERE id = ?";
+//		List<LicensesListElement> results = new ArrayList<>();
+//		
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = LicensesListElement.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		throw new RuntimeException("couldnt find the license by id: " + id);
 	}
+
+	
+
 
 	public FinishedPhoto saveStringAsFileForStateId(String data, int stateId, String extension) {// working 10/3/13
 		File f = null;
@@ -453,21 +470,26 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	private Buckets getBucketForBucketId(Integer bucketId) {
-		final String sql = "SELECT * FROM buckets WHERE id = ?";
-		List<Buckets> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, bucketId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Buckets.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try{
+			return this.getRow("buckets", "id", bucketId, Buckets.class);
+		}catch(NoSqlResultsException e){
+			throw new RuntimeException("Couldnt get bucket by id: " + bucketId + ", error: " + e.getLocalizedMessage());
 		}
-		if(results.size() != 1)
-			throw new RuntimeException("expected number of buckets for bucket id to be 1, id: " + bucketId + ", got: " + results.size());
-		return results.get(0);
+//		final String sql = "SELECT * FROM buckets WHERE id = ?";
+//		List<Buckets> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, bucketId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Buckets.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(results.size() != 1)
+//			throw new RuntimeException("expected number of buckets for bucket id to be 1, id: " + bucketId + ", got: " + results.size());
+//		return results.get(0);
 	}
 	
 	public Licenses getLicenseForLicenseId(int licenseId) {
@@ -893,21 +915,26 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	private Dealerships getDealershipByDealershipCode(String dealershipCode) {
-		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
-		List<Dealerships> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, dealershipCode);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Dealerships.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("failed to get dealership by dealershipCode: " + dealershipCode + ", error: " + e.getLocalizedMessage());
 		}
-		if(results.size() == 1)
-			return results.get(0);
-		throw new RuntimeException("failed to get dealership by dealershipCode: " + dealershipCode + ", count: " + results.size());
+//		final String sql = "SELECT * FROM dealerships WHERE dealershipCode = ?";
+//		List<Dealerships> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, dealershipCode);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Dealerships.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(results.size() == 1)
+//			return results.get(0);
+		
 	}
 
 	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId, boolean getSubData) {
@@ -931,21 +958,26 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public Dealerships getDealershipById(Integer dealershipId) {
-		final String sql = "SELECT * FROM dealerships WHERE id = ?";
-		List<Dealerships> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Dealerships.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.getRow("dealerships", "id", dealershipId, Dealerships.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("failed to get dealership by dealershipId: " + dealershipId + ", error: " + e.getLocalizedMessage());
 		}
-		if(results.size() == 1)
-			return results.get(0);
-		throw new RuntimeException("failed to get the dealership by id: " + dealershipId);
+//		final String sql = "SELECT * FROM dealerships WHERE id = ?";
+//		List<Dealerships> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Dealerships.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(results.size() == 1)
+//			return results.get(0);
+//		throw new RuntimeException("failed to get the dealership by id: " + dealershipId);
 	}
 	
 	public Dealerships newDealership(Dealerships dealership) {

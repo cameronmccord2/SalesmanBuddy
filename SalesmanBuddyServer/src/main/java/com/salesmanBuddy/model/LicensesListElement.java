@@ -4,31 +4,58 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
-public class LicensesListElement{
+public class LicensesListElement implements ResultSetParser<LicensesListElement>{
 	// licenses
 	protected Integer id;
     protected Date created;
     protected Integer stateId;
     //custom here
     protected List<QuestionsAndAnswers> qaas;
-	
-	public static List<LicensesListElement> parseResultSet(ResultSet resultSet){
-    	List<LicensesListElement> responses = new ArrayList<>();
-    	try{
-			while(resultSet.next()){
-				LicensesListElement response = new LicensesListElement();
-				response.setId(resultSet.getInt("id"));
-				response.setCreated(resultSet.getDate("created"));
-				response.setStateId(resultSet.getInt("stateId"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
-    }
+    
+    @Override
+	public List<LicensesListElement> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<LicensesListElement> results = new ArrayList<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<LicensesListElement> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<LicensesListElement> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public LicensesListElement parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		LicensesListElement result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public LicensesListElement parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public LicensesListElement parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		LicensesListElement response = new LicensesListElement();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		response.setStateId(resultSet.getInt(prefix + "stateId"));
+		return response;
+	}
 	
 	public static String getStockNumberForLicensesListElement(LicensesListElement lle) {
 //		return "IMPLEMENT_GETTING_STOCK_NUMBER";
@@ -92,4 +119,70 @@ public class LicensesListElement{
 	public void setQaas(List<QuestionsAndAnswers> qaas) {
 		this.qaas = qaas;
 	}
+
+	@Override
+	public int hashCode() {
+		final int prime = 31;
+		int result = 1;
+		result = prime * result + ((created == null) ? 0 : created.hashCode());
+		result = prime * result + ((id == null) ? 0 : id.hashCode());
+		result = prime * result + ((qaas == null) ? 0 : qaas.hashCode());
+		result = prime * result + ((stateId == null) ? 0 : stateId.hashCode());
+		return result;
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj)
+			return true;
+		if (obj == null)
+			return false;
+		if (getClass() != obj.getClass())
+			return false;
+		LicensesListElement other = (LicensesListElement) obj;
+		if (created == null) {
+			if (other.created != null)
+				return false;
+		} else if (!created.equals(other.created))
+			return false;
+		if (id == null) {
+			if (other.id != null)
+				return false;
+		} else if (!id.equals(other.id))
+			return false;
+		if (qaas == null) {
+			if (other.qaas != null)
+				return false;
+		} else if (!qaas.equals(other.qaas))
+			return false;
+		if (stateId == null) {
+			if (other.stateId != null)
+				return false;
+		} else if (!stateId.equals(other.stateId))
+			return false;
+		return true;
+	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

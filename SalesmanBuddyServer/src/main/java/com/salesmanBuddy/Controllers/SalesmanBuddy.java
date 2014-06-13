@@ -32,6 +32,7 @@ import org.apache.commons.io.IOUtils;
 import org.springframework.web.client.RestTemplate;
 
 import com.salesmanBuddy.GOAuthResponse;
+import com.salesmanBuddy.dao.CaptionEditorDAO;
 import com.salesmanBuddy.dao.JDBCSalesmanBuddyDAO;
 import com.salesmanBuddy.exceptions.GoogleRefreshTokenResponseException;
 import com.salesmanBuddy.exceptions.GoogleUserInfoException;
@@ -60,36 +61,16 @@ import com.salesmanBuddy.model.UserTree;
 import com.salesmanBuddy.model.Users;
 import com.salesmanBuddy.model.UsersName;
 
-
-
-
-
-/**
- * Root resource (exposed at "salesmanbuddy" path)
- */
 @Path("salesmanbuddy")
 public class SalesmanBuddy {
 	
+	JDBCSalesmanBuddyDAO dao;
+	CaptionEditorDAO captionEditorDAO;
 	
-	
-//	@PATH(your_path)	Sets the path to base URL + /your_path. The base URL is based on your application name, the servlet and the URL pattern from the web.xml" configuration file.
-//	@POST	Indicates that the following method will answer to a HTTP POST request
-//	@GET	Indicates that the following method will answer to a HTTP GET request
-//	@PUT	Indicates that the following method will answer to a HTTP PUT request
-//	@DELETE	Indicates that the following method will answer to a HTTP DELETE request
-//	@Produces(MediaType.TEXT_PLAIN [, more-types ])	@Produces defines which MIME type is delivered by a method annotated with @GET. In the example text ("text/plain") is produced. Other examples would be "application/xml" or "application/json".
-//	@Consumes(type [, more-types ])	@Consumes defines which MIME type is consumed by this method.
-//	@PathParam	Used to inject values from the URL into a method parameter. This way you inject for example the ID of a resource into the method to get the correct object.
-	
-    /**
-     * Method handling HTTP GET requests. The returned object will be sent
-     * to the client as "text/plain" media type.
-     *
-     * @return String that will be returned as a text/plain response.
-     */
-	
-	
-	JDBCSalesmanBuddyDAO dao = new JDBCSalesmanBuddyDAO();
+	public SalesmanBuddy(){
+		this.dao = new JDBCSalesmanBuddyDAO();
+		this.captionEditorDAO = new CaptionEditorDAO();
+	}
 	
     @GET
     @Produces(MediaType.TEXT_PLAIN)
@@ -868,7 +849,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putLanguages(@Context HttpServletRequest request, List<Languages> languages){
-    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(dao.putLanguages(languages)){};
+    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(this.captionEditorDAO.putLanguages(languages)){};
     	return Response.ok(entity).build();
     }
     
@@ -884,10 +865,10 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getMediaById(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("mediaid") int mediaId){
     	if(mediaId == -1){
-    		GenericEntity<List<Media>> entity = new GenericEntity<List<Media>>(dao.getAllMedia()){};
+    		GenericEntity<List<Media>> entity = new GenericEntity<List<Media>>(this.captionEditorDAO.getAllMedia()){};
         	return Response.ok(entity).build();
     	}else{
-	    	GenericEntity<Media> entity = new GenericEntity<Media>(dao.getMediaById(mediaId)){};
+	    	GenericEntity<Media> entity = new GenericEntity<Media>(this.captionEditorDAO.getMediaById(mediaId)){};
 	    	return Response.ok(entity).build();
     	}
     }
@@ -897,10 +878,10 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getMediasForAppV1(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("version") int version){
     	if(version == 1){
-	    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV1()){};
+	    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV1()){};
 	    	return Response.ok(entity).build();
     	}else if(version == 2){
-    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(dao.getMediasForAppV2()){};
+    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV2()){};
 	    	return Response.ok(entity).build();
     	}
     	return Response.status(400).build();
@@ -909,7 +890,7 @@ public class SalesmanBuddy {
     @Path("mediaFile")
     @GET
     public Response getMediaFile(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("mediaid") int mediaId){
-    	File file = dao.getFileForMediaId(mediaId);
+    	File file = this.captionEditorDAO.getFileForMediaId(mediaId);
     	Response response = Response.ok((Object)file).header("Content-Disposition", "attachment; filename=" + file.getAbsoluteFile()).header("Content-Length", file.length()).build();
     	return response;
     }
@@ -917,7 +898,7 @@ public class SalesmanBuddy {
     @Path("media")
     @DELETE
     public Response deleteMediaById(@Context HttpServletRequest request, @DefaultValue("-1") @QueryParam("id") int mediaId){
-    	return Response.ok(dao.deleteMediaById(mediaId)).build();
+    	return Response.ok(this.captionEditorDAO.deleteMediaById(mediaId)).build();
     }
     
     @Path("media/name")// Updated 10/24
@@ -927,7 +908,7 @@ public class SalesmanBuddy {
     public Response putQuestion(@Context HttpServletRequest request, Media media, @DefaultValue("-1") @QueryParam("mediaId") int mediaId
     															   				, @DefaultValue("") @QueryParam("name") String name){
     	if(name.length() > 0 && mediaId != -1)
-    		return Response.ok().entity(dao.updateMediaName(mediaId, name)).build();
+    		return Response.ok().entity(this.captionEditorDAO.updateMediaName(mediaId, name)).build();
     	
     	return Response.status(400).entity("There has been a problem with your media: " + mediaId + ", name: " + name).build();
     }
@@ -944,7 +925,7 @@ public class SalesmanBuddy {
     			return Response.status(Status.NOT_ACCEPTABLE).entity(new ErrorMessage(e.getLocalizedMessage())).build();
     		}
     	}
-    	GenericEntity<Media> entity = new GenericEntity<Media>(dao.putMedia(media)){};
+    	GenericEntity<Media> entity = new GenericEntity<Media>(this.captionEditorDAO.putMedia(media)){};
     	return Response.ok(entity).build();
 //    	return Response.status(400).entity("There has been a problem with your media: " + media.toString()).build();
     }
@@ -953,7 +934,7 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getAllCaptionsForMediaIdAndLanguageId(@Context HttpServletRequest request, @QueryParam("mediaid") int mediaId, @QueryParam("languageid") int languageId){
-    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(dao.getAllCaptionsForMediaIdLanguageId(mediaId, languageId)){};
+    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(this.captionEditorDAO.getAllCaptionsForMediaIdLanguageId(mediaId, languageId)){};
     	return Response.ok(entity).build();
     }
     
@@ -962,7 +943,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putCaptions(@Context HttpServletRequest request, List<Captions> captions){
-    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(dao.putCaptions(captions)){};
+    	GenericEntity<List<Captions>> entity = new GenericEntity<List<Captions>>(this.captionEditorDAO.putCaptions(captions)){};
     	return Response.ok(entity).build();
     }
     
@@ -971,7 +952,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteCaption(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("captionId") int captionId){
-    	if(dao.deleteCaption(captionId) == 1)
+    	if(this.captionEditorDAO.deleteCaption(captionId) == 1)
     		return Response.ok().build();
     	throw new RuntimeException("delete popup didnt return a 1");
     }
@@ -981,16 +962,16 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllPopups(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("mediaid") int mediaId, @DefaultValue("0") @QueryParam("languageid") int languageId){
     	if(mediaId == 0 && languageId == 0){
-	    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopups()){};
+	    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(this.captionEditorDAO.getAllPopups()){};
 	    	return Response.ok(entity).build();
     	}else if(mediaId == 0 && languageId != 0){
-    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopupsForLanguageId(languageId)){};
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(this.captionEditorDAO.getAllPopupsForLanguageId(languageId)){};
 	    	return Response.ok(entity).build();
     	}else if(mediaId != 0 && languageId == 0){
-    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getAllPopupsForMediaId(mediaId)){};
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(this.captionEditorDAO.getAllPopupsForMediaId(mediaId)){};
 	    	return Response.ok(entity).build();
     	}else if(mediaId != 0 && languageId != 0){
-    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.getPopupsForMediaIdLanguageId(languageId, mediaId)){};
+    		GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(this.captionEditorDAO.getPopupsForMediaIdLanguageId(languageId, mediaId)){};
 	    	return Response.ok(entity).build();
     	}else{
     		throw new RuntimeException("This should never get here, get popups, mediaId: " + mediaId + ", languageId: " + languageId);
@@ -1002,7 +983,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putPopups(@Context HttpServletRequest request, List<Popups> popups){
-    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(dao.putPopups(popups)){};
+    	GenericEntity<List<Popups>> entity = new GenericEntity<List<Popups>>(this.captionEditorDAO.putPopups(popups)){};
     	return Response.ok(entity).build();
     }
     
@@ -1011,7 +992,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response updatePopup(@Context HttpServletRequest request, Popups popup){
-    	GenericEntity<Popups> entity = new GenericEntity<Popups>(dao.updatePopup(popup)){};
+    	GenericEntity<Popups> entity = new GenericEntity<Popups>(this.captionEditorDAO.updatePopup(popup)){};
     	return Response.ok(entity).build();
     }
     
@@ -1020,7 +1001,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deletePopup(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("popupId") int popupId){
-    	if(dao.deletePopup(popupId) == 1)
+    	if(this.captionEditorDAO.deletePopup(popupId) == 1)
     		return Response.ok().build();
     	throw new RuntimeException("delete popup didnt return a 1");
     }
@@ -1029,7 +1010,7 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getCaptionEditorBucket(@Context HttpServletRequest request){
-    	GenericEntity<BucketsCE> entity = new GenericEntity<BucketsCE>(dao.getCaptionEditorBucket()){};
+    	GenericEntity<BucketsCE> entity = new GenericEntity<BucketsCE>(this.captionEditorDAO.getCaptionEditorBucket()){};
     	return Response.ok(entity).build();
     }
     
@@ -1038,10 +1019,10 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllSubPopups(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("popupId") Integer popupId){
     	if(popupId == 0){
-	    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.getAllSubPopups()){};
+	    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(this.captionEditorDAO.getAllSubPopups()){};
 	    	return Response.ok(entity).build();
     	}else if(popupId != 0){
-    		GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.getAllSubPopupsForPopupId(popupId)){};
+    		GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(this.captionEditorDAO.getAllSubPopupsForPopupId(popupId)){};
 	    	return Response.ok(entity).build();
     	}else{
     		throw new RuntimeException("This should never get here, get popups, popupId: " + popupId);
@@ -1053,7 +1034,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response putSubPopups(@Context HttpServletRequest request, List<SubPopups> popups){
-    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(dao.putSubPopups(popups)){};
+    	GenericEntity<List<SubPopups>> entity = new GenericEntity<List<SubPopups>>(this.captionEditorDAO.putSubPopups(popups)){};
     	return Response.ok(entity).build();
     }
     
@@ -1062,7 +1043,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response updateSubPopup(@Context HttpServletRequest request, SubPopups subPopup){
-    	GenericEntity<SubPopups> entity = new GenericEntity<SubPopups>(dao.updateSubPopup(subPopup)){};
+    	GenericEntity<SubPopups> entity = new GenericEntity<SubPopups>(this.captionEditorDAO.updateSubPopup(subPopup)){};
     	return Response.ok(entity).build();
     }
     
@@ -1071,7 +1052,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteSubPopup(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("subPopupId") int subPopupId){
-    	if(dao.deleteSubPopup(subPopupId) == 1)
+    	if(this.captionEditorDAO.deleteSubPopup(subPopupId) == 1)
     		return Response.ok().build();
     	throw new RuntimeException("delete subpopup didnt return a 1");
     }
@@ -1145,7 +1126,7 @@ public class SalesmanBuddy {
 			}
 		}
 		
-    	GenericEntity<String> entity = new GenericEntity<String>(dao.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId, subPopupId)){};
+    	GenericEntity<String> entity = new GenericEntity<String>(this.captionEditorDAO.saveFileToS3ForCaptionEditor(file, extension, mediaId, popupId, subPopupId)){};
     	file.delete();
     	return Response.ok(entity).build();
     }

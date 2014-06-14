@@ -2148,55 +2148,69 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	private List<UserTree> getAllUserTreeForDealershipIdType(Integer dealershipId, Integer type) {
-		final String sql = "SELECT * FROM userTree ut WHERE type = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?));";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, type);
-			statement.setInt(2, dealershipId);
-			statement.setInt(3, dealershipId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		StringBuilder sb = new StringBuilder();
+		sb.append("SELECT * FROM userTree ut WHERE type = ").append(type).append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
+		sb.append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
+		sb.append(") OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId).append("))");
+		return this.getList(sb.toString(), UserTree.class);
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, type);
+//			statement.setInt(2, dealershipId);
+//			statement.setInt(3, dealershipId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
-	public UserTree getUserTreeById(Integer id){
-		final String sql = "SELECT * FROM userTree WHERE id = ?";
-		UserTree result = null;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-			
-			ResultSet resultSet = statement.executeQuery();
-			result = UserTree.parseOneResultFromSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+	public UserTree getUserTreeById(Integer userTreeId){
+		try {
+			return this.getRow("userTree", "id", userTreeId, UserTree.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("Cant find usertree by id: " + userTreeId + ", error: " + e.getLocalizedMessage());
 		}
-		return result;
+//		final String sql = "SELECT * FROM userTree WHERE id = ?";
+//		UserTree result = null;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			result = UserTree.parseOneResultFromSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return result;
 	}
 	
 	public List<UserTree> getAllUserTreeForGoogleUserId(String googleUserId){
-		final String sql = "SELECT * FROM userTree WHERE userId = ?";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.getList("userTree", "userId", googleUserId, null, null, UserTree.class);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("Cant find usertree by googleUserId: " + googleUserId + ", error: " + e.getLocalizedMessage());
 		}
-		return results;
+//		final String sql = "SELECT * FROM userTree WHERE userId = ?";
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
-	
+
 	public List<UserTree> getAllUserTreesForGoogleUserIdType(String googleUserId, Integer type){
 		final String sql = "SELECT * FROM userTree WHERE userId = ? AND type = ?";
 		List<UserTree> results = new ArrayList<>();

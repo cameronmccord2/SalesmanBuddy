@@ -24,6 +24,7 @@ import com.salesmanBuddy.exceptions.MalformedSBEmailException;
 import com.salesmanBuddy.exceptions.NoSqlResultsException;
 import com.salesmanBuddy.model.ResultSetParser;
 import com.salesmanBuddy.model.SBEmail;
+import com.salesmanBuddy.model.UserTree;
 
 public class BaseDAO {
 	
@@ -92,50 +93,95 @@ public class BaseDAO {
 		return new DateTime(DateTimeZone.UTC);
 	}
 	
+	
+	// SQL
 	protected <U extends ResultSetParser<U>> U getRow(String sql, Class<U> c) throws NoSqlResultsException {
 		List<U> list = this.getList(sql, c);
 		if(list == null || list.size() == 0)
 			throw new NoSqlResultsException("None for sql" + sql + ", class: " + c.getName());
 		return list.get(0);
 	}
-
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String orderColumn, String orderDirection, Class<U> c) {
-		Set<U> list = new HashSet<>();
-		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
-		return list;
+	
+	protected <U extends ResultSetParser<U>> List<U> getList(String sql, Class<U> c) {
+		List<U> results = new ArrayList<>();
+		this.getRowsInCollectionForSql(sql, c, results);
+		return results;
 	}
 	
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
-		Set<U> list = new HashSet<>();
-		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
-		return list;
+	protected <U extends ResultSetParser<U>> Set<U> getSet(String sql, Class<U> c) {
+		Set<U> results = new HashSet<>();
+		this.getRowsInCollectionForSql(sql, c, results);
+		return results;
 	}
 	
+	
+	// Table name, Order Column, Order Direction
 	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String orderColumn, String orderDirection, Class<U> c) {
 		List<U> list = new ArrayList<>();
 		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
 		return list;
 	}
 	
+	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String orderColumn, String orderDirection, Class<U> c) {
+		Set<U> list = new HashSet<>();
+		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
+		return list;
+	}
+	
+	
+	// Table Name, Column Name, Column Value, Order Column, Order Direction
+	// Integer Column Value
+	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, Integer columnValue, Class<U> c) throws NoSqlResultsException {
+		List<U> list = this.getList(tableName, columnName, columnValue, null, null, c);
+		if(list == null || list.size() == 0)
+			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
+		return list.get(0);
+	}
 	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
 		List<U> list = new ArrayList<>();
 		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
 		return list;
 	}
+	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
+		Set<U> set = new HashSet<>();
+		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
+		return set;
+	}
 	
+	// String Column Value
 	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, String columnValue, Class<U> c) throws NoSqlResultsException {
 		List<U> list = this.getList(tableName, columnName, columnValue, c);
 		if(list == null || list.size() == 0)
 			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
 		return list.get(0);
 	}
+	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
+		List<U> list = new ArrayList<>();
+		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
+		return list;
+	}
+	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
+		Set<U> set = new HashSet<>();
+		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
+		return set;
+	}
 	
 	
-	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, Integer columnValue, Class<U> c) throws NoSqlResultsException {
-		List<U> list = this.getList(tableName, columnName, columnValue, null, null, c);
-		if(list == null || list.size() == 0)
-			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
-		return list.get(0);
+	
+	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results) {
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			
+			ResultSet resultSet = statement.executeQuery();
+			results.addAll(c.newInstance().parseResultSetAll(resultSet));
+			resultSet.close();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		} catch (InstantiationException e) {
+			throw new RuntimeException(e);
+		} catch (IllegalAccessException e) {
+			throw new RuntimeException(e);
+		}
 	}
 	
 	private <U extends ResultSetParser<U>> void getRowsForColumnAndValue(String tableName, String columnName, Object columnValue, String orderColumn, String orderDirection, Class<U> c, Collection<U> results) {
@@ -173,33 +219,6 @@ public class BaseDAO {
 		}
 	}
 	
-	protected <U extends ResultSetParser<U>> List<U> getList(String sql, Class<U> c) {
-		List<U> results = new ArrayList<>();
-		this.getRowsInCollectionForSql(sql, c, results);
-		return results;
-	}
-	
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String sql, Class<U> c) {
-		Set<U> results = new HashSet<>();
-		this.getRowsInCollectionForSql(sql, c, results);
-		return results;
-	}
-	
-	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results) {
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			
-			ResultSet resultSet = statement.executeQuery();
-			results.addAll(c.newInstance().parseResultSetAll(resultSet));
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		} catch (InstantiationException e) {
-			throw new RuntimeException(e);
-		} catch (IllegalAccessException e) {
-			throw new RuntimeException(e);
-		}
-	}
 }
 
 

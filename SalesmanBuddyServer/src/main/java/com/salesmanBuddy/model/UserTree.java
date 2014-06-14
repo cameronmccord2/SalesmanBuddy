@@ -4,12 +4,64 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 @JsonSerialize(include=JsonSerialize.Inclusion.NON_NULL)
-public class UserTree {
+public class UserTree implements ResultSetParser<UserTree> {
 	
+	protected Integer id;
+	protected String userId;
+	protected String supervisorId;
+	protected Date created;
+	protected Integer type;
+	
+	@Override
+	public List<UserTree> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<UserTree> results = new ArrayList<>();
+		if(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public Set<UserTree> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<UserTree> results = new HashSet<>();
+		if(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public UserTree parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		UserTree result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public UserTree parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public UserTree parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		UserTree response = new UserTree();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setUserId(resultSet.getString(prefix + "userId"));
+		response.setSupervisorId(resultSet.getString(prefix + "supervisorId"));
+		response.setType(resultSet.getInt(prefix + "type"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		return response;
+	}
+
 	public static UserTree copy(UserTree ut) {
 		UserTree u = new UserTree();
 		u.id = ut.getId();
@@ -18,39 +70,6 @@ public class UserTree {
 		u.created = new Date(ut.getCreated().getTime());
 		u.type = ut.getType();
 		return u;
-	}
-
-	protected Integer id;
-	protected String userId;
-	protected String supervisorId;
-	protected Date created;
-	protected Integer type;
-	
-	public static ArrayList<UserTree> parseResultSet(ResultSet resultSet) throws SQLException{
-    	ArrayList<UserTree> responses = new ArrayList<UserTree>();
-		while(resultSet.next()){
-			responses.add(UserTree.parseARow(resultSet));
-		}
-    	return responses;
-    }
-	
-	public static UserTree parseOneResultFromSet(ResultSet resultSet) throws SQLException{
-		UserTree response = null;
-		while(resultSet.next()){
-			response = UserTree.parseARow(resultSet);
-			break;
-		}
-		return response;
-	}
-	
-	private static UserTree parseARow(ResultSet resultSet) throws SQLException{
-		UserTree response = new UserTree();
-		response.setId(resultSet.getInt("id"));
-		response.setUserId(resultSet.getString("userId"));
-		response.setSupervisorId(resultSet.getString("supervisorId"));
-		response.setType(resultSet.getInt("type"));
-		response.setCreated(resultSet.getDate("created"));
-		return response;
 	}
 
 	@Override
@@ -159,5 +178,39 @@ public class UserTree {
 			return false;
 		return true;
 	}
-	
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

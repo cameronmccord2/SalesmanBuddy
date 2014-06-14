@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -28,6 +29,7 @@ import com.salesmanBuddy.model.UserTree;
 
 public class BaseDAO {
 	
+	private final int BATCH_SIZE = 100000;
 	private SecureRandom random = new SecureRandom();
 //	static Logger log = Logger.getLogger("log.dao");
 //	static Log log = LogFactory.getLog(JDBCSalesmanBuddyDAO.class);
@@ -94,6 +96,14 @@ public class BaseDAO {
 	}
 	
 	
+	
+	
+	
+	
+	
+	// SQL Gets
+	
+	
 	// SQL
 	protected <U extends ResultSetParser<U>> U getRow(String sql, Class<U> c) throws NoSqlResultsException {
 		List<U> list = this.getList(sql, c);
@@ -101,75 +111,142 @@ public class BaseDAO {
 			throw new NoSqlResultsException("None for sql" + sql + ", class: " + c.getName());
 		return list.get(0);
 	}
-	
 	protected <U extends ResultSetParser<U>> List<U> getList(String sql, Class<U> c) {
 		List<U> results = new ArrayList<>();
 		this.getRowsInCollectionForSql(sql, c, results);
 		return results;
 	}
-	
 	protected <U extends ResultSetParser<U>> Set<U> getSet(String sql, Class<U> c) {
 		Set<U> results = new HashSet<>();
 		this.getRowsInCollectionForSql(sql, c, results);
 		return results;
 	}
-	
-	
-	// Table name, Order Column, Order Direction
-	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String orderColumn, String orderDirection, Class<U> c) {
-		List<U> list = new ArrayList<>();
-		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
-		return list;
+	protected <U> U getRowOneColumn(String sql, Class<U> c, String columnToReturn, Object... args) throws NoSqlResultsException {
+		List<U> results = new ArrayList<>();
+		this.getRowsInCollectionOneColumnForSql(sql, c, columnToReturn, results, args);
+		if(results == null || results.size() == 0)
+			throw new NoSqlResultsException("None for getRowOneColumn, sql: " + sql + ", class: " + c.getClass().toString() + ", columnToReturn: " + columnToReturn + ", args: " + args.toString());
+		return results.get(0);
 	}
-	
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String orderColumn, String orderDirection, Class<U> c) {
-		Set<U> list = new HashSet<>();
-		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
-		return list;
-	}
-	
-	
-	// Table Name, Column Name, Column Value, Order Column, Order Direction
-	// Integer Column Value
-	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, Integer columnValue, Class<U> c) throws NoSqlResultsException {
-		List<U> list = this.getList(tableName, columnName, columnValue, null, null, c);
+	// SQL Multiple Params
+	protected <U extends ResultSetParser<U>> U getRow(String sql, Class<U> c, Object... args) throws NoSqlResultsException {
+		List<U> list = this.getList(sql, c);
 		if(list == null || list.size() == 0)
-			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
+			throw new NoSqlResultsException("None for sql" + sql + ", class: " + c.getName());
 		return list.get(0);
 	}
-	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
-		List<U> list = new ArrayList<>();
-		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
-		return list;
+	protected <U extends ResultSetParser<U>> List<U> getList(String sql, Class<U> c, Object... args) {
+		List<U> results = new ArrayList<>();
+		this.getRowsInCollectionForSql(sql, c, results);
+		return results;
 	}
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
-		Set<U> set = new HashSet<>();
-		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
-		return set;
+	protected <U extends ResultSetParser<U>> Set<U> getSet(String sql, Class<U> c, Object... args) {
+		Set<U> results = new HashSet<>();
+		this.getRowsInCollectionForSql(sql, c, results);
+		return results;
 	}
-	
-	// String Column Value
-	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, String columnValue, Class<U> c) throws NoSqlResultsException {
-		List<U> list = this.getList(tableName, columnName, columnValue, c);
-		if(list == null || list.size() == 0)
-			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
-		return list.get(0);
+	protected <U> List<U> getListOneColumn(String sql, Class<U> c, String columnToReturn, Object... args) {
+		List<U> results = new ArrayList<>();
+		this.getRowsInCollectionOneColumnForSql(sql, c, columnToReturn, results, args);
+		return results;
 	}
-	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
-		List<U> list = new ArrayList<>();
-		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
-		return list;
+	protected Integer getCount(String sql){
+		return this.getCount(sql, (Object[])null);
 	}
-	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
-		Set<U> set = new HashSet<>();
-		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
-		return set;
-	}
-	
-	
-	
-	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results) {
+	protected Integer getCount(String sql, Object... args){
+		Integer count = 0;
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			
+			int index = 1;
+			for (Object param : args) {
+				if(param.getClass().equals(String.class))
+					statement.setString(index++, (String)param);
+				else if(param.getClass().equals(Integer.class))
+					statement.setInt(index++, (Integer)param);
+				else
+					throw new RuntimeException("Unsupported datatype sent in getRows with variable number of params, sql: " + sql + ", params: " + args.toString());
+			}
+			
+			ResultSet resultSet = statement.executeQuery();
+			count = resultSet.getInt("count");
+			resultSet.close();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return count;
+	}
+	
+	
+//	// Table name, Order Column, Order Direction
+//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String orderColumn, String orderDirection, Class<U> c) {
+//		List<U> list = new ArrayList<>();
+//		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
+//		return list;
+//	}
+//	
+//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String orderColumn, String orderDirection, Class<U> c) {
+//		Set<U> list = new HashSet<>();
+//		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
+//		return list;
+//	}
+//	
+//	
+//	// Table Name, Column Name, Column Value, Order Column, Order Direction
+//	// Integer Column Value
+//	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, Integer columnValue, Class<U> c) throws NoSqlResultsException {
+//		List<U> list = this.getList(tableName, columnName, columnValue, null, null, c);
+//		if(list == null || list.size() == 0)
+//			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
+//		return list.get(0);
+//	}
+//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
+//		List<U> list = new ArrayList<>();
+//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
+//		return list;
+//	}
+//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
+//		Set<U> set = new HashSet<>();
+//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
+//		return set;
+//	}
+//	
+//	// String Column Value
+//	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, String columnValue, Class<U> c) throws NoSqlResultsException {
+//		List<U> list = this.getList(tableName, columnName, columnValue, c);
+//		if(list == null || list.size() == 0)
+//			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
+//		return list.get(0);
+//	}
+//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
+//		List<U> list = new ArrayList<>();
+//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
+//		return list;
+//	}
+//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
+//		Set<U> set = new HashSet<>();
+//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
+//		return set;
+//	}
+//	
+//	
+//	
+//	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results) {
+//		this.getRowsInCollectionForSql(sql, c, results, (Object[])null);
+//	}
+	
+	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results, Object... args) {
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			
+			int index = 1;
+			for (Object param : args) {
+				if(param.getClass().equals(String.class))
+					statement.setString(index++, (String)param);
+				else if(param.getClass().equals(Integer.class))
+					statement.setInt(index++, (Integer)param);
+				else
+					throw new RuntimeException("Unsupported datatype sent in getRows with variable number of params, sql: " + sql + ", class: " + c.getClass().toString() + ", params: " + args.toString());
+			}
 			
 			ResultSet resultSet = statement.executeQuery();
 			results.addAll(c.newInstance().parseResultSetAll(resultSet));
@@ -184,41 +261,170 @@ public class BaseDAO {
 		}
 	}
 	
-	private <U extends ResultSetParser<U>> void getRowsForColumnAndValue(String tableName, String columnName, Object columnValue, String orderColumn, String orderDirection, Class<U> c, Collection<U> results) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("SELECT * FROM ").append(tableName);
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sb.toString())){
+	@SuppressWarnings("unchecked")
+	private <U> void getRowsInCollectionOneColumnForSql(String sql, Class<U> c, String columnToReturn, Collection<U> results, Object... args) {
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			
 			int index = 1;
-			if(columnValue.getClass().equals(String.class)){
-				if(columnName != null && columnValue != null && columnName.length() != 0 && ((String)columnValue).length() != 0){
-					sb.append(" WHERE ").append(columnName).append(" = ? ");
-					statement.setString(index++, (String)columnValue);
-				}
-			}else if(columnValue.getClass().equals(Integer.class)){
-				if(columnName != null && columnValue != null && columnName.length() != 0){
-					sb.append(" WHERE ").append(columnName).append(" = ? ");
-					statement.setInt(index++, (Integer)columnValue);
-				}
-			}
-			if(orderColumn != null && orderColumn.length() != 0){
-				sb.append(" ORDER BY ").append(orderColumn);
-				if(orderDirection != null && orderDirection.length() > 2)
-					sb.append(" ").append(orderDirection);
+			for (Object param : args) {
+				if(param.getClass().equals(String.class))
+					statement.setString(index++, (String)param);
+				else if(param.getClass().equals(Integer.class))
+					statement.setInt(index++, (Integer)param);
+				else
+					throw new RuntimeException("Unsupported datatype sent in getRows with variable number of params, sql: " + sql + ", class: " + c.getClass().toString() + ", params: " + args.toString());
 			}
 			
 			ResultSet resultSet = statement.executeQuery();
-			results = c.newInstance().parseResultSetAll(resultSet);
+			while(resultSet.next()){
+				if(c.getClass().equals(String.class))
+					results.add((U)resultSet.getString(columnToReturn));
+				else if(c.getClass().equals(Integer.class))
+					results.add((U)new Integer(resultSet.getInt(columnToReturn)));
+				else
+					throw new RuntimeException("getRowsInCollectionOneColumnForSql is not implemented to get type: " + c.getClass().toString() + ", column: " + columnToReturn + ", args: " + args.toString() + ", sql: " + sql);
+			}
 			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
-		} catch (InstantiationException e) {
-			throw new RuntimeException(e);
-		} catch (IllegalAccessException e) {
-			throw new RuntimeException(e);
 		}
 	}
 	
+//	private <U extends ResultSetParser<U>> void getRowsForColumnAndValue(String tableName, String columnName, Object columnValue, String orderColumn, String orderDirection, Class<U> c, Collection<U> results) {
+//		StringBuilder sb = new StringBuilder();
+//		sb.append("SELECT * FROM ").append(tableName);
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sb.toString())){
+//			int index = 1;
+//			if(columnValue.getClass().equals(String.class)){
+//				if(columnName != null && columnValue != null && columnName.length() != 0 && ((String)columnValue).length() != 0){
+//					sb.append(" WHERE ").append(columnName).append(" = ? ");
+//					statement.setString(index++, (String)columnValue);
+//				}
+//			}else if(columnValue.getClass().equals(Integer.class)){
+//				if(columnName != null && columnValue != null && columnName.length() != 0){
+//					sb.append(" WHERE ").append(columnName).append(" = ? ");
+//					statement.setInt(index++, (Integer)columnValue);
+//				}
+//			}
+//			if(orderColumn != null && orderColumn.length() != 0){
+//				sb.append(" ORDER BY ").append(orderColumn);
+//				if(orderDirection != null && orderDirection.length() > 2)
+//					sb.append(" ").append(orderDirection);
+//			}
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = c.newInstance().parseResultSetAll(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		} catch (InstantiationException e) {
+//			throw new RuntimeException(e);
+//		} catch (IllegalAccessException e) {
+//			throw new RuntimeException(e);
+//		}
+//	}
+	
+	
+	
+	
+	// SQL Insert
+	protected Integer insertRow(String sql, String idColumn) throws NoSqlResultsException {
+		return this.insertRow(sql, idColumn, (Object[])null);
+	}
+	protected Integer insertRow(String sql, String idColumn, Object... args) throws NoSqlResultsException {
+//		List<Integer> ids = this.insertRows(sql, idColumn, args);
+		List<Integer> generatedIds = new ArrayList<>();
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+			int index = 1;
+			for (Object param : args) {
+				if(param.getClass().equals(String.class))
+					statement.setString(index++, (String)param);
+				else if(param.getClass().equals(Integer.class))
+					statement.setInt(index++, (Integer)param);
+				else
+					throw new RuntimeException("Unsupported datatype sent in insertRows with variable number of params, sql: " + sql + ", params: " + args.toString());
+			}
+			statement.execute();
+			
+			ResultSet generatedKeys = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, idColumn);
+			while(generatedKeys.next())
+				generatedIds.add((int) generatedKeys.getLong(idColumn));
+			generatedKeys.close();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle.getLocalizedMessage() + ", idColumn: " + idColumn + ", args: " + args.toString() + ", sql: " + sql);
+		}
+		if(generatedIds.size() == 0)
+			throw new NoSqlResultsException("Nothing was inserted for sql: " + sql + ", idColumn: " + idColumn + ", args: " + args.toString());
+		return generatedIds.get(0);
+	}
+//	protected List<Integer> insertRows(String sql, String idColumn) {
+//		
+//	}
+//	protected List<Integer> insertRows(String sql, String idColumn, List<List<Object>> args) {
+//
+//	}
+	
+	
+	// SQL Update
+	protected Integer updateRow(String sql){
+		return this.updateRow(sql, (Object[])null);
+	}
+	protected Integer updateRow(String sql, Object... args) {
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			int index = 1;
+			for (Object param : args) {
+				if(param.getClass().equals(String.class))
+					statement.setString(index++, (String)param);
+				else if(param.getClass().equals(Integer.class))
+					statement.setInt(index++, (Integer)param);
+				else
+					throw new RuntimeException("Unsupported datatype sent in updateRow with variable number of params, sql: " + sql + ", params: " + args.toString());
+			}
+			
+			i = statement.executeUpdate();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return i;
+	}
+	protected Integer updateRowBatch(String sql, List<List<Object>> args){
+		int i = 0;
+		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+			int count = 0;
+			for (List<Object> params : args) {
+				int index = 1;
+				for (Object param : params) {
+					if(param.getClass().equals(String.class))
+						statement.setString(index++, (String)param);
+					else if(param.getClass().equals(Integer.class))
+						statement.setInt(index++, (Integer)param);
+					else
+						throw new RuntimeException("Unsupported datatype sent in updateRow with variable number of params, sql: " + sql + ", params: " + args.toString());
+				}
+				statement.addBatch();
+				
+				if(++count % BATCH_SIZE == 0)
+					statement.executeBatch();
+				if(count % 1000000 == 0)
+					connection.commit();
+			}
+			
+			if(count % BATCH_SIZE != 0)
+				statement.executeBatch();
+			
+			connection.commit();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		return i;
+	}
 }
 
 

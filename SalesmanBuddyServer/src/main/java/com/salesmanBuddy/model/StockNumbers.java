@@ -4,10 +4,11 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-import com.salesmanBuddy.exceptions.NoResultInResultSet;
-
-public class StockNumbers {
+public class StockNumbers implements ResultSetParser<StockNumbers> {
 	
 	protected Integer id;
 	protected Integer dealershipId;
@@ -18,34 +19,49 @@ public class StockNumbers {
 	protected Date soldOn;
 	protected Integer soldBy;
 	
-	public static ArrayList<StockNumbers> parseResultSet(ResultSet resultSet){
-    	ArrayList<StockNumbers> responses = new ArrayList<StockNumbers>();
-    	try{
-			while(resultSet.next()){
-				responses.add(StockNumbers.parseThisResultSet(resultSet));
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
-    }
-	
-	public static StockNumbers parseOneRowResultSet(ResultSet resultSet) throws SQLException, NoResultInResultSet{
+	@Override
+	public List<StockNumbers> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<StockNumbers> results = new ArrayList<>();
 		while(resultSet.next())
-			return StockNumbers.parseThisResultSet(resultSet);
-		throw new NoResultInResultSet();
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
 	}
-	
-	private static StockNumbers parseThisResultSet(ResultSet resultSet) throws SQLException{
+
+	@Override
+	public Set<StockNumbers> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<StockNumbers> results = new HashSet<>();
+		while(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.close();
+		return results;
+	}
+
+	@Override
+	public StockNumbers parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		StockNumbers result = null;
+		while(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.close();
+		return result;
+	}
+
+	@Override
+	public StockNumbers parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet);
+	}
+
+	@Override
+	public StockNumbers parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
 		StockNumbers response = new StockNumbers();
-		response.setId(resultSet.getInt("id"));
-		response.setCreated(resultSet.getDate("created"));
-		response.setDealershipId(resultSet.getInt("dealershipId"));
-		response.setStockNumber(resultSet.getString("stockNumber"));
-		response.setStatus(resultSet.getInt("status"));
-		response.setCreatedBy(resultSet.getInt("createdBy"));
-		response.setSoldOn(resultSet.getDate("soldOn"));
-		response.setSoldBy(resultSet.getInt("soldBy"));
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setCreated(resultSet.getDate(prefix + "created"));
+		response.setDealershipId(resultSet.getInt(prefix + "dealershipId"));
+		response.setStockNumber(resultSet.getString(prefix + "stockNumber"));
+		response.setStatus(resultSet.getInt(prefix + "status"));
+		response.setCreatedBy(resultSet.getInt(prefix + "createdBy"));
+		response.setSoldOn(resultSet.getDate(prefix + "soldOn"));
+		response.setSoldBy(resultSet.getInt(prefix + "soldBy"));
 		return response;
 	}
 	
@@ -191,5 +207,33 @@ public class StockNumbers {
 	public void setSoldBy(Integer soldBy) {
 		this.soldBy = soldBy;
 	}
-	
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

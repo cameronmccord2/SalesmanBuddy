@@ -134,16 +134,17 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	private Buckets getBucketForStateId(int stateId) throws NoBucketFoundException{
 		final String sql = "SELECT * FROM buckets WHERE stateId = ?";
-		List<Buckets> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, stateId);
-			ResultSet resultSet = statement.executeQuery();
-			results = Buckets.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		List<Buckets> results = this.getList(sql, Buckets.class, stateId);
+//		List<Buckets> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, stateId);
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Buckets.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(results.size() > 1)
 			throw new RuntimeException("There is more than one bucket for state: " + stateId);
 		if(results.size() == 1)
@@ -179,21 +180,27 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 		bucketName = this.createS3Bucket(bucketName, Regions.US_WEST_2);
 		
 		final String sql = "INSERT INTO buckets (stateId, name) VALUES (?, ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, stateId);
-			statement.setString(2, bucketName);
-			statement.execute();
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		if(i == 0)
+		try {
+			this.insertRow(sql, "id", stateId, bucketName);
+			return bucketName;
+		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("failed to make bucket for state id: " + stateId);
-		return bucketName;
+		}
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, stateId);
+//			statement.setString(2, bucketName);
+//			statement.execute();
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("failed to make bucket for state id: " + stateId);
+//		return bucketName;
 	}
 	
 	private String getStateNameForStateId(int stateId) {
@@ -204,12 +211,13 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	public List<States> getAllStates(int getInactiveToo) {// working 10/3/13
-		if(getInactiveToo > 0)
-			return this.getList("states", "name", null, States.class);
-		return this.getList("states", "status", 1, "name", null, States.class);
-//		String sql = "SELECT * FROM states WHERE status = 1";
 //		if(getInactiveToo > 0)
-//			sql = "SELECT * FROM states";
+//			return this.getList("states", "name", null, States.class);
+//		return this.getList("states", "status", 1, "name", null, States.class);
+		String sql = "SELECT * FROM states WHERE status = 1";
+		if(getInactiveToo > 0)
+			sql = "SELECT * FROM states";
+		return this.getList(sql, States.class);
 //		List<States> states = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 //			ResultSet resultSet = statement.executeQuery();
@@ -224,7 +232,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public States getStateForId(Integer stateId) {
 		try {
-			return this.getRow("states", "id", stateId, States.class);
+			return this.getRow("SELECT * FROM states WHERE id = ?", States.class, stateId);
+//			return this.getRow("states", "id", stateId, States.class);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("StateId: " + stateId + ", error: " + e.getLocalizedMessage());
 		}
@@ -244,7 +253,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	public List<Dealerships> getAllDealerships() {// working 10/3/13
-		return this.getList("dealerships", "id", null, Dealerships.class);
+		return this.getList("SELECT * FROM dealerships", Dealerships.class);
+//		return this.getList("dealerships", "id", null, Dealerships.class);
 //		final String sql = "SELECT * FROM dealerships";
 //		List<Dealerships> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -260,7 +270,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public Dealerships getDealershipWithDealershipCode(String dealershipCode) {
 		try {
-			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+//			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+			return this.getRow("SELECT * FROM dealerships WHERE dealershipCode = ?", Dealerships.class, dealershipCode);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("dealershipCode: " + dealershipCode + ", error: " + e);
 		}
@@ -284,21 +295,21 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	public List<LicensesListElement> getAllLicensesForUserId(String googleUserId, boolean getSubData) {
 		final String sql = "SELECT * FROM licenses WHERE userId = (SELECT id FROM users WHERE googleUserId = ?) AND showInUserList = 1 ORDER BY created desc";
-		List<LicensesListElement> results = new ArrayList<>();
+		List<LicensesListElement> results = this.getList(sql, LicensesListElement.class, googleUserId);
 		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			ResultSet resultSet = statement.executeQuery();
-			results = LicensesListElement.class.newInstance().parseResultSetAll(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		} catch (InstantiationException e) {
-			throw new RuntimeException(e);
-		} catch (IllegalAccessException e) {
-			throw new RuntimeException(e);
-		}
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			ResultSet resultSet = statement.executeQuery();
+//			results = LicensesListElement.class.newInstance().parseResultSetAll(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		} catch (InstantiationException e) {
+//			throw new RuntimeException(e);
+//		} catch (IllegalAccessException e) {
+//			throw new RuntimeException(e);
+//		}
 		
 		if(getSubData){
 			List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
@@ -311,7 +322,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public List<LicensesListElement> getAllLicenses() {
-		return this.getList("licenses", "created", "desc", LicensesListElement.class);
+//		return this.getList("licenses", "created", "desc", LicensesListElement.class);
+		return this.getList("SELECT * FROM licenses ORDER BY created DESC", LicensesListElement.class);
 	}
 	
 	public void addQuestionsAndAnswersToLicenseListElements(List<LicensesListElement> list){
@@ -321,12 +333,13 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 		}
 	}
 	
-	private LicensesListElement getLicenseListElementForLicenseId(Integer id) {
+	private LicensesListElement getLicenseListElementForLicenseId(Integer licenseId) {
 		LicensesListElement result;
 		try {
-			result = this.getRow("licenses", "id", id, LicensesListElement.class);
+//			result = this.getRow("licenses", "id", id, LicensesListElement.class);
+			result = this.getRow("SELECT * FROM licenses WHERE id = ?", LicensesListElement.class, licenseId);
 		} catch (NoSqlResultsException e) {
-			throw new RuntimeException("id: " + id + ", error: " + e.getLocalizedMessage());
+			throw new RuntimeException("id: " + licenseId + ", error: " + e.getLocalizedMessage());
 		}
 		
 		List<Questions> questions = this.getAllQuestions();// this makes it so getQuestionsAndAnswers doesnt have to poll the database for every question
@@ -344,7 +357,7 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 //		}catch(SQLException sqle){
 //			throw new RuntimeException(sqle);
 //		}
-		throw new RuntimeException("couldnt find the license by id: " + id);
+		throw new RuntimeException("couldnt find the license by id: " + licenseId);
 	}
 
 	
@@ -373,24 +386,25 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 		return fp;
 	}
 	
-	private int putLicenseInDatabase(Licenses license){
+	private int putLicenseInDatabase(Licenses license) throws NoSqlResultsException{
 		final String sql = "INSERT INTO licenses (longitude, latitude, userId, stateId) VALUES (?, ?, ?, ?)";
-		int id = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setFloat(1, license.getLongitude());
-			statement.setFloat(2, license.getLatitude());
-			statement.setInt(3, license.getUserId());
-			statement.setInt(4, license.getStateId());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			id = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return id;
+		return this.insertRow(sql, "id", license.getLongitude(), license.getLatitude(), license.getUserId(), license.getStateId());
+//		int id = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setFloat(1, license.getLongitude());
+//			statement.setFloat(2, license.getLatitude());
+//			statement.setInt(3, license.getUserId());
+//			statement.setInt(4, license.getStateId());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			id = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return id;
 	}
 	
 	public LicensesListElement putLicense(LicensesFromClient licenseFromClient, String googleUserId) {
@@ -403,9 +417,13 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 			throw new RuntimeException("userid is " + licenseFromClient.getUserId() + ", its invalid");
 
 		Licenses l = new Licenses(licenseFromClient);
-		licenseId = this.putLicenseInDatabase(l);
-		if(licenseId == 0)
+		try {
+			licenseId = this.putLicenseInDatabase(l);
+		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId + ", license: " + l.toString());
+		}
+//		if(licenseId == 0)
+//			throw new RuntimeException("failed to put license in database, licenseid returned: " + licenseId + ", license: " + l.toString());
 		
 		for(QuestionsAndAnswers qaa : licenseFromClient.getQaas()){
 			qaa.getAnswer().setLicenseId(licenseId);
@@ -431,39 +449,39 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 		return dlr;
 	}
 	
-	private int updateShowInUserListForLicenseId(int licenseId, int showInUserList){
+	private Integer updateShowInUserListForLicenseId(int licenseId, int showInUserList){
 		if(!(showInUserList == 1 || showInUserList == 0))
 			throw new RuntimeException("updateShowInUserListForLicenseId failed because showInUserList was not 0 or 1");
 		final String sql = "UPDATE licenses SET showInUserList = ? WHERE id = ?";
-
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, showInUserList);
-			statement.setInt(2, licenseId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return i;
+		return this.updateRow(sql, showInUserList, licenseId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, showInUserList);
+//			statement.setInt(2, licenseId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return i;
 	}
 	
 	public boolean userOwnsLicenseId(int licenseId, String googleUserId) {
 		final String sql = "SELECT * FROM licenses WHERE id = ? AND userId = (SELECT id FROM users WHERE googleUserId = ?)";
-		List<Licenses> results = new ArrayList<>();
+		List<Licenses> results = this.getList(sql, Licenses.class, licenseId, googleUserId);
 		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, licenseId);
-			statement.setString(2, googleUserId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, licenseId);
+//			statement.setString(2, googleUserId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(results.size() > 0)
 			return true;
 		return false;
@@ -471,7 +489,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	private Buckets getBucketForBucketId(Integer bucketId) {
 		try{
-			return this.getRow("buckets", "id", bucketId, Buckets.class);
+//			return this.getRow("buckets", "id", bucketId, Buckets.class);
+			return this.getRow("SELECT * FROM buckets WHERE id = ?", Buckets.class, bucketId);
 		}catch(NoSqlResultsException e){
 			throw new RuntimeException("Couldnt get bucket by id: " + bucketId + ", error: " + e.getLocalizedMessage());
 		}
@@ -494,7 +513,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public Licenses getLicenseForLicenseId(int licenseId) {
 		try{
-			return this.getRow("licenses", "id", licenseId, Licenses.class);
+//			return this.getRow("licenses", "id", licenseId, Licenses.class);
+			return this.getRow("SELECT * FROM licenses WHERE id = ?", Licenses.class, licenseId);
 		}catch(NoSqlResultsException e){
 			throw new RuntimeException("Couldnt get license by id: " + licenseId + ", error: " + e.getLocalizedMessage());
 		}
@@ -522,7 +542,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	public Users getUserByGoogleId(String googleUserId) {
 		try {
-			return this.getRow("users", "googleUserId", googleUserId, Users.class);
+//			return this.getRow("users", "googleUserId", googleUserId, Users.class);
+			return this.getRow("SELECT * FROM users WHERE googleUserId = ?", Users.class, googleUserId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("Couldnt get user by google id: " + googleUserId + ", error: " + e.getLocalizedMessage());
 		}
@@ -545,29 +566,35 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public int createUser(Users user) {
 		final String sql = "INSERT INTO users (deviceType, type, googleUserId, refreshToken) VALUES(?, ?, ?, ?)";
-		int id = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, user.getDeviceType());
-			statement.setInt(2, 1);// 1:normal/salesman, 2:can see all dealership users, 3:salesman buddy employees
-			statement.setString(3, user.getGoogleUserId());
-			statement.setString(4, user.getRefreshToken());
-			statement.executeUpdate();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			id = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		if(id == 0)
+		try {
+			return this.insertRow(sql, "id", user.getDeviceType(), 1, user.getGoogleUserId(), user.getRefreshToken());
+		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("failed inserting user, user: " + user.toString());
-		return id;
+		}
+//		int id = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, user.getDeviceType());
+//			statement.setInt(2, 1);// 1:normal/salesman, 2:can see all dealership users, 3:salesman buddy employees
+//			statement.setString(3, user.getGoogleUserId());
+//			statement.setString(4, user.getRefreshToken());
+//			statement.executeUpdate();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			id = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(id == 0)
+//			throw new RuntimeException("failed inserting user, user: " + user.toString());
+//		return id;
 	}
 	
-	public Users getUserById(int userId) {
+	public Users getUserById(Integer userId) {
 		try {
-			return this.getRow("users", "id", userId, Users.class);
+//			return this.getRow("users", "id", userId, Users.class);
+			return this.getRow("SELECT * FROM users WHERE id = ?", Users.class, userId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("cant find user by id: " + userId + ", error: " + e.getLocalizedMessage());
 		}
@@ -629,7 +656,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public List<Answers> getAnswersForLicenseId(int licenseId) {
-		return this.getList("answers", "licenseId", licenseId, null, null, Answers.class);
+//		return this.getList("answers", "licenseId", licenseId, null, null, Answers.class);
+		return this.getList("SELECT * FROM answers WHERE licenseId = ?", Answers.class, licenseId);
 //		final String sql = "SELECT * FROM answers WHERE licenseId = ?";
 //		List<Answers> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -648,7 +676,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	private ImageDetails getImageDetailsForAnswerId(Integer answerId) {
 		try {
-			return this.getRow("imageDetails", "answerId", answerId, ImageDetails.class);
+//			return this.getRow("imageDetails", "answerId", answerId, ImageDetails.class);
+			return this.getRow("SELECT * FROM imageDetails WHERE answerId = ?", ImageDetails.class, answerId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("Cant get image details for answer id: " + answerId + ", error: " + e.getLocalizedMessage());
 		}
@@ -671,20 +700,21 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	private int updateAnswerInDatabase(Answers answer) {
 		final String sql = "UPDATE answers SET answerBool = ?, answerType = ?, answerText = ?, licenseId = ?, questionId = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, answer.getAnswerBool());
-			statement.setInt(2, answer.getAnswerType());
-			statement.setString(3, answer.getAnswerText());
-			statement.setInt(4, answer.getLicenseId());
-			statement.setInt(5, answer.getQuestionId());
-			statement.setInt(6, answer.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, answer.getAnswerBool(), answer.getAnswerType(), answer.getAnswerText(), answer.getLicenseId(), answer.getQuestionId(), answer.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, answer.getAnswerBool());
+//			statement.setInt(2, answer.getAnswerType());
+//			statement.setString(3, answer.getAnswerText());
+//			statement.setInt(4, answer.getLicenseId());
+//			statement.setInt(5, answer.getQuestionId());
+//			statement.setInt(6, answer.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("update answers failed for id: " + answer.getId());
 		if(answer.getAnswerType() == JDBCSalesmanBuddyDAO.isImage)
@@ -694,87 +724,99 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	private int updateImageDetailsInDatabase(ImageDetails imageDetails) {
 		final String sql = "UPDATE imageDetails SET photoName = ?, bucketId = ? WHERE id = ?";
-
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, imageDetails.getPhotoName());
-			statement.setInt(2, imageDetails.getBucketId());
-			statement.setInt(3, imageDetails.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, imageDetails.getPhotoName(), imageDetails.getBucketId(), imageDetails.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, imageDetails.getPhotoName());
+//			statement.setInt(2, imageDetails.getBucketId());
+//			statement.setInt(3, imageDetails.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("update imageDetails failed for id: " + imageDetails.getId());
 		return i;
 	}
 
-	private int updateQuestionInDatabase(Questions q){
+	private Integer updateQuestionInDatabase(Questions q){
 		final String sql = "UPDATE questions SET version = ?, questionOrder = ?, questionTextEnglish = ?, questionTextSpanish = ?, required = ?, questionType = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, q.getVersion());
-			statement.setInt(2, q.getQuestionOrder());
-			statement.setString(3, q.getQuestionTextEnglish());
-			statement.setString(4, q.getQuestionTextSpanish());
-			statement.setInt(5, q.getRequired());
-			statement.setInt(6, q.getQuestionType());
-			statement.setInt(7, q.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return i;
+		return this.updateRow(sql, q.getVersion(), q.getQuestionOrder(), q.getQuestionTextEnglish(), q.getQuestionTextSpanish(), q.getRequired(), q.getQuestionType(), q.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, q.getVersion());
+//			statement.setInt(2, q.getQuestionOrder());
+//			statement.setString(3, q.getQuestionTextEnglish());
+//			statement.setString(4, q.getQuestionTextSpanish());
+//			statement.setInt(5, q.getRequired());
+//			statement.setInt(6, q.getQuestionType());
+//			statement.setInt(7, q.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return i;
 	}
 	
 	private int putQuestionInDatabase(Questions q){
 		final String sql = "INSERT INTO questions (version, questionOrder, questionTextEnglish, questionTextSpanish, required, questionType) VALUES (?, ?, ?, ?, ?, ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, q.getVersion());
-			statement.setInt(2, q.getQuestionOrder());
-			statement.setString(3, q.getQuestionTextEnglish());
-			statement.setString(4, q.getQuestionTextSpanish());
-			statement.setInt(5, q.getRequired());
-			statement.setInt(6, q.getQuestionType());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.insertRow(sql, "id", q.getVersion(), q.getQuestionOrder(), q.getQuestionTextEnglish(), q.getQuestionTextSpanish(), q.getRequired(), q.getQuestionType());
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("Insert question failed: " + q.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		return i;
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, q.getVersion());
+//			statement.setInt(2, q.getQuestionOrder());
+//			statement.setString(3, q.getQuestionTextEnglish());
+//			statement.setString(4, q.getQuestionTextSpanish());
+//			statement.setInt(5, q.getRequired());
+//			statement.setInt(6, q.getQuestionType());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return i;
 	}
 	
 	private int putAnswerInDatabase(Answers answer) {
 		final String sql = "INSERT INTO answers (answerText, answerBool, licenseId, questionId, answerType) VALUES (?, ?, ?, ?, ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			if(answer.getAnswerText() == null)
-				answer.setAnswerText("");
-			statement.setString(1, answer.getAnswerText());
-			statement.setInt(2, answer.getAnswerBool());
-			statement.setInt(3, answer.getLicenseId());
-			statement.setInt(4, answer.getQuestionId());
-			statement.setInt(5, answer.getAnswerType());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		int i;
+		try {
+			i = this.insertRow(sql, "id", answer.getAnswerText(), answer.getAnswerBool(), answer.getLicenseId(), answer.getQuestionId(), answer.getAnswerType());
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("failed to insert answer into database, " + answer.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		if(i == 0)
-			throw new RuntimeException("failed to insert answer into database, " + answer.toString());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			if(answer.getAnswerText() == null)
+//				answer.setAnswerText("");
+//			statement.setString(1, answer.getAnswerText());
+//			statement.setInt(2, answer.getAnswerBool());
+//			statement.setInt(3, answer.getLicenseId());
+//			statement.setInt(4, answer.getQuestionId());
+//			statement.setInt(5, answer.getAnswerType());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("failed to insert answer into database, " + answer.toString());
 		if(answer.getAnswerType() == 1){
 			answer.getImageDetails().setAnswerId(i);
 			if(this.putImageDetailsInDatabase(answer.getImageDetails()) == 0)
@@ -785,7 +827,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	public Questions getQuestionById(Integer questionId) {
 		try {
-			return this.getRow("questions", "id", questionId, Questions.class);
+//			return this.getRow("questions", "id", questionId, Questions.class);
+			return this.getRow("SELECT * FROM questions WHERE id = ?", Questions.class, questionId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("Cant get question by id: " + questionId + ", error: " + e.getLocalizedMessage());
 		}
@@ -807,7 +850,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public List<Questions> getAllQuestions() {
-		return this.getList("questions", "questionOrder", null, Questions.class);
+		return this.getList("SELECT * FROM questions ORDER BY questionOrder", Questions.class);
+//		return this.getList("questions", "questionOrder", null, Questions.class);
 //		final String sql = "SELECT * FROM questions ORDER BY questionOrder";
 //		List<Questions> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
@@ -833,23 +877,28 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	private int putImageDetailsInDatabase(ImageDetails imageDetails){
 		final String sql = "INSERT INTO imageDetails (photoName, bucketId, answerId) VALUES (?, ?, ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setString(1, imageDetails.getPhotoName());
-			statement.setInt(2, imageDetails.getBucketId());
-			statement.setInt(3, imageDetails.getAnswerId());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle + ", imageDetials: " + imageDetails.toString());
+		try {
+			return this.insertRow(sql, "id", imageDetails.getPhotoName(), imageDetails.getBucketId(), imageDetails.getAnswerId());
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("insert imageDetails failed, " + imageDetails.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		if(i == 0)
-			throw new RuntimeException("insert imageDetails failed, " + imageDetails.toString());
-		return i;
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setString(1, imageDetails.getPhotoName());
+//			statement.setInt(2, imageDetails.getBucketId());
+//			statement.setInt(3, imageDetails.getAnswerId());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle + ", imageDetials: " + imageDetails.toString());
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("insert imageDetails failed, " + imageDetails.toString());
+//		return i;
 	}
 
 	public Questions putQuestion(Questions question) {
@@ -863,7 +912,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	public List<Users> getAllUsers() {
-		return this.getList("users", null, null, Users.class);
+		return this.getList("SELECT * FROM users", Users.class);
+//		return this.getList("users", null, null, Users.class);
 //		final String sql = "SELECT * FROM users";
 //		List<Users> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
@@ -878,7 +928,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	public List<Users> getUsersForDealershipId(Integer dealershipId) {
-		return this.getList("users", "dealershipId", dealershipId,  null, null, Users.class);
+		return this.getList("SELECT * FROM users WHERE dealershipId = ?", Users.class, dealershipId);
+//		return this.getList("users", "dealershipId", dealershipId,  null, null, Users.class);
 //		final String sql = "SELECT * FROM users WHERE dealershipId = ?";
 //		List<Users> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
@@ -896,16 +947,17 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public Users updateUserToType(String googleUserId, int type) {
 		final String sql = "UPDATE users SET type = ? WHERE googleUserId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, type);
-			statement.setString(2, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, type, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, type);
+//			statement.setString(2, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
 		return this.getUserByGoogleId(googleUserId);
@@ -914,16 +966,17 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	public Users updateUserToDealershipCode(String googleUserId, String dealershipCode) {
 		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
 		final String sql = "UPDATE users SET dealershipId = ? WHERE googleUserId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setString(2, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException("dealershipId: " + dealershipId + ", " + sqle.getLocalizedMessage());
-		}
+		int i = this.updateRow(sql, dealershipId, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setString(2, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException("dealershipId: " + dealershipId + ", " + sqle.getLocalizedMessage());
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
 		return this.getUserByGoogleId(googleUserId);
@@ -932,17 +985,18 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	public Users updateUserToDealershipCodeType(String googleUserId, String dealershipCode, int type) {
 		int dealershipId = this.getDealershipByDealershipCode(dealershipCode).getId();
 		final String sql = "UPDATE users SET dealershipId = ?, type = ? WHERE googleUserId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setInt(2, type);
-			statement.setString(3, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException("dealershipId: " + dealershipId + ", type:" + type + ", " + sqle.getLocalizedMessage());
-		}
+		int i = this.updateRow(sql, dealershipId, type, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setInt(2, type);
+//			statement.setString(3, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException("dealershipId: " + dealershipId + ", type:" + type + ", " + sqle.getLocalizedMessage());
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to update googleUserId: " + googleUserId);
 		return this.getUserByGoogleId(googleUserId);
@@ -950,7 +1004,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 
 	private Dealerships getDealershipByDealershipCode(String dealershipCode) {
 		try {
-			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+//			return this.getRow("dealerships", "dealershipCode", dealershipCode, Dealerships.class);
+			return this.getRow("SELECT * FROM dealerships WHERE dealershipCode = ?", Dealerships.class, dealershipCode);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("failed to get dealership by dealershipCode: " + dealershipCode + ", error: " + e.getLocalizedMessage());
 		}
@@ -972,7 +1027,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 
 	public List<LicensesListElement> getAllLicensesForDealershipId(Integer dealershipId, boolean getSubData) {
-		List<Users> users =  this.getList("users", "dealershipId", dealershipId, null, null, Users.class);
+//		List<Users> users =  this.getList("users", "dealershipId", dealershipId, null, null, Users.class);
+		List<Users> users = this.getList("SELECT * FROM users WHERE dealershipId = ?", Users.class, dealershipId);
 //		final String sql = "SELECT * FROM users WHERE dealershipId = ?";
 //		List<Users> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -994,7 +1050,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public Dealerships getDealershipById(Integer dealershipId) {
 		try {
-			return this.getRow("dealerships", "id", dealershipId, Dealerships.class);
+//			return this.getRow("dealerships", "id", dealershipId, Dealerships.class);
+			return this.getRow("SELECT * FROM dealerships WHERE id = ?", Dealerships.class, dealershipId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("failed to get dealership by dealershipId: " + dealershipId + ", error: " + e.getLocalizedMessage());
 		}
@@ -1017,44 +1074,51 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public Dealerships newDealership(Dealerships dealership) {
 		final String sql = "INSERT INTO dealerships (name, city, stateId, dealershipCode, notes) VALUES (?, ?, ?, ?, ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setString(1, dealership.getName());
-			statement.setString(2, dealership.getCity());
-			statement.setInt(3, dealership.getStateId());
-			statement.setString(4, UUID.randomUUID().toString());
-			statement.setString(5, dealership.getNotes());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		int i;
+		try {
+			i = this.insertRow(sql, "id", dealership.getName(), dealership.getCity(), dealership.getStateId(), UUID.randomUUID().toString(), dealership.getNotes());
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("insert dealership failed: " + dealership.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		if(i == 0)
-			throw new RuntimeException("insert dealership failed");
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setString(1, dealership.getName());
+//			statement.setString(2, dealership.getCity());
+//			statement.setInt(3, dealership.getStateId());
+//			statement.setString(4, UUID.randomUUID().toString());
+//			statement.setString(5, dealership.getNotes());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("insert dealership failed");
 		return this.getDealershipById(i);
 	}
 	
 	public Dealerships updateDealership(Dealerships dealership) {
 		final String sql = "UPDATE dealerships SET name = ?, city = ?, stateId = ?, notes = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, dealership.getName());
-			statement.setString(2, dealership.getCity());
-			statement.setInt(3, dealership.getStateId());
-			statement.setString(4, dealership.getNotes());
-			statement.setInt(5, dealership.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, dealership.getName(), dealership.getCity(), dealership.getStateId(), dealership.getNotes(), dealership.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, dealership.getName());
+//			statement.setString(2, dealership.getCity());
+//			statement.setInt(3, dealership.getStateId());
+//			statement.setString(4, dealership.getNotes());
+//			statement.setInt(5, dealership.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
-			throw new RuntimeException("failed to update dealership");
+			throw new RuntimeException("failed to update dealership: " + dealership.toString());
 		return this.getDealershipById(dealership.getId());
 	}
 	
@@ -1063,17 +1127,18 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 			throw new RuntimeException("their device type is not within the range 1-3, user: " + userFromClient.toString());
 		
 		final String sql = "UPDATE users SET refreshToken = ?, deviceType = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, userFromClient.getRefreshToken());
-			statement.setInt(2, userFromClient.getDeviceType());
-			statement.setInt(3, userFromClient.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, userFromClient.getRefreshToken(), userFromClient.getDeviceType(), userFromClient.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, userFromClient.getRefreshToken());
+//			statement.setInt(2, userFromClient.getDeviceType());
+//			statement.setInt(3, userFromClient.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to update user's refresh token, refreshToken length: " + userFromClient.getRefreshToken().length() + ", userFromClient: " + userFromClient.toString());
 		return;
@@ -1143,7 +1208,8 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	}
 	
 	private GoogleToken getTokenForUserFromCache(Integer userId){
-		List<GoogleToken> tokens = this.getList("tokens", "userId", userId, "expiresAt", "DESC", GoogleToken.class);
+//		List<GoogleToken> tokens = this.getList("tokens", "userId", userId, "expiresAt", "DESC", GoogleToken.class);
+		List<GoogleToken> tokens = this.getList("SELECT * FROM tokens WHERE userid = ? order by expiresAt DESC", GoogleToken.class, userId);
 //		final String sql = "SELECT * FROM tokens WHERE userid = ? order by expiresAt DESC";
 //		GoogleToken gt = null;
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -1172,27 +1238,32 @@ public class JDBCSalesmanBuddyDAO extends SharedDAO {
 	
 	public int saveGoogleTokenInCache(GoogleRefreshTokenResponse grtr, Users user) {
 		final String sql = "INSERT INTO tokens (userId, token, expiresAt, type) VALUES (?, ?, ?, ?)";
-		int i = 0;
 		DateTime expiresAt = new DateTime().plusSeconds((int)grtr.getExpiresIn());
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, user.getId());
-			statement.setString(2, grtr.getTokenType() + " " + grtr.getAccessToken());
-			
-			statement.setLong(3, expiresAt.getMillis());
-			statement.setInt(4, user.getType());
-
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException("expiresAt: " + expiresAt.getMillis() + ", grtr: " + grtr.toString() + ", user: " + user.toString() + ", error: " + sqle.getLocalizedMessage());
+		try {
+			return this.insertRow(sql, "id", user.getId(), grtr.getTokenType() + " " + grtr.getAccessToken(), expiresAt.getMillis(), user.getType());
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("insert into tokens failed, sql: " + sql + ", expiresAt: " + expiresAt.getMillis() + ", grtr: " + grtr.toString() + ", user: " + user.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		if(i == 0)
-			throw new RuntimeException("insert token failed");
-		return i;
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, user.getId());
+//			statement.setString(2, grtr.getTokenType() + " " + grtr.getAccessToken());
+//			
+//			statement.setLong(3, expiresAt.getMillis());
+//			statement.setInt(4, user.getType());
+//
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException("expiresAt: " + expiresAt.getMillis() + ", grtr: " + grtr.toString() + ", user: " + user.toString() + ", error: " + sqle.getLocalizedMessage());
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("insert token failed");
+//		return i;
 	}
 	
 	public GoogleToken getValidTokenForUser(String googleUserId, Users user) throws GoogleRefreshTokenResponseException {
@@ -1632,8 +1703,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 					if(sn.getStatus() == STOCK_NUMBER_SOLD)
 						sb.append("SOLD!");
 					
-				} catch (NoResultInResultSet e) {
-					// fail silently
+				} catch (NoSqlResultsException e) {
+					// Fail silently
 				}
 				
 				sb.append(", Customer: ").append(this.getCustomerNameForLicenseId(l.getId()));
@@ -1750,24 +1821,33 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		return new StringBuilder().append(firstName).append(" ").append(lastName).toString();
 	}
 
-	private String getStockNumberForLicenseId(Integer id) {
+	private String getStockNumberForLicenseId(Integer licenseId) {
 		final String sql = "SELECT a.answerText answerText FROM answers a, questions q WHERE a.licenseId = ? AND a.questionId = q.id AND q.tag = ?";
 		String stockNumber = "<Unknown>";
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-			statement.setInt(2, QUESTION_STOCK_NUMBER);
-			
-			ResultSet resultSet = statement.executeQuery();
-			while(resultSet.next()){
-				stockNumber = resultSet.getString("answerText");
-				break;
-			}
-			resultSet.close();
-
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		
+		try {
+			stockNumber = this.getRowOneColumn(sql, String.class, "answerText", licenseId, QUESTION_STOCK_NUMBER);
+		} catch (NoSqlResultsException e) {
+			// Fail silently
 		}
+		
 		return stockNumber;
+		
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//			statement.setInt(2, QUESTION_STOCK_NUMBER);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			while(resultSet.next()){
+//				stockNumber = resultSet.getString("answerText");
+//				break;
+//			}
+//			resultSet.close();
+//
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return stockNumber;
 	}
 
 	private String stockNumberSummaryReport(Integer dealershipId, DateTime from, DateTime to){
@@ -1786,8 +1866,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 		StockNumbers sn = null;
 		try {
 			sn = this.getStockNumberByStockNumber(stockNumber);
-		} catch (NoResultInResultSet e1) {
-			// do nothing
+		} catch (NoSqlResultsException e) {
+			// Do nothing
 		}
 		StringBuilder sb = new StringBuilder();
 		sb.append("Stock Number '").append(stockNumber);
@@ -1837,38 +1917,40 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 	private List<Licenses> getLicensesWithStockNumberFromTo(String stockNumber, DateTime from, DateTime to) {
 		final String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId AND l.created between ? and ? ORDER BY l.created";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, stockNumber);
-			statement.setInt(2, QUESTION_STOCK_NUMBER);
-			statement.setString(3, from.toString());
-			statement.setString(4, to.toString());
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList(sql, Licenses.class, stockNumber, QUESTION_STOCK_NUMBER, from.toString(), to.toString());
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, stockNumber);
+//			statement.setInt(2, QUESTION_STOCK_NUMBER);
+//			statement.setString(3, from.toString());
+//			statement.setString(4, to.toString());
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	private List<Licenses> getLicensesWithStockNumber(String stockNumber) {
 		final String sql = "SELECT l.* from answers a, questions q, licenses l WHERE a.answerText = ? AND q.tag = ? AND a.questionId = q.id AND l.id = a.licenseId ORDER BY l.created";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, stockNumber);
-			statement.setInt(2, QUESTION_STOCK_NUMBER);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList(sql, Licenses.class, stockNumber, QUESTION_STOCK_NUMBER);
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, stockNumber);
+//			statement.setInt(2, QUESTION_STOCK_NUMBER);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	private String wrapReportContentWithBeginningEnd(String content, ReportBeginEnd beginning, ReportBeginEnd ending, Integer dealershipId, DateTime from, DateTime to){
@@ -2045,21 +2127,22 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private List<Licenses> getLicensesForDateRangeUserId(Integer userId, DateTime to, DateTime from) {
-		final String sql = "SELECT * FROM licenses WHERE userId = ? AND created BETWEEN ? AND ?;";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, userId);
-			statement.setString(2, from.toString());
-			statement.setString(3, to.toString());
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		final String sql = "SELECT * FROM licenses WHERE userId = ? AND created BETWEEN ? AND ?";
+		return this.getList(sql, Licenses.class, userId, from.toString(), to.toString());
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, userId);
+//			statement.setString(2, from.toString());
+//			statement.setString(3, to.toString());
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	private String getStatsAboutStockNumber(String stockNumber, Integer dealershipId) {
@@ -2073,39 +2156,41 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	private List<Licenses> getLicensesForDateRangeDealershipId(DateTime from, DateTime to, Integer dealershipId) {
-		final String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?;";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setString(2, from.toString());
-			statement.setString(3, to.toString());
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		final String sql = "SELECT * FROM licenses WHERE userId IN (SELECT id FROM users WHERE dealershipId = ?) AND created BETWEEN ? AND ?";
+		return this.getList(sql, Licenses.class, dealershipId, from.toString(), to.toString());
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setString(2, from.toString());
+//			statement.setString(3, to.toString());
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	private List<Licenses> getAllLicensesForStockNumberInDateRange(String stockNumber, DateTime to, DateTime from) {
 		final String sql = "SELECT l.* FROM licenses l, answers a, questions q WHERE q.tag = ? AND a.questionId = q.id AND a.answerText = ? AND a.licenseId = l.id";
 //		final String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
-		List<Licenses> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, QUESTION_STOCK_NUMBER);
-			statement.setString(2, stockNumber);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = Licenses.parseResultSet(resultSet);
-			resultSet.close();
-
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList(sql, Licenses.class, QUESTION_STOCK_NUMBER, stockNumber);
+//		List<Licenses> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, QUESTION_STOCK_NUMBER);
+//			statement.setString(2, stockNumber);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Licenses.parseResultSet(resultSet);
+//			resultSet.close();
+//
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	private List<String> getUserTreeGoogleIdsForType(List<UserTree> userTrees, Integer type) throws InvalidUserTreeType {
@@ -2125,35 +2210,42 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int newUserTreeNode(String googleUserId, String supervisorId, Integer type){
 		final String sql = "INSERT INTO userTree (userId, supervisorId, type) VALUES(?, ?, ?)";
-		int i = 0;
-		if(supervisorId == null)// allows for dealership-wide reports
-			supervisorId = "";
-		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setString(1, googleUserId);
-			statement.setString(2, supervisorId);
-			statement.setInt(3, type);
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		try {
+			return this.insertRow(sql, "id", googleUserId, supervisorId, type);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("insert userTree failed, sql: " + sql + ", googleUserId: " + googleUserId + ", supervisorId: " + supervisorId + ", error: " + e.getLocalizedMessage());
 		}
-		if(i == 0)
-			throw new RuntimeException("insert userTree failed, i == 0, " + googleUserId + ", supervisorId: " + supervisorId);
-		return i;
+//		int i = 0;
+//		if(supervisorId == null)// allows for dealership-wide reports
+//			supervisorId = "";
+//		
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setString(1, googleUserId);
+//			statement.setString(2, supervisorId);
+//			statement.setInt(3, type);
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("insert userTree failed, i == 0, " + googleUserId + ", supervisorId: " + supervisorId);
+//		return i;
 	}
 	
 	private List<UserTree> getAllUserTreeForDealershipIdType(Integer dealershipId, Integer type) {
-		StringBuilder sb = new StringBuilder();
-		sb.append("SELECT * FROM userTree ut WHERE type = ").append(type).append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
-		sb.append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
-		sb.append(") OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId).append("))");
-		return this.getList(sb.toString(), UserTree.class);
-//		List<UserTree> results = new ArrayList<>();
+//		StringBuilder sb = new StringBuilder();
+//		sb.append("SELECT * FROM userTree ut WHERE type = ").append(type).append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
+//		sb.append(" AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId);
+//		sb.append(") OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ").append(dealershipId).append("))");
+//		return this.getList(sb.toString(), UserTree.class);
+		String sql = "SELECT * FROM userTree ut WHERE type = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ? AND (ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?))";
+		return this.getList(sql, UserTree.class, type, dealershipId, dealershipId);
+		//		List<UserTree> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 //			statement.setInt(1, type);
 //			statement.setInt(2, dealershipId);
@@ -2171,7 +2263,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public UserTree getUserTreeById(Integer userTreeId){
 		try {
-			return this.getRow("userTree", "id", userTreeId, UserTree.class);
+//			return this.getRow("userTree", "id", userTreeId, UserTree.class);
+			return this.getRow("SELECT * FROM userTree WHERE id = ?", UserTree.class, userTreeId);
 		} catch (NoSqlResultsException e) {
 			throw new RuntimeException("Cant find usertree by id: " + userTreeId + ", error: " + e.getLocalizedMessage());
 		}
@@ -2191,11 +2284,8 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 	
 	public List<UserTree> getAllUserTreeForGoogleUserId(String googleUserId){
-		try {
-			return this.getList("userTree", "userId", googleUserId, null, null, UserTree.class);
-		} catch (NoSqlResultsException e) {
-			throw new RuntimeException("Cant find usertree by googleUserId: " + googleUserId + ", error: " + e.getLocalizedMessage());
-		}
+		return this.getList("SELECT * FROM userTree WHERE userId = ?", UserTree.class, googleUserId);
+//		return this.getList("userTree", "userId", googleUserId, null, null, UserTree.class);
 //		final String sql = "SELECT * FROM userTree WHERE userId = ?";
 //		List<UserTree> results = new ArrayList<>();
 //		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
@@ -2212,119 +2302,131 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	}
 
 	public List<UserTree> getAllUserTreesForGoogleUserIdType(String googleUserId, Integer type){
-		final String sql = "SELECT * FROM userTree WHERE userId = ? AND type = ?";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			statement.setInt(2, type);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+//		final String sql = ;
+		return this.getList("SELECT * FROM userTree WHERE userId = ? AND type = ?", UserTree.class, googleUserId, type);
+//		return this.getList(sql, UserTree.class);
+//		return this.getList(", columnName, columnValue, orderColumn, orderDirection, c)
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			statement.setInt(2, type);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	public List<UserTree> getAllUserTreeForGoogleSupervisorId(String googleSupervisorId){
-		final String sql = "SELECT * FROM userTree WHERE supervisorId = ?";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleSupervisorId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("SELECT * FROM userTree WHERE supervisorId = ?", UserTree.class, googleSupervisorId);
+//		final String sql = "SELECT * FROM userTree WHERE supervisorId = ?";
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleSupervisorId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	public List<UserTree> getAllUserTree() {
-		final String sql = "SELECT * FROM userTree ORDER BY userId";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("SELECT * FROM userTree ORDER BY userId", UserTree.class);
+//		final String sql = "SELECT * FROM userTree ORDER BY userId";
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	public List<UserTree> getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(String googleUserId) {
-		final String sql = "SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			statement.setString(2, googleUserId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?", UserTree.class, googleUserId);
+//		final String sql = "SELECT * FROM userTree WHERE supervisorId = ? OR userId = ?";
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			statement.setString(2, googleUserId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	public List<UserTree> getAllUserTreeForDealershipId(Integer dealershipId) {
 		final String sql = "SELECT * FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?);";
-		List<UserTree> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setInt(2, dealershipId);
-			
-			ResultSet resultSet = statement.executeQuery();
-			results = UserTree.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList(sql, UserTree.class, dealershipId, dealershipId);
+//		List<UserTree> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setInt(2, dealershipId);
+//			
+//			ResultSet resultSet = statement.executeQuery();
+//			results = UserTree.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	private List<String> getUniqueStockNumbersForDealershipId(Integer dealershipId) {
 		final String sql = "SELECT distinct a.answerText as stockNumber FROM answers a, licenses l, users u, questions q WHERE q.tag = ? AND len(a.answerText) > 0 AND a.questionId = q.id AND a.licenseId = l.id AND l.userId = u.id AND u.dealershipId = ?;";
-		List<String> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, QUESTION_STOCK_NUMBER);
-			statement.setInt(2, dealershipId);
-
-			ResultSet resultSet = statement.executeQuery();
-			while(resultSet.next()){
-				results.add(resultSet.getString("stockNumber"));
-			}
-			resultSet.close();
-
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getListOneColumn(sql, String.class, "stockNumber", QUESTION_STOCK_NUMBER, dealershipId);
+//		List<String> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, QUESTION_STOCK_NUMBER);
+//			statement.setInt(2, dealershipId);
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			while(resultSet.next()){
+//				results.add(resultSet.getString("stockNumber"));
+//			}
+//			resultSet.close();
+//
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
-	private List<Users> getAllUsersForDealershipId(Integer dealershipId) {
-		final String sql = "SELECT * FROM users WHERE dealershipId = ?;";
-		List<Users> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
+	
 
-			ResultSet resultSet = statement.executeQuery();
-			results = Users.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+
+	private List<Users> getAllUsersForDealershipId(Integer dealershipId) {
+		return this.getList("SELECT * FROM users WHERE dealershipId = ?", Users.class, dealershipId);
+//		final String sql = "SELECT * FROM users WHERE dealershipId = ?";
+//		List<Users> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			results = Users.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	private String getEmailForGoogleId(String supervisorId) {
@@ -2363,18 +2465,19 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int updateUserTreeNode(String googleUserId, String googleSupervisorId, Integer id, Integer type){
 		final String sql = "UPDATE userTree SET userId = ?, supervisorId = ?, type = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			statement.setString(2, googleSupervisorId);
-			statement.setInt(3, type);
-			statement.setInt(4, id);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, googleUserId, googleSupervisorId, type, id);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			statement.setString(2, googleSupervisorId);
+//			statement.setInt(3, type);
+//			statement.setInt(4, id);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to update userTree, id: " + id);
 		return i;
@@ -2382,15 +2485,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int deleteUserTreeNodeById(Integer id){
 		final String sql = "DELETE FROM userTree WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, id);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to delete userTree, id: " + id);
 		return i;
@@ -2398,16 +2502,17 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int deleteUserTreeNodesForGoogleUserIdAllNodes(String googleUserId){
 		final String sql = "DELETE FROM userTree WHERE supervisorId = ? OR userId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			statement.setString(2, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, googleUserId, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			statement.setString(2, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to delete all userTree for googleUserId: " + googleUserId);
 		return i;
@@ -2415,15 +2520,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int deleteUserTreeNodesForUserId(String googleUserId){
 		final String sql = "DELETE FROM userTree WHERE userId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to delete user's userTree for googleUserId: " + googleUserId);
 		return i;
@@ -2431,15 +2537,16 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public int deleteUserTreeNodesForSupervisorId(String googleUserId){
 		final String sql = "DELETE FROM userTree WHERE supervisorId = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, googleUserId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, googleUserId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, googleUserId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to delete supervisor's userTree for googleUserId: " + googleUserId);
 		return i;
@@ -2447,16 +2554,17 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 	
 	public ErrorMessage deleteUserTreeNodesForDealershipId(Integer dealershipId) {
 		final String sql = "DELETE FROM userTree ut WHERE ut.supervisorId IN (SELECT googleUserId FROM users WHERE dealershipId = ?) OR ut.userId IN (SELECT googleUserId FROM users WHERE dealershipId = ?)";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setInt(2, dealershipId);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
+		int i = this.updateRow(sql, dealershipId, dealershipId);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setInt(2, dealershipId);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
 		if(i == 0)
 			throw new RuntimeException("failed to delete all userTree nodes for dealerhsipId: " + dealershipId);
 		return new ErrorMessage("Not an error, successfully deleted " + i + " userTree nodes for dealerhsipId: " + dealershipId);
@@ -2464,159 +2572,180 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 
 	public ErrorMessage deleteAllUserTreeNodes() {
 		final String sql = "DELETE FROM userTree";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+		int i = this.updateRow(sql);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+		if(i == 0){
+			i = this.getCount("SELECT count(*) count FROM userTree");
+			if(i != 0)
+				throw new RuntimeException("Unable to delete all userTree, found: " + i);
 		}
-		if(i == 0)
-			throw new RuntimeException("failed to delete all userTree nodes");
 		return new ErrorMessage("this isnt an error, successfully deleted all userTree nodes");
 	}
 	
-	private StockNumbers getStockNumberByStockNumber(String stockNumber) throws NoResultInResultSet {
-		final String sql = "SELECT * FROM stockNumbers WHERE stockNumber = ?";
-		StockNumbers result = null;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setString(1, stockNumber);
-
-			ResultSet resultSet = statement.executeQuery();
-			result = StockNumbers.parseOneRowResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return result;
+	private StockNumbers getStockNumberByStockNumber(String stockNumber) throws NoSqlResultsException {
+		return this.getRow("SELECT * FROM stockNumbers WHERE stockNumber = ?", StockNumbers.class, stockNumber);
+//		final String sql = "SELECT * FROM stockNumbers WHERE stockNumber = ?";
+//		StockNumbers result = null;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setString(1, stockNumber);
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			result = StockNumbers.parseOneRowResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return result;
 	}
 	
-	public StockNumbers getStockNumberById(Integer id) throws NoResultInResultSet {
-		final String sql = "SELECT * FROM stockNumbers WHERE id = ?;";
-		StockNumbers result = null;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-
-			ResultSet resultSet = statement.executeQuery();
-			result = StockNumbers.parseOneRowResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
+	public StockNumbers getStockNumberById(Integer stockNumberId) {
+		try {
+			return this.getRow("SELECT * FROM stockNumbers WHERE id = ?", StockNumbers.class, stockNumberId);
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("Cant find stock number by id: " + stockNumberId + ", error: " + e.getLocalizedMessage());
 		}
-		return result;
+//		final String sql = "SELECT * FROM stockNumbers WHERE id = ?";
+//		StockNumbers result = null;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			result = StockNumbers.parseOneRowResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return result;
 	}
 
 	public List<StockNumbers> getAllStockNumbers() {
-		final String sql = "SELECT * FROM stockNumbers";
-		List<StockNumbers> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			ResultSet resultSet = statement.executeQuery();
-			results = StockNumbers.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("SELECT * FROM stockNumbers", StockNumbers.class);
+//		final String sql = "SELECT * FROM stockNumbers";
+//		List<StockNumbers> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			ResultSet resultSet = statement.executeQuery();
+//			results = StockNumbers.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	public List<StockNumbers> getStockNumbersForDealershipId(Integer dealershipId) {
-		final String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ?;";
-		List<StockNumbers> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-
-			ResultSet resultSet = statement.executeQuery();
-			results = StockNumbers.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList("SELECT * FROM stockNumbers WHERE dealershipId = ?", StockNumbers.class, dealershipId);
+//		final String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ?";
+//		List<StockNumbers> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			results = StockNumbers.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 	
 	private List<StockNumbers> getStockNumbersForDealershipFromTo(Integer dealershipId, DateTime from, DateTime to) {
 		final String sql = "SELECT * FROM stockNumbers WHERE dealershipId = ? AND soldOn between ? and ?";
-		List<StockNumbers> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, dealershipId);
-			statement.setString(2, from.toString());
-			statement.setString(3, to.toString());
-
-			ResultSet resultSet = statement.executeQuery();
-			results = StockNumbers.parseResultSet(resultSet);
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return results;
+		return this.getList(sql, StockNumbers.class, dealershipId, from.toString(), to.toString());
+//		List<StockNumbers> results = new ArrayList<>();
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, dealershipId);
+//			statement.setString(2, from.toString());
+//			statement.setString(3, to.toString());
+//
+//			ResultSet resultSet = statement.executeQuery();
+//			results = StockNumbers.parseResultSet(resultSet);
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return results;
 	}
 
 	public StockNumbers newStockNumber(StockNumbers stockNumber) {
 		final String sql = "INSERT INTO stockNumbers (dealershipId, stockNumber, status, createdBy, soldBy) VALUES(?, ?, ?, ?, ?)";
-		int i = 0;
-		
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
-			statement.setInt(1, stockNumber.getDealershipId());
-			statement.setString(2, stockNumber.getStockNumber());
-			statement.setInt(3, stockNumber.getStatus());
-			statement.setInt(4, stockNumber.getCreatedBy());
-			statement.setInt(5, stockNumber.getSoldBy());
-			statement.execute();
-			
-			ResultSet resultSet = statement.getGeneratedKeys();
-			i = this.parseFirstInt(resultSet, "id");
-			resultSet.close();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		if(i == 0)
-			throw new RuntimeException("insert stockNumbers failed, i == 0, stockNumber: " + stockNumber.toString());
-		
 		try {
+			int i = this.insertRow(sql, "id", stockNumber.getDealershipId(), stockNumber.getStockNumber(), stockNumber.getStatus(), stockNumber.getCreatedBy(), stockNumber.getSoldBy());
 			return this.getStockNumberById(i);// we know this will work because of the above test
-		} catch (NoResultInResultSet e) {
-			e.printStackTrace();
+		} catch (NoSqlResultsException e) {
+			throw new RuntimeException("insert stockNumbers failed, sql: " + sql + ", stockNumber: " + stockNumber.toString() + ", error: " + e.getLocalizedMessage());
 		}
-		return null;
+//		int i = 0;
+//		
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+//			statement.setInt(1, stockNumber.getDealershipId());
+//			statement.setString(2, stockNumber.getStockNumber());
+//			statement.setInt(3, stockNumber.getStatus());
+//			statement.setInt(4, stockNumber.getCreatedBy());
+//			statement.setInt(5, stockNumber.getSoldBy());
+//			statement.execute();
+//			
+//			ResultSet resultSet = statement.getGeneratedKeys();
+//			i = this.parseFirstInt(resultSet, "id");
+//			resultSet.close();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		if(i == 0)
+//			throw new RuntimeException("insert stockNumbers failed, i == 0, stockNumber: " + stockNumber.toString());
+//		
+//		try {
+//			return this.getStockNumberById(i);// we know this will work because of the above test
+//		} catch (NoResultInResultSet e) {
+//			e.printStackTrace();
+//		}
+//		return null;
 	}
 
 
 	public Integer deleteStockNumberById(Integer id) {
 		final String sql = "DELETE FROM stockNumbers WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, id);
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException(sqle);
-		}
-		return i;
+		return this.updateRow(sql, id);
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, id);
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException(sqle);
+//		}
+//		return i;
 	}
 
 	public StockNumbers updateStockNumber(StockNumbers stockNumber) {
 		final String sql = "UPDATE stockNumbers SET dealershipId = ?, stockNumber = ?, status = ?, soldOn = ?, soldBy = ? WHERE id = ?";
-		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
-			statement.setInt(1, stockNumber.getDealershipId());
-			statement.setString(2, stockNumber.getStockNumber());
-			statement.setInt(3, stockNumber.getStatus());
-			statement.setDate(4, stockNumber.getSoldOn());
-			statement.setInt(5, stockNumber.getSoldBy());
-			statement.setInt(6, stockNumber.getId());
-			
-			i = statement.executeUpdate();
-			
-		}catch(SQLException sqle){
-			throw new RuntimeException("StockNumbers: " + stockNumber.toString() + ", error: " + sqle.getLocalizedMessage());
-		}
+		int i = this.updateRow(sql, stockNumber.getDealershipId(), stockNumber.getStockNumber(), stockNumber.getStatus(), stockNumber.getSoldOn(), stockNumber.getSoldBy(), stockNumber.getId());
+//		int i = 0;
+//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+//			statement.setInt(1, stockNumber.getDealershipId());
+//			statement.setString(2, stockNumber.getStockNumber());
+//			statement.setInt(3, stockNumber.getStatus());
+//			statement.setDate(4, stockNumber.getSoldOn());
+//			statement.setInt(5, stockNumber.getSoldBy());
+//			statement.setInt(6, stockNumber.getId());
+//			
+//			i = statement.executeUpdate();
+//			
+//		}catch(SQLException sqle){
+//			throw new RuntimeException("StockNumbers: " + stockNumber.toString() + ", error: " + sqle.getLocalizedMessage());
+//		}
 		if(i == 0)
 			throw new RuntimeException("update stockNumber failed for stockNumbers: " + stockNumber.toString());
 		
@@ -2647,19 +2776,14 @@ url: https://accounts.google.com/o/oauth2/auth, params:access_type=offline&clien
 //	}
 
 	public boolean userHasRightsToStockNumberId(Integer stockNumberId, String googleUserId) {
-		try {
-			Users user = this.getUserByGoogleId(googleUserId);
-			if(user.getType() > 2)
-				return true;
-			
-			StockNumbers stockNumber = this.getStockNumberById(stockNumberId);
-			
-			if(user.getDealershipId() == stockNumber.getDealershipId())
-				return true;
-			
-		} catch (NoResultInResultSet e) {
-			e.printStackTrace();
-		}
+		Users user = this.getUserByGoogleId(googleUserId);
+		if(user.getType() > 2)
+			return true;
+		
+		StockNumbers stockNumber = this.getStockNumberById(stockNumberId);
+		
+		if(user.getDealershipId() == stockNumber.getDealershipId())
+			return true;
 		
 		return false;
 	}

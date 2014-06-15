@@ -25,7 +25,6 @@ import com.salesmanBuddy.exceptions.MalformedSBEmailException;
 import com.salesmanBuddy.exceptions.NoSqlResultsException;
 import com.salesmanBuddy.model.ResultSetParser;
 import com.salesmanBuddy.model.SBEmail;
-import com.salesmanBuddy.model.UserTree;
 
 public class BaseDAO {
 	
@@ -177,64 +176,6 @@ public class BaseDAO {
 		return count;
 	}
 	
-	
-//	// Table name, Order Column, Order Direction
-//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String orderColumn, String orderDirection, Class<U> c) {
-//		List<U> list = new ArrayList<>();
-//		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
-//		return list;
-//	}
-//	
-//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String orderColumn, String orderDirection, Class<U> c) {
-//		Set<U> list = new HashSet<>();
-//		this.getRowsForColumnAndValue(tableName, "", "", orderColumn, orderDirection, c, list);
-//		return list;
-//	}
-//	
-//	
-//	// Table Name, Column Name, Column Value, Order Column, Order Direction
-//	// Integer Column Value
-//	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, Integer columnValue, Class<U> c) throws NoSqlResultsException {
-//		List<U> list = this.getList(tableName, columnName, columnValue, null, null, c);
-//		if(list == null || list.size() == 0)
-//			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
-//		return list.get(0);
-//	}
-//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
-//		List<U> list = new ArrayList<>();
-//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
-//		return list;
-//	}
-//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, Integer columnValue, String orderColumn, String orderDirection, Class<U> c) {
-//		Set<U> set = new HashSet<>();
-//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
-//		return set;
-//	}
-//	
-//	// String Column Value
-//	protected <U extends ResultSetParser<U>> U getRow(String tableName, String columnName, String columnValue, Class<U> c) throws NoSqlResultsException {
-//		List<U> list = this.getList(tableName, columnName, columnValue, c);
-//		if(list == null || list.size() == 0)
-//			throw new NoSqlResultsException("None for tablename: " + tableName + ", columnName: " + columnName + ", columnValue: " + columnValue + ", class: " + c.getName());
-//		return list.get(0);
-//	}
-//	protected <U extends ResultSetParser<U>> List<U> getList(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
-//		List<U> list = new ArrayList<>();
-//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, list);
-//		return list;
-//	}
-//	protected <U extends ResultSetParser<U>> Set<U> getSet(String tableName, String columnName, String columnValue, String orderColumn, String orderDirection, Class<U> c) {
-//		Set<U> set = new HashSet<>();
-//		this.getRowsForColumnAndValue(tableName, columnName, columnValue, orderColumn, orderDirection, c, set);
-//		return set;
-//	}
-//	
-//	
-//	
-//	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results) {
-//		this.getRowsInCollectionForSql(sql, c, results, (Object[])null);
-//	}
-	
 	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results, Object... args) {
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			
@@ -291,42 +232,6 @@ public class BaseDAO {
 		}
 	}
 	
-//	private <U extends ResultSetParser<U>> void getRowsForColumnAndValue(String tableName, String columnName, Object columnValue, String orderColumn, String orderDirection, Class<U> c, Collection<U> results) {
-//		StringBuilder sb = new StringBuilder();
-//		sb.append("SELECT * FROM ").append(tableName);
-//		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sb.toString())){
-//			int index = 1;
-//			if(columnValue.getClass().equals(String.class)){
-//				if(columnName != null && columnValue != null && columnName.length() != 0 && ((String)columnValue).length() != 0){
-//					sb.append(" WHERE ").append(columnName).append(" = ? ");
-//					statement.setString(index++, (String)columnValue);
-//				}
-//			}else if(columnValue.getClass().equals(Integer.class)){
-//				if(columnName != null && columnValue != null && columnName.length() != 0){
-//					sb.append(" WHERE ").append(columnName).append(" = ? ");
-//					statement.setInt(index++, (Integer)columnValue);
-//				}
-//			}
-//			if(orderColumn != null && orderColumn.length() != 0){
-//				sb.append(" ORDER BY ").append(orderColumn);
-//				if(orderDirection != null && orderDirection.length() > 2)
-//					sb.append(" ").append(orderDirection);
-//			}
-//			
-//			ResultSet resultSet = statement.executeQuery();
-//			results = c.newInstance().parseResultSetAll(resultSet);
-//			resultSet.close();
-//			
-//		}catch(SQLException sqle){
-//			throw new RuntimeException(sqle);
-//		} catch (InstantiationException e) {
-//			throw new RuntimeException(e);
-//		} catch (IllegalAccessException e) {
-//			throw new RuntimeException(e);
-//		}
-//	}
-	
-	
 	
 	
 	// SQL Insert
@@ -334,7 +239,6 @@ public class BaseDAO {
 		return this.insertRow(sql, idColumn, (Object[])null);
 	}
 	protected Integer insertRow(String sql, String idColumn, Object... args) throws NoSqlResultsException {
-//		List<Integer> ids = this.insertRows(sql, idColumn, args);
 		List<Integer> generatedIds = new ArrayList<>();
 		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			int index = 1;
@@ -349,7 +253,6 @@ public class BaseDAO {
 			statement.execute();
 			
 			ResultSet generatedKeys = statement.getGeneratedKeys();
-//			i = this.parseFirstInt(resultSet, idColumn);
 			while(generatedKeys.next())
 				generatedIds.add((int) generatedKeys.getLong(idColumn));
 			generatedKeys.close();

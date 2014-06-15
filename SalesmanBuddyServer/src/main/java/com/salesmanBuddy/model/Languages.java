@@ -3,8 +3,11 @@ package com.salesmanBuddy.model;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-public class Languages {
+public class Languages implements ResultSetParser<Languages> {
 	protected Integer id;
 	protected String mtcId;
 	protected String code1;
@@ -14,27 +17,51 @@ public class Languages {
 	protected String alternateName;
 	protected String nativeName;
 	
-	
-	public static ArrayList<Languages> parseResultSet(ResultSet resultSet){
-    	ArrayList<Languages> responses = new ArrayList<Languages>();
-    	try{
-			while(resultSet.next()){
-				Languages response = new Languages();
-				response.setId(resultSet.getInt("id"));
-				response.setMtcId(resultSet.getString("mtcId"));
-				response.setCode1(resultSet.getString("code1"));
-				response.setCode2(resultSet.getString("code2"));
-				response.setName(resultSet.getString("name"));
-				response.setMtcTaught(resultSet.getInt("mtcTaught"));
-				response.setAlternateName(resultSet.getString("alternateName"));
-				response.setNativeName(resultSet.getString("nativeName"));
-				responses.add(response);
-			}
-    	}catch(SQLException e){
-    		throw new RuntimeException(e);
-    	}
-    	return responses;
-    }
+	@Override
+	public List<Languages> parseResultSetAll(ResultSet resultSet) throws SQLException {
+		List<Languages> results = new ArrayList<>();
+		if(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.next();
+		return results;
+	}
+
+	@Override
+	public Set<Languages> parseResultSetAllSet(ResultSet resultSet) throws SQLException {
+		Set<Languages> results = new HashSet<>();
+		if(resultSet.next())
+			results.add(this.parseResultSetStepThrough(resultSet));
+		resultSet.next();
+		return results;
+	}
+
+	@Override
+	public Languages parseResultSetOneRow(ResultSet resultSet) throws SQLException {
+		Languages result = null;
+		if(resultSet.next())
+			result = this.parseResultSetStepThrough(resultSet);
+		resultSet.next();
+		return result;
+	}
+
+	@Override
+	public Languages parseResultSetStepThrough(ResultSet resultSet) throws SQLException {
+		return this.parseResultSetStepThrough(resultSet, "");
+	}
+
+	@Override
+	public Languages parseResultSetStepThrough(ResultSet resultSet, String prefix) throws SQLException {
+		Languages response = new Languages();
+		response.setId(resultSet.getInt(prefix + "id"));
+		response.setMtcId(resultSet.getString(prefix + "mtcId"));
+		response.setCode1(resultSet.getString(prefix + "code1"));
+		response.setCode2(resultSet.getString(prefix + "code2"));
+		response.setName(resultSet.getString(prefix + "name"));
+		response.setMtcTaught(resultSet.getInt(prefix + "mtcTaught"));
+		response.setAlternateName(resultSet.getString(prefix + "alternateName"));
+		response.setNativeName(resultSet.getString(prefix + "nativeName"));
+		return response;
+	}
 	
 	@Override
 	public String toString(){
@@ -178,3 +205,27 @@ public class Languages {
 		return true;
 	}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

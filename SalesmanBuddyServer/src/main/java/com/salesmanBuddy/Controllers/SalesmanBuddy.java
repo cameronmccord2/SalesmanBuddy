@@ -223,7 +223,7 @@ public class SalesmanBuddy {
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})// working 10/3/13
     public Response getAllStates(@Context HttpServletRequest request, @DefaultValue("0") @QueryParam("inactivetoo") int getInactiveToo){
 //    	String googleUserId = request.getUserPrincipal().getName();
-    	GenericEntity<List<States>> entity = new GenericEntity<List<States>>(dao.getAllStates(getInactiveToo)){};
+    	GenericEntity<List<States>> entity = new GenericEntity<List<States>>(dao.getStates(getInactiveToo)){};
     	return Response.ok(entity).build();
     }
     
@@ -387,20 +387,25 @@ public class SalesmanBuddy {
     	}else if(dealershipId != 0){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2 || (user.getDealershipId() == dealershipId && user.getType() == 2)){// SB employee OR manager type for the requested dealership
-    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForDealershipId(dealershipId, getSubData)){};
+    			List<LicensesListElement> list = dao.getLicensesListElementForDealershipId(dealershipId);
+    			if(getSubData)
+    				dao.addSubDataToLicensesListElement(list);
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(list){};
             	return Response.ok(entity).build();
     		}
     		return Response.status(400).entity(new ErrorMessage("You must be an SB employee OR specify a valid dealershipId that is the same as your own and have your type be a manager")).build();
     	}else if(requestedGoogleUserId.length() != 0){
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2 || (user.getType() == 2 && dao.getUserByGoogleId(requestedGoogleUserId).getDealershipId() == user.getDealershipId())){// SB employee OR manager type for the same dealership as the requested user
-    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId, getSubData)){};
+    			List<LicensesListElement> list = dao.getLicensesForGoogleUserId(googleUserId);
+    			dao.addSubDataToLicensesListElement(list);
+    			GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(list){};
             	return Response.ok(entity).build();
     		}
     		return Response.status(400).entity(new ErrorMessage("You must be an SB employee OR be a manager at the same dealership as the user you are requesting")).build();
     	}else{
     		// must be for themselves
-    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getAllLicensesForUserId(googleUserId, getSubData)){};
+    		GenericEntity<List<LicensesListElement>> entity = new GenericEntity<List<LicensesListElement>>(dao.getLicensesForGoogleUserId(googleUserId)){};
         	return Response.ok(entity).build();
     	}
     }
@@ -533,18 +538,18 @@ public class SalesmanBuddy {
     																 @DefaultValue("false") @QueryParam("all") boolean all){
     	GenericEntity<List<UserTree>> entity = null;
     	if(requestedGoogleUserId.length() > 0)
-    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleUserId(requestedGoogleUserId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getUserTreesForGoogleUserId(requestedGoogleUserId)){};// works 2-6-14
     	if(googleSupervisorId.length() > 0)
-    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleSupervisorId(googleSupervisorId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getUserTreesForGoogleSupervisorId(googleSupervisorId)){};// works 2-6-14
     	if(sbUserId != 0)
-    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForGoogleSupervisorIdAndGoogleUserId(dao.getUserById(sbUserId).getGoogleUserId())){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getUserTreesForGoogleUserId(dao.getUserById(sbUserId).getGoogleUserId())){};
     	if(dealershipId != 0)
-    		entity = new GenericEntity<List<UserTree>>(dao.getAllUserTreeForDealershipId(dealershipId)){};// works 2-6-14
+    		entity = new GenericEntity<List<UserTree>>(dao.getUserTreesForDealershipId(dealershipId)){};// works 2-6-14
     	if(all){
     		String googleUserId = request.getUserPrincipal().getName();
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2)
-    			entity = new GenericEntity<List<UserTree>>(dao.getAllUserTree()){};// works 2-6-14
+    			entity = new GenericEntity<List<UserTree>>(dao.getUserTrees()){};// works 2-6-14
     		else
     			return Response.status(401).entity(new ErrorMessage("You are not authorized to get all userTree")).build();
     	}
@@ -561,7 +566,7 @@ public class SalesmanBuddy {
     public Response putUserTree(@Context HttpServletRequest request, UserTree userTree){
 //    	String googleUserId = request.getUserPrincipal().getName();
     	// TODO add created by to the userTree
-    	Integer userTreeId = dao.newUserTreeNode(userTree.getUserId(), userTree.getSupervisorId(), userTree.getType());
+    	Integer userTreeId = dao.insertUserTree(userTree.getUserId(), userTree.getSupervisorId(), userTree.getType());
     	return Response.ok(dao.getUserTreeById(userTreeId)).build();
     }
     
@@ -576,20 +581,20 @@ public class SalesmanBuddy {
     																	@DefaultValue("false") @QueryParam("all") boolean all){
     	
     	if(userTreeId > 0)
-    		return Response.ok(dao.deleteUserTreeNodeById(userTreeId)).build();
+    		return Response.ok(dao.deleteUserTreeById(userTreeId)).build();
     	if(userGoogleUserId.length() > 0)
-    		return Response.ok(dao.deleteUserTreeNodesForUserId(userGoogleUserId)).build();
+    		return Response.ok(dao.deleteUserTreesForGoogleUserId(userGoogleUserId)).build();
     	if(supervisorGoogleUserId.length() > 0)
-    		return Response.ok(dao.deleteUserTreeNodesForSupervisorId(supervisorGoogleUserId)).build();
+    		return Response.ok(dao.deleteUserTreesForSupervisorId(supervisorGoogleUserId)).build();
     	if(allGoogleUserId.length() > 0)
-    		return Response.ok(dao.deleteUserTreeNodesForGoogleUserIdAllNodes(allGoogleUserId)).build();
+    		return Response.ok(dao.deleteUserTreesForGoogleSupervisorIdGoogleUserId(allGoogleUserId, allGoogleUserId)).build();
     	if(dealershipId > 0)
-    		return Response.ok(dao.deleteUserTreeNodesForDealershipId(dealershipId)).build();
+    		return Response.ok(dao.deleteUserTreesForDealershipId(dealershipId)).build();
     	if(all){
     		String googleUserId = request.getUserPrincipal().getName();
     		Users user = dao.getUserByGoogleId(googleUserId);
     		if(user.getType() > 2)
-    			return Response.ok(dao.deleteAllUserTreeNodes()).build();
+    			return Response.ok(dao.deleteAllUserTrees()).build();
     		else
     			return Response.status(401).entity(new ErrorMessage("You are not authorized to delete all userTree")).build();
     	}
@@ -601,7 +606,7 @@ public class SalesmanBuddy {
     @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response updateLicense(@Context HttpServletRequest request, UserTree userTree){
-    	return Response.ok(dao.updateUserTreeNode(userTree.getUserId(), userTree.getSupervisorId(), userTree.getId(), userTree.getType())).build();
+    	return Response.ok(dao.updateUserTree(userTree)).build();
     }
     
     
@@ -842,7 +847,7 @@ public class SalesmanBuddy {
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response getAllLanguages(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("onlyMTCTaught") int onlyMtcTaught){
-    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(dao.getAllLanguages(onlyMtcTaught)){};
+    	GenericEntity<List<Languages>> entity = new GenericEntity<List<Languages>>(dao.getLanguages(onlyMtcTaught)){};
     	return Response.ok(entity).build();
     }
     

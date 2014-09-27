@@ -20,7 +20,7 @@ public class Languages implements ResultSetParser<Languages> {
 	@Override
 	public List<Languages> parseResultSetAll(ResultSet resultSet) throws SQLException {
 		List<Languages> results = new ArrayList<>();
-		if(resultSet.next())
+		while(resultSet.next())
 			results.add(this.parseResultSetStepThrough(resultSet));
 		resultSet.next();
 		return results;

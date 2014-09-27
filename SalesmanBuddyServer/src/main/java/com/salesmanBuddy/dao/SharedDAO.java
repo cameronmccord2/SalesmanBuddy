@@ -1,9 +1,5 @@
 package com.salesmanBuddy.dao;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -34,6 +30,10 @@ public class SharedDAO extends AWSDAO {
 	
 	public SharedDAO(){
 		super();
+	}
+	
+	public List<Languages> getAllLanguages(int onlyMtcTaught){
+		return this.getLanguages(onlyMtcTaught);
 	}
 	
 	public List<Languages> getLanguages(int onlyMtcTaught) {

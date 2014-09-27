@@ -699,6 +699,49 @@ public class CaptionEditorDAO extends SharedDAO {
 		return results;
 	}
 	
+	public List<MediaForApp> getMediasForIds(String[] split) {
+		StringBuilder sql = new StringBuilder();
+		sql.append("SELECT * FROM media WHERE id IN (");
+		boolean addedOne = false;
+		for (String id : split) {
+			if(id.length() > 0){
+				sql.append(id);
+				addedOne = true;
+				sql.append(",");
+			}
+		}
+		if(!addedOne)
+			return new ArrayList<>();
+		sql.setLength(sql.length()-1);// remove last comma
+		sql.append(")");
+		
+		List<MediaForApp> results = new ArrayList<>();
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql.toString())){
+			ResultSet resultSet = statement.executeQuery();
+			results = MediaForApp.parseResultSet(resultSet);
+			resultSet.close();
+			
+		}catch(SQLException sqle){
+			throw new RuntimeException(sqle);
+		}
+		BucketsCE b = this.getCaptionEditorBucket();
+		List<Languages> ls = this.getAllLanguages(0);
+		
+		for(MediaForApp m : results){
+			m.setBucketName(b.getName());
+			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
+			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
+			for(Languages l : ls){
+				m.setLanguage(l);
+				if(l.getId().equals(m.getAudioLanguageId())){
+					m.setLanguage(l);
+					break;
+				}
+			}
+		}
+		return results;
+	}
+	
 	public List<MediaForApp> getMediasForAppV2() {
 		final String sql = "SELECT * FROM media ORDER BY name";
 		List<MediaForApp> results = new ArrayList<>();

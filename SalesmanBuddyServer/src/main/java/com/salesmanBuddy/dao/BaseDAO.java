@@ -38,7 +38,7 @@ public class BaseDAO {
 		try{
 			Context initContext = new InitialContext();
 			Context envContext = (Context)initContext.lookup("java:/comp/env");
-			dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
+			this.dataSource = (DataSource)envContext.lookup("jdbc/SalesmanBuddyDB");
 		}catch(NamingException ne){
 			throw new RuntimeException(ne);
 		}
@@ -49,7 +49,7 @@ public class BaseDAO {
 		case 15:
 			int tries = 0;
 			while(true){
-				String s = new BigInteger(130, random).toString(32);
+				String s = new BigInteger(130, this.random).toString(32);
 				tries++;
 				if(s.length() == 26 && s.charAt(0) >= 'a' && s.charAt(0) <= 'z')
 					return s;
@@ -129,7 +129,8 @@ public class BaseDAO {
 	}
 	// SQL Multiple Params
 	protected <U extends ResultSetParser<U>> U getRow(String sql, Class<U> c, Object... args) throws NoSqlResultsException {
-		List<U> list = this.getList(sql, c);
+		List<U> list = new ArrayList<>();
+		this.getRowsInCollectionForSql(sql, c, list, args);
 		if(list == null || list.size() == 0)
 			throw new NoSqlResultsException("None for sql" + sql + ", class: " + c.getName());
 		return list.get(0);
@@ -154,7 +155,7 @@ public class BaseDAO {
 	}
 	protected Integer getCount(String sql, Object... args){
 		Integer count = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			
 			int index = 1;
 			for (Object param : args) {
@@ -177,7 +178,7 @@ public class BaseDAO {
 	}
 	
 	private <U extends ResultSetParser<U>> void getRowsInCollectionForSql(String sql, Class<U> c, Collection<U> results, Object... args) {
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			
 			int index = 1;
 			for (Object param : args) {
@@ -204,7 +205,7 @@ public class BaseDAO {
 	
 	@SuppressWarnings("unchecked")
 	private <U> void getRowsInCollectionOneColumnForSql(String sql, Class<U> c, String columnToReturn, Collection<U> results, Object... args) {
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			
 			int index = 1;
 			for (Object param : args) {
@@ -240,7 +241,7 @@ public class BaseDAO {
 	}
 	protected Integer insertRow(String sql, String idColumn, Object... args) throws NoSqlResultsException {
 		List<Integer> generatedIds = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			int index = 1;
 			for (Object param : args) {
 				if(param.getClass().equals(String.class))
@@ -278,7 +279,7 @@ public class BaseDAO {
 	}
 	protected Integer updateRow(String sql, Object... args) {
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			int index = 1;
 			for (Object param : args) {
 				if(param.getClass().equals(String.class))
@@ -298,7 +299,7 @@ public class BaseDAO {
 	}
 	protected Integer updateRowBatch(String sql, List<List<Object>> args){
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			int count = 0;
 			for (List<Object> params : args) {
 				int index = 1;
@@ -312,13 +313,13 @@ public class BaseDAO {
 				}
 				statement.addBatch();
 				
-				if(++count % BATCH_SIZE == 0)
+				if(++count % this.BATCH_SIZE == 0)
 					statement.executeBatch();
 				if(count % 1000000 == 0)
 					connection.commit();
 			}
 			
-			if(count % BATCH_SIZE != 0)
+			if(count % this.BATCH_SIZE != 0)
 				statement.executeBatch();
 			
 			connection.commit();

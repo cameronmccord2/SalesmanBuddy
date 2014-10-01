@@ -17,7 +17,7 @@ public class MediaForApp {
 	protected List<Captions> captions;
 	protected List<Popups> popups;
 	protected String bucketName;
-	protected Languages language;
+	protected List<Languages> languages;
 	
 	public static List<MediaForApp> parseResultSet(ResultSet resultSet){
     	List<MediaForApp> responses = new ArrayList<>();
@@ -32,6 +32,9 @@ public class MediaForApp {
 				response.setBucketId(resultSet.getInt("bucketId"));
 				response.setFilenameInBucket(resultSet.getString("filenameInBucket"));
 				response.setExtension(resultSet.getString("extension"));
+				response.setLanguages(new ArrayList<Languages>());
+				response.setCaptions(new ArrayList<Captions>());
+				response.setPopups(new ArrayList<Popups>());
 				responses.add(response);
 			}
 			resultSet.close();
@@ -42,7 +45,7 @@ public class MediaForApp {
     }
 
 	public Integer getId() {
-		return id;
+		return this.id;
 	}
 
 	public void setId(Integer id) {
@@ -50,7 +53,7 @@ public class MediaForApp {
 	}
 
 	public String getName() {
-		return name;
+		return this.name;
 	}
 
 	public void setName(String name) {
@@ -58,7 +61,7 @@ public class MediaForApp {
 	}
 
 	public String getFilename() {
-		return filename;
+		return this.filename;
 	}
 
 	public void setFilename(String filename) {
@@ -66,7 +69,7 @@ public class MediaForApp {
 	}
 
 	public Integer getType() {
-		return type;
+		return this.type;
 	}
 
 	public void setType(Integer type) {
@@ -74,7 +77,7 @@ public class MediaForApp {
 	}
 
 	public Integer getAudioLanguageId() {
-		return audioLanguageId;
+		return this.audioLanguageId;
 	}
 
 	public void setAudioLanguageId(Integer audioLanguageId) {
@@ -82,7 +85,7 @@ public class MediaForApp {
 	}
 
 	public Integer getBucketId() {
-		return bucketId;
+		return this.bucketId;
 	}
 
 	public void setBucketId(Integer bucketId) {
@@ -90,7 +93,7 @@ public class MediaForApp {
 	}
 
 	public String getExtension() {
-		return extension;
+		return this.extension;
 	}
 
 	public void setExtension(String extension) {
@@ -98,7 +101,7 @@ public class MediaForApp {
 	}
 
 	public String getFilenameInBucket() {
-		return filenameInBucket;
+		return this.filenameInBucket;
 	}
 
 	public void setFilenameInBucket(String filenameInBucket) {
@@ -110,26 +113,26 @@ public class MediaForApp {
 		final int prime = 31;
 		int result = 1;
 		result = prime * result
-				+ ((audioLanguageId == null) ? 0 : audioLanguageId.hashCode());
+				+ ((this.audioLanguageId == null) ? 0 : this.audioLanguageId.hashCode());
 		result = prime * result
-				+ ((bucketId == null) ? 0 : bucketId.hashCode());
+				+ ((this.bucketId == null) ? 0 : this.bucketId.hashCode());
 		result = prime * result
-				+ ((bucketName == null) ? 0 : bucketName.hashCode());
+				+ ((this.bucketName == null) ? 0 : this.bucketName.hashCode());
 		result = prime * result
-				+ ((captions == null) ? 0 : captions.hashCode());
+				+ ((this.captions == null) ? 0 : this.captions.hashCode());
 		result = prime * result
-				+ ((extension == null) ? 0 : extension.hashCode());
+				+ ((this.extension == null) ? 0 : this.extension.hashCode());
 		result = prime * result
-				+ ((filename == null) ? 0 : filename.hashCode());
+				+ ((this.filename == null) ? 0 : this.filename.hashCode());
 		result = prime
 				* result
-				+ ((filenameInBucket == null) ? 0 : filenameInBucket.hashCode());
-		result = prime * result + ((id == null) ? 0 : id.hashCode());
+				+ ((this.filenameInBucket == null) ? 0 : this.filenameInBucket.hashCode());
+		result = prime * result + ((this.id == null) ? 0 : this.id.hashCode());
 		result = prime * result
-				+ ((language == null) ? 0 : language.hashCode());
-		result = prime * result + ((name == null) ? 0 : name.hashCode());
-		result = prime * result + ((popups == null) ? 0 : popups.hashCode());
-		result = prime * result + ((type == null) ? 0 : type.hashCode());
+				+ ((this.languages == null) ? 0 : this.languages.hashCode());
+		result = prime * result + ((this.name == null) ? 0 : this.name.hashCode());
+		result = prime * result + ((this.popups == null) ? 0 : this.popups.hashCode());
+		result = prime * result + ((this.type == null) ? 0 : this.type.hashCode());
 		return result;
 	}
 
@@ -142,65 +145,65 @@ public class MediaForApp {
 		if (getClass() != obj.getClass())
 			return false;
 		MediaForApp other = (MediaForApp) obj;
-		if (audioLanguageId == null) {
+		if (this.audioLanguageId == null) {
 			if (other.audioLanguageId != null)
 				return false;
-		} else if (!audioLanguageId.equals(other.audioLanguageId))
+		} else if (!this.audioLanguageId.equals(other.audioLanguageId))
 			return false;
-		if (bucketId == null) {
+		if (this.bucketId == null) {
 			if (other.bucketId != null)
 				return false;
-		} else if (!bucketId.equals(other.bucketId))
+		} else if (!this.bucketId.equals(other.bucketId))
 			return false;
-		if (bucketName == null) {
+		if (this.bucketName == null) {
 			if (other.bucketName != null)
 				return false;
-		} else if (!bucketName.equals(other.bucketName))
+		} else if (!this.bucketName.equals(other.bucketName))
 			return false;
-		if (captions == null) {
+		if (this.captions == null) {
 			if (other.captions != null)
 				return false;
-		} else if (!captions.equals(other.captions))
+		} else if (!this.captions.equals(other.captions))
 			return false;
-		if (extension == null) {
+		if (this.extension == null) {
 			if (other.extension != null)
 				return false;
-		} else if (!extension.equals(other.extension))
+		} else if (!this.extension.equals(other.extension))
 			return false;
-		if (filename == null) {
+		if (this.filename == null) {
 			if (other.filename != null)
 				return false;
-		} else if (!filename.equals(other.filename))
+		} else if (!this.filename.equals(other.filename))
 			return false;
-		if (filenameInBucket == null) {
+		if (this.filenameInBucket == null) {
 			if (other.filenameInBucket != null)
 				return false;
-		} else if (!filenameInBucket.equals(other.filenameInBucket))
+		} else if (!this.filenameInBucket.equals(other.filenameInBucket))
 			return false;
-		if (id == null) {
+		if (this.id == null) {
 			if (other.id != null)
 				return false;
-		} else if (!id.equals(other.id))
+		} else if (!this.id.equals(other.id))
 			return false;
-		if (language == null) {
-			if (other.language != null)
+		if (this.languages == null) {
+			if (other.languages != null)
 				return false;
-		} else if (!language.equals(other.language))
+		} else if (!this.languages.equals(other.languages))
 			return false;
-		if (name == null) {
+		if (this.name == null) {
 			if (other.name != null)
 				return false;
-		} else if (!name.equals(other.name))
+		} else if (!this.name.equals(other.name))
 			return false;
-		if (popups == null) {
+		if (this.popups == null) {
 			if (other.popups != null)
 				return false;
-		} else if (!popups.equals(other.popups))
+		} else if (!this.popups.equals(other.popups))
 			return false;
-		if (type == null) {
+		if (this.type == null) {
 			if (other.type != null)
 				return false;
-		} else if (!type.equals(other.type))
+		} else if (!this.type.equals(other.type))
 			return false;
 		return true;
 	}
@@ -209,43 +212,35 @@ public class MediaForApp {
 	public String toString() {
 		StringBuilder builder = new StringBuilder();
 		builder.append("MediaForApp [id=");
-		builder.append(id);
+		builder.append(this.id);
 		builder.append(", name=");
-		builder.append(name);
+		builder.append(this.name);
 		builder.append(", filename=");
-		builder.append(filename);
+		builder.append(this.filename);
 		builder.append(", type=");
-		builder.append(type);
+		builder.append(this.type);
 		builder.append(", audioLanguageId=");
-		builder.append(audioLanguageId);
+		builder.append(this.audioLanguageId);
 		builder.append(", bucketId=");
-		builder.append(bucketId);
+		builder.append(this.bucketId);
 		builder.append(", extension=");
-		builder.append(extension);
+		builder.append(this.extension);
 		builder.append(", filenameInBucket=");
-		builder.append(filenameInBucket);
+		builder.append(this.filenameInBucket);
 		builder.append(", captions=");
-		builder.append(captions);
+		builder.append(this.captions);
 		builder.append(", popups=");
-		builder.append(popups);
+		builder.append(this.popups);
 		builder.append(", bucketName=");
-		builder.append(bucketName);
-		builder.append(", language=");
-		builder.append(language);
+		builder.append(this.bucketName);
+		builder.append(", languages=");
+		builder.append(this.languages);
 		builder.append("]");
 		return builder.toString();
 	}
 
-	public Languages getLanguage() {
-		return language;
-	}
-
-	public void setLanguage(Languages language) {
-		this.language = language;
-	}
-
 	public String getBucketName() {
-		return bucketName;
+		return this.bucketName;
 	}
 
 	public void setBucketName(String bucketName) {
@@ -253,7 +248,7 @@ public class MediaForApp {
 	}
 
 	public List<Captions> getCaptions() {
-		return captions;
+		return this.captions;
 	}
 
 	public void setCaptions(List<Captions> captions) {
@@ -261,10 +256,18 @@ public class MediaForApp {
 	}
 
 	public List<Popups> getPopups() {
-		return popups;
+		return this.popups;
 	}
 
 	public void setPopups(List<Popups> popups) {
 		this.popups = popups;
+	}
+
+	public List<Languages> getLanguages() {
+		return this.languages;
+	}
+
+	public void setLanguages(List<Languages> languages) {
+		this.languages = languages;
 	}
 }

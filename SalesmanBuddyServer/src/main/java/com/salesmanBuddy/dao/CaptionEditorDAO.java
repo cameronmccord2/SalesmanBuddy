@@ -56,7 +56,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private int getLatestCaptionVersionForMediaIdLanguageId(Integer mediaId, Integer languageId) {
 		final String sql = "SELECT MAX(version) AS maxValue FROM captions WHERE mediaId = ? AND languageId = ?";
 		Integer maxValue = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			statement.setInt(2, languageId);
 			
@@ -73,7 +73,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private int putCaption(Captions caption){
 		final String sql = "INSERT INTO captions (version, caption, mediaId, startTime, endTime, type, languageId) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setInt(1, caption.getVersion());
 			statement.setString(2, caption.getCaption());
 			statement.setInt(3, caption.getMediaId());
@@ -100,7 +100,7 @@ public class CaptionEditorDAO extends SharedDAO {
 		
 		final String sql = "SELECT * FROM captions WHERE mediaId = ? AND languageId = ? AND version = ? ORDER BY startTime";
 		List<Captions> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			statement.setInt(2, languageId);
 			statement.setInt(3, latestVersion);
@@ -125,7 +125,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private Media updateMedia(Media media){
 		final String sql = "UPDATE media SET name = ?, filename = ?, type = ?, audioLanguageId = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, media.getName());
 			statement.setString(2, media.getFilename());
 			statement.setInt(3, media.getType());
@@ -153,7 +153,7 @@ public class CaptionEditorDAO extends SharedDAO {
 		this.deleteCaptionsWithMediaId(mediaId);
 		final String sql = "DELETE FROM media WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			
 			i = statement.executeUpdate();
@@ -167,7 +167,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private int deleteCaptionsWithMediaId(int mediaId) {
 		final String sql = "DELETE FROM captions WHERE mediaId = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			
 			i = statement.executeUpdate();
@@ -181,7 +181,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private int deletePopupsWithMediaId(int mediaId) {
 		final String sql = "DELETE FROM popups WHERE mediaId = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 			
 			i = statement.executeUpdate();
@@ -195,7 +195,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private Media putNewMedia(Media media){
 		final String sql = "INSERT INTO media (name, filename, type, audioLanguageId) VALUES (?, ?, ?, ?)";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, media.getName());
 			statement.setString(2, media.getFilename());
 			statement.setInt(3, media.getType());
@@ -251,7 +251,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public Media getMediaById(int id) {
 		final String sql = "SELECT * FROM media WHERE id = ?";
 		List<Media> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, id);
 			
 			ResultSet resultSet = statement.executeQuery();
@@ -269,7 +269,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<Media> getAllMedia() {
 		final String sql = "SELECT * FROM media";
 		List<Media> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Media.parseResultSet(resultSet);
 			resultSet.close();
@@ -290,7 +290,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private int putLanguage(Languages language){
 		final String sql = "INSERT INTO languages (mtcId, code1, code2, name, mtcTaught, alternateName, nativeName) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, language.getMtcId());
 			statement.setString(2, language.getCode1());
 			statement.setString(3, language.getCode2());
@@ -315,7 +315,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<Popups> getAllPopups() {
 		final String sql = "SELECT * FROM popups ORDER BY startTime";
 		List<Popups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = Popups.parseResultSet(resultSet);
 			resultSet.close();
@@ -329,7 +329,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<Popups> getAllPopupsForLanguageId(int languageId) {
 		final String sql = "SELECT * FROM popups WHERE languageId = ? ORDER BY startTime";
 		List<Popups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, languageId);
 
 			ResultSet resultSet = statement.executeQuery();
@@ -345,7 +345,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<Popups> getAllPopupsForMediaId(int mediaId) {
 		final String sql = "SELECT * FROM popups WHERE mediaId = ? ORDER BY startTime";
 		List<Popups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, mediaId);
 
 			ResultSet resultSet = statement.executeQuery();
@@ -361,7 +361,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<Popups> getPopupsForMediaIdLanguageId(int languageId, int mediaId) {
 		final String sql = "SELECT * FROM popups WHERE languageId = ? AND mediaId = ? ORDER BY startTime";
 		List<Popups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, languageId);
 			statement.setInt(2, mediaId);
 			
@@ -383,7 +383,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public Popups newPopup(Popups popup) {
 		final String sql = "INSERT INTO popups (displayName, popupText, mediaId, languageId, startTime, endTime, filename) VALUES (?, ?, ?, ?, ?, ?, ?)";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, popup.getDisplayName());
 			statement.setString(2, popup.getPopupText());
 			statement.setInt(3, popup.getMediaId());
@@ -436,7 +436,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private Popups getPopupById(int popupId) {
 		final String sql = "SELECT * FROM popups WHERE id = ?";
 		List<Popups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
 			
 			ResultSet resultSet = statement.executeQuery();
@@ -454,7 +454,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public Popups updatePopup(Popups popup) {
 		final String sql = "UPDATE popups SET displayName = ?, popupText = ?, startTime = ?, endTime = ?, filename = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, popup.getDisplayName());
 			statement.setString(2, popup.getPopupText());
 			statement.setInt(3, popup.getStartTime());
@@ -475,7 +475,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public Popups updatePopupWithUploadedFile(String newFilename, Integer bucketId, String extension, int popupId){
 		final String sql = "UPDATE popups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, bucketId);
 			statement.setString(2, newFilename);
 			statement.setString(3, extension);
@@ -494,7 +494,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public int deletePopup(int popupId) {
 		final String sql = "DELETE FROM popups WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
 			
 			i = statement.executeUpdate();
@@ -508,7 +508,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public int deleteCaption(int captionId) {
 		final String sql = "DELETE FROM captions WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, captionId);
 			
 			i = statement.executeUpdate();
@@ -549,7 +549,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public BucketsCE getCaptionEditorBucket(){
 		final String sql = "SELECT * FROM bucketsCE";
 		List<BucketsCE> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = BucketsCE.parseResultSet(resultSet);
 			resultSet.close();
@@ -612,7 +612,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public Media updateMediaName(int mediaId, String name) {
 		final String sql = "UPDATE media SET name = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, name);
 			statement.setInt(2, mediaId);
 			
@@ -629,7 +629,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private Media updateMediaForFileUpload(String filenameInBucket, Integer bucketId, String extension, int mediaId) {
 		final String sql = "UPDATE media SET filenameInBucket = ?, bucketId = ?, extension = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, filenameInBucket);
 			statement.setInt(2, bucketId);
 			statement.setString(3, extension);
@@ -650,7 +650,7 @@ public class CaptionEditorDAO extends SharedDAO {
 		bucketName = this.createS3Bucket(bucketName, Regions.US_WEST_2);
 		int i = 0;
 		final String sql = "INSERT INTO bucketsCE (name) VALUES (?)";
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, bucketName);
 			statement.execute();
 			
@@ -674,7 +674,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<MediaForApp> getMediasForAppV1() {
 		final String sql = "SELECT * FROM media WHERE id IN (1062, 1064, 1063, 1049, 1048)";
 		List<MediaForApp> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = MediaForApp.parseResultSet(resultSet);
 			resultSet.close();
@@ -689,9 +689,9 @@ public class CaptionEditorDAO extends SharedDAO {
 			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
 			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
 			for(Languages l : ls){
-				m.setLanguage(l);
+				m.getLanguages().add(l);
 				if(l.getId().equals(m.getAudioLanguageId())){
-					m.setLanguage(l);
+					m.getLanguages().add(l);
 					break;
 				}
 			}
@@ -699,11 +699,11 @@ public class CaptionEditorDAO extends SharedDAO {
 		return results;
 	}
 	
-	public List<MediaForApp> getMediasForIds(String[] split) {
+	public List<MediaForApp> getMediasForIds(String[] ids, String[] languages) {
 		StringBuilder sql = new StringBuilder();
 		sql.append("SELECT * FROM media WHERE id IN (");
 		boolean addedOne = false;
-		for (String id : split) {
+		for (String id : ids) {
 			if(id.length() > 0){
 				sql.append(id);
 				addedOne = true;
@@ -716,10 +716,8 @@ public class CaptionEditorDAO extends SharedDAO {
 		sql.append(")");
 		
 		List<MediaForApp> results = new ArrayList<>();
-		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql.toString())){
-			ResultSet resultSet = statement.executeQuery();
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql.toString()); ResultSet resultSet = statement.executeQuery()){
 			results = MediaForApp.parseResultSet(resultSet);
-			resultSet.close();
 			
 		}catch(SQLException sqle){
 			throw new RuntimeException(sqle);
@@ -729,13 +727,13 @@ public class CaptionEditorDAO extends SharedDAO {
 		
 		for(MediaForApp m : results){
 			m.setBucketName(b.getName());
-			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
 			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
 			for(Languages l : ls){
-				m.setLanguage(l);
-				if(l.getId().equals(m.getAudioLanguageId())){
-					m.setLanguage(l);
-					break;
+				for (String lang : languages) {
+					if(l.getMtcId().equalsIgnoreCase(lang)){
+						m.getLanguages().add(l);
+						m.getCaptions().addAll(this.getAllCaptionsForMediaIdLanguageId(m.getId(), l.getId()));
+					}
 				}
 			}
 		}
@@ -745,7 +743,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<MediaForApp> getMediasForAppV2() {
 		final String sql = "SELECT * FROM media ORDER BY name";
 		List<MediaForApp> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = MediaForApp.parseResultSet(resultSet);
 			resultSet.close();
@@ -761,9 +759,9 @@ public class CaptionEditorDAO extends SharedDAO {
 			m.setCaptions(this.getAllCaptionsForMediaIdLanguageId(m.getId(), m.getAudioLanguageId()));
 			m.setPopups(this.getPopupsForMediaIdLanguageId(m.getAudioLanguageId(), m.getId()));
 			for(Languages l : ls){
-				m.setLanguage(l);
+				m.getLanguages().add(l);
 				if(l.getId().equals(m.getAudioLanguageId())){
-					m.setLanguage(l);
+					m.getLanguages().add(l);
 					break;
 				}
 			}
@@ -776,7 +774,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<SubPopups> getAllSubPopups() {
 		final String sql = "SELECT * FROM subpopups ORDER BY startTime";
 		List<SubPopups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			ResultSet resultSet = statement.executeQuery();
 			results = SubPopups.parseResultSet(resultSet);
 			resultSet.close();
@@ -790,7 +788,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public List<SubPopups> getAllSubPopupsForPopupId(Integer popupId) {
 		final String sql = "SELECT * FROM subpopups WHERE popupId = ? ORDER BY startTime";
 		List<SubPopups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, popupId);
 
 			ResultSet resultSet = statement.executeQuery();
@@ -817,7 +815,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public SubPopups updateSubPopup(SubPopups subPopup) {
 		final String sql = "UPDATE SubPopups SET popupText = ?, startTime = ?, endTime = ?, filename = ?, assetPosition = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setString(1, subPopup.getPopupText());
 			statement.setInt(2, subPopup.getStartTime());
 			statement.setInt(3, subPopup.getEndTime());
@@ -838,7 +836,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public int deleteSubPopup(int subPopupId) {
 		final String sql = "DELETE FROM subPopups WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, subPopupId);
 			
 			i = statement.executeUpdate();
@@ -852,7 +850,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public SubPopups newSubPopup(SubPopups subPopup) {
 		final String sql = "INSERT INTO subPopups (popupText, popupId, startTime, endTime, filename, assetPosition) VALUES (?, ?, ?, ?, ?, ?)";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)){
 			statement.setString(1, subPopup.getPopupText());
 			statement.setInt(2, subPopup.getPopupId());
 			statement.setInt(3, subPopup.getStartTime());
@@ -876,7 +874,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	private SubPopups getSubPopupById(int subPopupId) {
 		final String sql = "SELECT * FROM subPopups WHERE id = ?";
 		List<SubPopups> results = new ArrayList<>();
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, subPopupId);
 			
 			ResultSet resultSet = statement.executeQuery();
@@ -894,7 +892,7 @@ public class CaptionEditorDAO extends SharedDAO {
 	public SubPopups updateSubPopupWithUploadedFile(String newFilename, Integer bucketId, String extension, Integer subPopupId){
 		final String sql = "UPDATE subPopups SET bucketId = ?, filenameInBucket = ?, extension = ? WHERE id = ?";
 		int i = 0;
-		try(Connection connection = dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
+		try(Connection connection = this.dataSource.getConnection(); PreparedStatement statement = connection.prepareStatement(sql)){
 			statement.setInt(1, bucketId);
 			statement.setString(2, newFilename);
 			statement.setString(3, extension);

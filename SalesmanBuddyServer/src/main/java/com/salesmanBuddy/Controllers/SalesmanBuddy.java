@@ -914,20 +914,22 @@ public class SalesmanBuddy {
     @Path("medias")// works 10/13
     @GET
     @Produces({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
-    public Response getMediasForAppV1(@Context HttpServletRequest request, @DefaultValue("1") @QueryParam("version") int version, @QueryParam("ids") String ids){
+    public Response getMediasForAppV1(	@Context HttpServletRequest request, 
+    									@DefaultValue("1") @QueryParam("version") int version, 
+    									@QueryParam("ids") String ids,
+    									@QueryParam("languages") String languages){
     	if(ids != null && ids.length() > 0){
-    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForIds(ids.split(","))){};
+    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForIds(ids.split(","), languages.split(","))){};
 	    	return Response.ok(entity).build();
     	}
-    	throw new RuntimeException("ids: " + ids);
-//    	if(version == 1){
-//	    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV1()){};
-//	    	return Response.ok(entity).build();
-//    	}else if(version == 2){
-//    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV2()){};
-//	    	return Response.ok(entity).build();
-//    	}
-//    	return Response.status(400).build();
+    	if(version == 1){
+	    	GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV1()){};
+	    	return Response.ok(entity).build();
+    	}else if(version == 2){
+    		GenericEntity<List<MediaForApp>> entity = new GenericEntity<List<MediaForApp>>(this.captionEditorDAO.getMediasForAppV2()){};
+	    	return Response.ok(entity).build();
+    	}
+    	return Response.status(400).build();
     }
     
     @Path("mediaFile")
